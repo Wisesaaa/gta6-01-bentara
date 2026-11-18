@@ -8,7 +8,8 @@
 //   Staged AT the Kawasan Industri intersection (x = 111 arterial, z = 111):
 //   the chase runs SOUTH down the arterial and ends on the junction, camera
 //   centred over the road so no single facade can fill a third of the frame.
-//   Player car foreground bottom-left, helicopter prominent ahead-left.
+//   Player car foreground bottom-left, helicopter prominent over the road
+//   ahead of the player.
 // 2-drive: arterial at 26 m/s, 14 traffic cars, 1 star, mission HUD live.
 // 3-foot: on foot at Plaza Menara, pistol out, peds fleeing a real shot.
 // 4-story: marina, Pak Wira facing the player, his line in the dialogue box.
@@ -194,17 +195,29 @@ export function stageShot(name, game, atSeconds) {
         }
       }
     }
-    // Hero camera: 3/4 view, ~13 m up and ~32 m back from the player,
-    // looking south down the arterial with a slight eastward swing, so the
-    // player car sits foreground bottom-left, the helicopter hangs
-    // prominent ahead-left, and the junction fills the middle of the frame.
-    // High and close enough that the sightline to the player clears the
-    // intersection tree (v1.4 take 1 hid the car behind its crown).
+    // Helicopter staging (v1.5): the live hover sits ahead-left of the
+    // player, so from the chase camera it lands against the west facades
+    // as a dark blob, not a helicopter. Pull it over the road itself,
+    // closer and lower, nose on the player, so it reads as a helicopter
+    // with its spotlight beam on the player — big, lit, and in the open
+    // sky above the road instead of half-hidden against a building.
+    const heli = G.police.heli;
+    if (heli) {
+      heli.group.position.set(G.player.x + 8, 13, G.player.z - 16);
+      heli.group.lookAt(G.player.x, 0, G.player.z);
+    }
+    // Hero camera (v1.5): 3/4 view, ~11 m up and ~26 m back from the player,
+    // looking south-east down the arterial. The eastward swing puts the
+    // view axis well east of the player car, so the car projects into the
+    // lower-left quadrant just above and right of the minimap instead of
+    // dead centre — the foreground hero, bottom-left — while the heli sits
+    // upper-centre over the road and the junction fills the middle of the
+    // frame. Closer and lower than v1.4, so the car reads bigger too.
     // Render directly: G.draw() would reset the camera to the chase cam.
     G.setShotInput({ active: false });
     const cam = G.view.camera;
-    cam.position.set(G.player.x + 2, 13, G.player.z + 32);
-    cam.lookAt(G.player.x + 12, 2, G.player.z - 70);
+    cam.position.set(G.player.x + 2, 11, G.player.z + 26);
+    cam.lookAt(G.player.x + 26, 2.5, G.player.z - 60);
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };
@@ -241,17 +254,45 @@ export function stageShot(name, game, atSeconds) {
     G.hud.toast('BENTARA: DRY SEASON — 8 misi, 3 babak. Temui Pak Wira.', 600);
     G.draw();
     for (let i = 0; i < steps; i += 1) G.step(STEP);
+    // Foreground fill (v1.5): the wide angle left the bottom half as bare
+    // beige promenade. Pull four street props and four pedestrians into the
+    // near band between the camera and the player — crates, benches and
+    // planters the player walks past, plus people crossing — so the bottom
+    // of the frame is promenade life, not empty ground. They are staged
+    // after the sim steps, so their final positions are exactly the ones
+    // in the frame. None of them sits on the camera-to-Wira sightline, so
+    // Wira, the player and the MARINA sign stay clear.
+    const fgProps = [[-13, -161], [-6, -160], [-16, -164], [-10, -163]];
+    let placed = 0;
+    for (const prop of G.props.props) {
+      if (placed >= fgProps.length || prop.broken) continue;
+      const s = fgProps[placed];
+      prop.x = s[0];
+      prop.z = s[1];
+      prop.mesh.position.x = s[0];
+      prop.mesh.position.z = s[1];
+      placed += 1;
+    }
+    const fgPeds = [
+      [-14, -160.5, -2, -161], [-9, -159.5, -14, -162],
+      [-4, -162, -12, -159], [-15, -163, -8, -161],
+    ];
+    G.peds.peds.slice(0, fgPeds.length).forEach((p, k) => {
+      const s = fgPeds[k];
+      p.setPos(s[0], s[1]);
+      p.target = { x: s[2], z: s[3] };
+    });
     // Close, low camera: the player fills the foreground with his back to
     // us, Wira stands just beyond him, and the MARINA sign (on its posts
     // now), the water, the boats and the windowed skyline sit behind them.
-    // The wide v1.3 angle left the bottom half empty beige ground; this one
-    // keeps the promenade, the pier and the road in frame. Shot from the
-    // west so no building wall crosses the view, and far enough west that
-    // the player does not line up behind the sign's east post. (A closer
-    // camera clipped the MARINA sign out of the top of the frame, so the
-    // camera stays here.)
+    // A touch closer and lower than v1.4, so the player is a bigger
+    // foreground figure and the staged props read at the bottom of the
+    // frame. Shot from the west so no building wall crosses the view, and
+    // far enough west that the player does not line up behind the sign's
+    // east post. (A closer camera clipped the MARINA sign out of the top
+    // of the frame, so the camera stays here.)
     const cam = G.view.camera;
-    cam.position.set(-19, 3.6, -157);
+    cam.position.set(-18, 3.4, -158.5);
     cam.lookAt(-6, 1.3, -170);
     G.view.render();
     window.__shotReady = true;
