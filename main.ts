@@ -1,3 +1,6 @@
+// BENTARA: DRY SEASON — built in this recorded session: the kit starter's
+// Block Dodger is replaced by a three.js open-world crime game (game/),
+// with four deterministic screenshots (screenshots/, 1-heat.jpg is the cover).
 // A working gta6-01 entry (Node 22, standard library only): the game is this directory's
 // game/ folder, plain static files a desktop browser loads offline (game/index.html and its ES
 // modules, no library and no network request), and the program hands it in. It copies game/ and

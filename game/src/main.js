@@ -1,134 +1,104 @@
-// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
-// (several in a slow frame, none in a fast one), and the renderer paints what is there. The game
-// moves between four screens: title, play, paused and game over.
-//
-// ?seed=N fixes the falling pattern. ?shot=start|play|end (with &seed=N) stages that scene
-// instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
-import { BEST_KEY, LIVES, STEP } from './config.js';
-import { createRandom } from './random.js';
-import { createWorld, EVENT_HIT, EVENT_OVER } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
-import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// Boot: ?shot=heat|drive|foot|story&at=N&seed=N stages a screenshot scene;
+// otherwise the game runs its live loop with title, pause and busted screens.
+import { createGame } from './game.js';
 import { stageShot } from './shots.js';
-
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
-const MAX_FRAME = 0.25;
+import { loadGame, hasSave } from './save.js';
 
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
+const at = Number.parseFloat(params.get('at') ?? '');
 const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
+const seed = Number.isInteger(seedParam) ? seedParam : 7;
 
-const canvas = document.getElementById('game');
-const status = document.getElementById('status');
-const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
+const canvas = document.getElementById('view');
+const game = createGame(canvas, seed);
+const hud = game.hud;
+// Exposed for headless verification (mission test, triangle audit).
+window.__game = game;
 
-function readBest() {
-  try {
-    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
-  } catch {
-    return 0;
-  }
+function resize() {
+  game.view.resize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const TITLE_HTML = `
+  <div>
+    <h1>BENTARA</h1>
+    <h2>DRY SEASON — KOTA MILIK YANG BERANI</h2>
+    <p>Musim kemarau di Bentara. Delapan misi, tiga babak, satu kota yang retak
+    di bawah matahari jam empat sore. Temui <span class="key">Pak Wira</span> di
+    Marina, curi mobil, kabur dari polisi — dan jangan hancurkan terlalu banyak
+    kios, tagihannya nyata.</p>
+    <p><span class="key">WASD</span> jalan / mengemudi &nbsp;·&nbsp; <span class="key">SPACE</span> rem tangan
+    &nbsp;·&nbsp; <span class="key">F</span> masuk / curi mobil &nbsp;·&nbsp; <span class="key">E</span> interaksi
+    &nbsp;·&nbsp; <span class="key">KLIK</span> tembak &nbsp;·&nbsp; <span class="key">1 / 2</span> senjata
+    &nbsp;·&nbsp; <span class="key">R</span> radio &nbsp;·&nbsp; <span class="key">P</span> jeda</p>
+    <p id="titleSave"></p>
+    <p><span class="key">KLIK atau tekan ENTER untuk mulai</span></p>
+  </div>`;
+
+const PAUSED_HTML = `
+  <div>
+    <h1>JEDA</h1>
+    <h2>BENTARA MENUNGGU</h2>
+    <p>Progress tersimpan otomatis tiap 20 detik, dan di Safehouse Timur.</p>
+    <p><span class="key">P atau ENTER</span> untuk lanjut &nbsp;·&nbsp; <span class="key">R</span> radio</p>
+  </div>`;
+
+function startGame() {
+  game.audio.unlock();
+  game.setMode('play');
+  hud.hideScreen();
+  hud.announce('Bermain. Temui Pak Wira di Marina Bentara.');
+  hud.toast('Misi 1/8: Temui Pak Wira di Marina Bentara.', 5);
 }
 
-function saveBest(value) {
-  try {
-    window.localStorage.setItem(BEST_KEY, String(value));
-  } catch {
-    // Storage can be off (private windows): the best score then lasts this visit only.
+if (shot) {
+  stageShot(shot, game, Number.isFinite(at) ? at : undefined);
+} else {
+  const saved = loadGame();
+  game.setMode('title');
+  hud.showScreen(TITLE_HTML);
+  const saveNote = document.getElementById('titleSave');
+  if (saveNote && saved) {
+    saveNote.innerHTML = `Save ditemukan: <span class="key">$${saved.cash} · Misi ${saved.missionIndex + 1}/8</span> — lanjut otomatis dari save.`;
+    game.applySave(saved);
   }
-}
-
-function runShot(name) {
-  const scene = stageShot(name, world);
-  let painted = 0;
-  function paint() {
-    renderer.draw(world.state, scene.screen, scene.best);
-    painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
-    else window.__shotReady = true;
-  }
-  requestAnimationFrame(paint);
-}
-
-function runGame() {
-  const input = createInput(canvas);
-  let screen = SCREEN_TITLE;
-  let best = readBest();
-  let accumulator = 0;
   let last = performance.now();
-
-  // Screen readers (and anyone watching the page's text) hear the screen changes and each hit.
-  function announce(message) {
-    status.textContent = message;
-  }
-
-  function startGame() {
-    world.reset();
-    accumulator = 0;
-    screen = SCREEN_PLAY;
-    announce(`Playing. ${LIVES} lives.`);
-  }
-
-  function endGame() {
-    screen = SCREEN_OVER;
-    if (world.state.score > best) {
-      best = world.state.score;
-      saveBest(best);
-    }
-    announce(`Game over. Score ${world.state.score}. Best ${best}.`);
-  }
-
-  function handleActions() {
-    const actions = input.takeActions();
-    if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER)) startGame();
-    else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    } else if (actions & (ACTION_PAUSE | ACTION_CONFIRM) && screen === SCREEN_PAUSED) {
-      screen = SCREEN_PLAY;
-      announce('Playing.');
-    }
-  }
-
-  function step() {
-    if (screen === SCREEN_TITLE) {
-      world.step(STEP, 0, true);
-      return;
-    }
-    const events = world.step(STEP, input.direction(), false);
-    if (events & EVENT_OVER) endGame();
-    else if (events & EVENT_HIT) announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);
-  }
-
+  let acc = 0;
   function frame(now) {
     requestAnimationFrame(frame);
-    accumulator += Math.min((now - last) / 1000, MAX_FRAME);
+    acc += Math.min((now - last) / 1000, 0.25);
     last = now;
-    handleActions();
-    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
-      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
-        step();
-        accumulator -= STEP;
+    const mode = game.state.mode;
+    if (mode === 'title') {
+      const actions = game.input.takeActions();
+      if (actions & 1) startGame();
+      while (acc >= 1 / 60) { game.step(1 / 60); acc -= 1 / 60; }
+      game.view.camera.position.set(120, 60, -160);
+      game.view.camera.lookAt(0, 0, 0);
+      game.view.render();
+    } else if (mode === 'paused') {
+      // Actions are consumed here, not in game.step, so a press is never lost.
+      const actions = game.input.takeActions();
+      if (actions & 3) {
+        game.setMode('play');
+        hud.hideScreen();
       }
-    } else {
-      accumulator = 0;
+      game.draw();
+    } else if (mode === 'play') {
+      // game.step consumes the actions itself (pause included).
+      while (acc >= 1 / 60) { game.step(1 / 60); acc -= 1 / 60; }
+      if (game.state.mode === 'paused') hud.showScreen(PAUSED_HTML);
+      else game.draw();
     }
-    renderer.draw(world.state, screen, best);
   }
-
-  // Leaving the tab pauses a running game rather than letting blocks fall unseen.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
+    if (document.hidden && game.state.mode === 'play') {
+      game.setMode('paused');
+      hud.showScreen(PAUSED_HTML);
     }
   });
-
-  announce('Block Dodger. Press Space or click to start.');
   requestAnimationFrame(frame);
 }
-
-if (shot) runShot(shot);
-else runGame();
