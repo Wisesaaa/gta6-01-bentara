@@ -8,6 +8,8 @@ const KINDS = {
   stall: { label: 'Kios pasar', price: 40, w: 2.6, h: 2.4, d: 2.0, color: 0xb85c38 },
   hydrant: { label: 'Hidran', price: 25, w: 0.6, h: 0.9, d: 0.6, color: 0xc23b2e },
   sign: { label: 'Papan nama', price: 60, w: 2.2, h: 1.4, d: 0.25, color: 0x3f5a78 },
+  bench: { label: 'Bangku taman', price: 20, w: 1.9, h: 0.9, d: 0.65, color: 0x8a6a3f },
+  planter: { label: 'Pot tanaman', price: 10, w: 1.0, h: 0.8, d: 1.0, color: 0x9a6b4a },
 };
 
 export function createProps(scene, city, rng) {

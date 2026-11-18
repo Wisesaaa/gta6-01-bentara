@@ -74,12 +74,12 @@ export function createHud() {
     const s = 180 / 420;
     const px = (x) => 90 + x * s;
     const py = (z) => 90 - z * s;
-    mapCtx.fillStyle = '#cfc4a4';
+    mapCtx.fillStyle = '#e8e4da';
     mapCtx.fillRect(0, 0, 180, 180);
     // Marina water along the south edge.
-    mapCtx.fillStyle = '#5e8f96';
+    mapCtx.fillStyle = '#1f6b74';
     mapCtx.fillRect(0, py(-194), 180, 180 - py(-194));
-    mapCtx.fillStyle = '#b5ab90';
+    mapCtx.fillStyle = '#cfc9bd';
     for (const c of roadLines()) {
       mapCtx.fillRect(0, py(c) - 4, 180, 8);
       mapCtx.fillRect(px(c) - 4, 0, 8, 180);

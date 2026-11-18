@@ -37,7 +37,7 @@ export function createGame(canvas, seed = 7) {
 
   const state = {
     seed, time: 0, cash: 250, rep: 0, heat: 0, day: 1,
-    mode: 'title', // title | play | paused | over | busted
+    mode: 'title', // title | play | paused | over | caught
     saveTimer: 0, seenTimer: 0, respawnTimer: 0, down: false,
     interactPressed: false,
   };

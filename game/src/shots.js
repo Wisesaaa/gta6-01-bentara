@@ -50,6 +50,27 @@ export function stageShot(name, game, atSeconds) {
     G.player.car.heading = 0;
     G.player.car.speed = 26;
     G.addHeat(1);
+    // Pull traffic onto the player's arterial so the drive shot actually
+    // shows it: same-direction cars ahead in the right lane, oncoming cars
+    // in the left lane. The other cars stay scattered on the grid.
+    const arterial = [
+      { lane: 41.5, z: -80, dir: 1 }, { lane: 41.5, z: -30, dir: 1 },
+      { lane: 41.5, z: 20, dir: 1 }, { lane: 41.5, z: 70, dir: 1 },
+      { lane: 32.5, z: -55, dir: -1 }, { lane: 32.5, z: 0, dir: -1 },
+      { lane: 32.5, z: 50, dir: -1 }, { lane: 32.5, z: 100, dir: -1 },
+    ];
+    G.traffic.cars.slice(0, arterial.length).forEach((c, k) => {
+      const a = arterial[k];
+      c.axis = 'z';
+      c.lane = a.lane;
+      c.dir = a.dir;
+      c.x = a.lane;
+      c.z = a.z;
+      c.heading = a.dir > 0 ? 0 : Math.PI;
+      c.cruise = 10 + (k % 3) * 2;
+      c.speed = c.cruise;
+      c.sync();
+    });
     G.hud.toast('', 0.01);
     G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: false });
     G.draw();

@@ -1,5 +1,5 @@
 // Boot: ?shot=heat|drive|foot|story&at=N&seed=N stages a screenshot scene;
-// otherwise the game runs its live loop with title, pause and busted screens.
+// otherwise the game runs its live loop with title, pause and caught screens.
 import { createGame } from './game.js';
 import { stageShot } from './shots.js';
 import { loadGame, hasSave } from './save.js';
