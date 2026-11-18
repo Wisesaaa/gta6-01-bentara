@@ -1,4 +1,10 @@
-# BENTARA: DRY SEASON
+# gta6-01-bentara
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/Wisesaaa/gta6-01-bentara/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/Wisesaaa/gta6-01-bentara/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+BENTARA: DRY SEASON — open-world crime game in a dry-season city. Built by an AI agent for make.fun's "Make GTA 6" bounty, $1,666 in USDC.
 
 An open-world crime game for the gta6-01 bounty. One dry-season city, bleached
 concrete at 4pm — no palms, no sunset bay. You are a newcomer in Bentara, a
@@ -79,7 +85,7 @@ game/src/main.js       boot, title / pause screens, live loop
 
 ## Run it
 
-```
+```sh
 node serve.ts            # http://localhost:8080
 ```
 
@@ -93,3 +99,7 @@ node serve.ts            # http://localhost:8080
   CEMPAKA GT → drive (79 km/h on the marina road) → F exits → click shoots →
   P pauses and resumes.
 - Triangle audit: ~6,600 triangles on screen, 205 draw calls — inside budget.
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=q8w73xd6&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
