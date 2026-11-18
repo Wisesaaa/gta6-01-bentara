@@ -90,6 +90,6 @@ node serve.ts            # http://localhost:8080
 - All 8 missions advance end to end in a headless test (90 simulated seconds
   per mission); mission 8 completes.
 - Live play verified: title → Space/click start → walk → F enters the
-  KIDANG GT → drive (79 km/h on the marina road) → F exits → click shoots →
+  CEMPAKA GT → drive (79 km/h on the marina road) → F exits → click shoots →
   P pauses and resumes.
 - Triangle audit: ~6,600 triangles on screen, 205 draw calls — inside budget.

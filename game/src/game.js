@@ -72,10 +72,10 @@ export function createGame(canvas, seed = 7) {
   addNpc('SARI', 'SR', 'shophouseRow', 0x8a4a6b);
   addNpc('DEDI', 'DD', 'industrialYard', 0x4a6b8a);
 
-  // Parked cars, including the player's own KIDANG GT on the marina road,
+  // Parked cars, including the player's own CEMPAKA GT on the marina road,
   // nose east so driving away needs no three-point turn past the ruko walls.
   const parked = [];
-  const playerCar = new Car(view.scene, rng, { name: 'KIDANG GT', x: 10, z: -180.5, heading: Math.PI / 2, color: 0xb8442f });
+  const playerCar = new Car(view.scene, rng, { name: 'CEMPAKA GT', x: 10, z: -180.5, heading: Math.PI / 2, color: 0xb8442f });
   parked.push(playerCar);
   parked.push(new Car(view.scene, rng, { name: 'Sedan Tua', x: 118, z: 66, heading: 1.2, color: 0x4a4a42 }));
   parked.push(new Car(view.scene, rng, { name: 'Pickup', x: 44, z: 88, heading: -0.6, color: 0x2f6b4f }));

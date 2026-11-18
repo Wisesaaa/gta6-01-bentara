@@ -164,7 +164,7 @@ export function createHud() {
       els.condFill.style.width = `${Math.round(P.health)}%`;
     } else {
       els.speedNum.innerHTML = `${Math.round(P.speedKmh)} <small>KM/H</small>`;
-      els.vehicleName.textContent = P.car ? P.car.name.toUpperCase() : 'KIDANG GT';
+      els.vehicleName.textContent = P.car ? P.car.name.toUpperCase() : 'CEMPAKA GT';
       els.condFill.style.width = `${Math.round(P.car ? P.car.health : 100)}%`;
     }
     songTimer -= dt;

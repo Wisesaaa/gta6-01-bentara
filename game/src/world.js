@@ -514,6 +514,26 @@ export function createView(canvas, city) {
     scene.add(trim);
   }
 
+  // The tower (city.tower) gets its own facade treatment on top of the
+  // shared window grid: dark corner fins down all four edges and two
+  // recessed horizontal bands, so the tallest slab in the city reads as a
+  // real tower from the plaza and the arterials instead of a bare box.
+  if (city.tower) {
+    const t = city.tower;
+    const finMat = new THREE.MeshLambertMaterial({ color: 0x5f6b62 });
+    for (const [fx, fz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.6, t.h, 0.6), finMat);
+      fin.position.set(t.x + fx * (t.w / 2 - 0.1), t.h / 2, t.z + fz * (t.d / 2 - 0.1));
+      fin.castShadow = true;
+      scene.add(fin);
+    }
+    for (const by of [t.h * 0.5, t.h - 4]) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(t.w + 0.5, 0.6, t.d + 0.5), finMat);
+      band.position.set(t.x, by, t.z);
+      scene.add(band);
+    }
+  }
+
   // Signs with real names, big enough to read at thumbnail size.
   // Brick-red is the one warm accent; the marina sign stays deep teal.
   const signBentara = textSign('BENTARA', 14, 3.2, '#c0392b', '#ffd75e');
@@ -525,6 +545,15 @@ export function createView(canvas, city) {
   const signMarina = textSign('MARINA', 12, 2.6, '#2f3e46', '#ffffff');
   signMarina.position.set(-6, 9, -178);
   scene.add(signMarina);
+  // Two posts under the MARINA sign, down to the promenade: the sign used
+  // to float with nothing holding it up.
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x3a3a38 });
+  for (const px of [-11, -1]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.35, 7.7, 0.35), postMat);
+    post.position.set(px, 3.85, -178);
+    post.castShadow = true;
+    scene.add(post);
+  }
   // Low plaza billboard, readable from the ground at the foot-shot distance.
   // It faces south (toward the player approaching from the plaza's south edge).
   const signPlaza = textSign('PLAZA MENARA', 9, 3, '#c0392b', '#ffd75e');
@@ -562,13 +591,51 @@ export function createView(canvas, city) {
   }
 
   // Distant skyline: flat silhouettes beyond the city so the horizon is a city.
+  // Each slab gets a window grid on the face toward the city — bare grey
+  // slabs read as unfinished boxes from the marina, lit and dark windows
+  // read as a far skyline. Windows are 2 triangles each, ~1.5k in all.
   const skyMat = new THREE.MeshLambertMaterial({ color: PALETTE.skyline });
   const skyline = [[-260, -320, 60, 90], [-120, -330, 80, 70], [40, -330, 55, 110], [180, -320, 70, 80], [300, -300, 60, 95], [-320, 100, 55, 80], [320, 120, 60, 70]];
+  const skyWin = [];
+  const skyHash = (x, z) => {
+    const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+    return h - Math.floor(h);
+  };
   for (const [x, z, w, h] of skyline) {
     const s = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.6), skyMat);
     s.position.set(x, h / 2, z);
     scene.add(s);
+    // The face toward the city centre: +z for the southern slabs, +x for the
+    // western one, -x for the eastern one. Columns every ~7 m, rows every ~8 m.
+    const towardCity = Math.abs(x) > 200 ? (x < 0 ? 'px' : 'nx') : 'pz';
+    const faceLen = towardCity === 'pz' ? w : w * 0.6;
+    const cols = Math.max(2, Math.floor(faceLen / 7));
+    const colStep = faceLen / (cols + 1);
+    for (let ci = 0; ci < cols; ci += 1) {
+      const along = -faceLen / 2 + colStep * (ci + 1);
+      for (let y = 8; y < h - 4; y += 8) {
+        const r = skyHash(x + ci * 7, z + y * 3);
+        if (r < 0.35) continue;
+        const lit = r > 0.88;
+        const tone = lit ? 0xffc46b : 0x2f4a55;
+        if (towardCity === 'pz') skyWin.push({ x: x + along, y, z: z + w * 0.3 + 0.15, rotY: 0, tone });
+        else if (towardCity === 'px') skyWin.push({ x: x + w * 0.3 + 0.15, y, z: z + along, rotY: Math.PI / 2, tone });
+        else skyWin.push({ x: x - w * 0.3 - 0.15, y, z: z + along, rotY: -Math.PI / 2, tone });
+      }
+    }
   }
+  const skyWinMesh = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(2.6, 3.2),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    Math.max(1, skyWin.length),
+  );
+  skyWin.forEach((w, i) => {
+    const rotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, w.rotY, 0));
+    m4.compose(new THREE.Vector3(w.x, w.y, w.z), rotQ, new THREE.Vector3(1, 1, 1));
+    skyWinMesh.setMatrixAt(i, m4);
+    skyWinMesh.setColorAt(i, col.setHex(w.tone));
+  });
+  scene.add(skyWinMesh);
 
   // Dry-season trees (NOT palms): thin trunks, flat dusty-olive crowns,
   // planted along the road edges where the sidewalk meets the blocks.
