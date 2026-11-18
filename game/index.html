@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BENTARA: DRY SEASON</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #c9dde3; font-family: system-ui, "Segoe UI", sans-serif; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e8a06a; font-family: system-ui, "Segoe UI", sans-serif; }
   #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
   .panel { background: rgba(20,18,12,.58); border-radius: 8px; padding: 8px 12px; }
@@ -19,13 +19,16 @@
   #repRow { margin-top: 6px; font-size: 12px; }
   #repBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 3px; overflow: hidden; }
   #repFill { height: 100%; width: 0%; background: #7dd87d; }
+  #collectText, #taxiText { display: block; margin-top: 5px; font-size: 12px; color: #ffd75e; }
   /* Cash + stars, top-right. */
   #cashBox { position: absolute; top: 12px; right: 12px; font-size: 22px; font-weight: 700; text-align: right; }
   #cashBox small { display: block; font-size: 12px; font-weight: 400; opacity: .85; }
   #starsBox { font-size: 24px; letter-spacing: 4px; color: #ffd75e; }
   #starsBox .off { color: rgba(255,255,255,.35); }
+  #seenFlash { font-size: 13px; letter-spacing: 2px; color: #ff6a5a; font-weight: 700; display: none; animation: blink 0.7s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
   /* Police response list, left edge under the mission panel. */
-  #policeBox { position: absolute; top: 196px; left: 12px; width: 250px; font-size: 12px; display: none; }
+  #policeBox { position: absolute; top: 230px; left: 12px; width: 250px; font-size: 12px; display: none; }
   #policeBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
   #policeBox .unit { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
   #policeBox .unit b { color: #ffd75e; }
@@ -35,25 +38,34 @@
   #billBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ffb14d; }
   #billBox .row { display: flex; justify-content: space-between; gap: 12px; }
   #billBox .total { border-top: 1px solid rgba(255,255,255,.4); margin-top: 4px; padding-top: 4px; font-weight: 700; }
-  /* Minimap + location name, bottom-left. */
+  /* Circular radar minimap + location name, bottom-left. */
   #mapWrap { position: absolute; bottom: 34px; left: 12px; text-align: center; }
-  #minimap { border-radius: 8px; border: 2px solid rgba(255,255,255,.35); background: #cfc4a4; display: block; }
+  #minimap { border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: #10161d; display: block; box-shadow: 0 0 0 4px rgba(16,22,29,.55); }
   #locName { font-size: 13px; letter-spacing: 2px; margin-top: 4px; }
-  /* Character portrait + dialogue, bottom-centre. */
-  #dialogue { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); width: 460px; display: none; align-items: center; gap: 10px; }
-  #portrait { width: 56px; height: 56px; border-radius: 50%; background: #7a5c2e; border: 3px solid #ffd75e; color: #fff; font-size: 22px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+  /* Character portrait + dialogue, bottom-centre — raised clear of the
+     controls hint at the very bottom. */
+  #dialogue { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); width: 460px; display: none; align-items: center; gap: 10px; }
+  #portraitCanvas { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #ffd75e; flex: none; background: #7a5c2e; }
   #dialogueText b { display: block; font-size: 13px; color: #ffd75e; letter-spacing: 1px; }
   #dialogueText span { font-size: 14px; font-style: italic; }
-  #toast { position: absolute; bottom: 148px; left: 50%; transform: translateX(-50%); font-size: 17px; font-style: italic; max-width: 640px; text-align: center; }
-  /* Speed + named vehicle + radio, bottom-right. */
+  #toast { position: absolute; bottom: 168px; left: 50%; transform: translateX(-50%); font-size: 17px; font-style: italic; max-width: 640px; text-align: center; }
+  /* Score popups, centre-right above the gauge. */
+  #popups { position: absolute; right: 190px; bottom: 190px; width: 260px; text-align: right; }
+  .popup { margin-bottom: 6px; transition: opacity .4s, transform .4s; }
+  .popup b { display: block; font-size: 22px; letter-spacing: 1px; color: #ffd75e; }
+  .popup span { font-size: 13px; opacity: .9; }
+  .popup-collect b { color: #7dd87d; }
+  .popup-fare b { color: #2fd8c8; }
+  .popup-race b { color: #ff9d5c; }
+  .popup-out { opacity: 0; transform: translateY(-14px); }
+  /* Speed gauge + named vehicle + radio + weapon strip, bottom-right. */
   #driveBox { position: absolute; bottom: 34px; right: 12px; text-align: right; min-width: 230px; }
-  #speedNum { font-size: 34px; font-weight: 700; line-height: 1; }
-  #speedNum small { font-size: 14px; font-weight: 400; }
+  #gauge { display: block; margin-left: auto; }
   #vehicleName { font-size: 13px; letter-spacing: 1px; color: #ffd75e; }
-  #condBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
-  #condFill { height: 100%; width: 100%; background: #7dd87d; }
-  #radioLine { font-size: 12px; opacity: .95; }
+  #radioLine { font-size: 12px; opacity: .95; max-width: 260px; margin-left: auto; }
   #weaponBox { font-size: 13px; margin-top: 4px; }
+  #weaponBox .slot { display: inline-block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 5px; padding: 2px 7px; margin-left: 4px; }
+  #weaponBox .slot.active { border-color: #ffd75e; color: #ffd75e; }
   #weaponBox .locked { opacity: .45; }
   #prompt { position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); font-size: 15px; background: rgba(20,18,12,.65); padding: 6px 14px; border-radius: 20px; display: none; }
   #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 12px; opacity: .85; white-space: nowrap; }
@@ -82,23 +94,25 @@
     <div id="missionStage"><div id="missionStageFill"></div></div>
     <span id="missionNext">NEXT: Antar paket ke Kios Baris Utara</span>
     <div id="repRow"><span id="repText">REP 1 · ANAK BARU (0/400)</span><div id="repBar"><div id="repFill"></div></div></div>
+    <span id="collectText">KOLEKSI 0/24</span>
+    <span id="taxiText">TAKSI: 0 trip</span>
   </div>
-  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="cashText">$0</div><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small></div>
+  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small></div>
   <div id="policeBox" class="panel"><h3>RESPON POLISI</h3><div id="policeRows"></div></div>
   <div id="billBox" class="panel"><h3>TAGIHAN KERUSAKAN</h3><div id="billRows"></div><div class="row total"><span>TOTAL</span><span id="billTotal">$0</span></div></div>
-  <div id="mapWrap"><canvas id="minimap" width="180" height="180"></canvas><div id="locName">MARINA BENTARA</div></div>
-  <div id="dialogue" class="panel"><div id="portrait">PW</div><div id="dialogueText"><b>PAK WIRA · BOS MARINA</b><span id="dialogueLine"></span></div></div>
+  <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div></div>
+  <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="64" height="64"></canvas><div id="dialogueText"><b>PAK WIRA · BOS MARINA</b><span id="dialogueLine"></span></div></div>
   <div id="toast"></div>
+  <div id="popups"></div>
   <div id="prompt"></div>
   <div id="driveBox" class="panel">
-    <div id="speedNum">0 <small>KM/H</small></div>
+    <canvas id="gauge" width="150" height="150"></canvas>
     <div id="vehicleName">CEMPAKA GT</div>
-    <div id="condBar"><div id="condFill"></div></div>
     <div id="radioLine">RADIO KEMARAU 92.4 · Musim Kering — Senja Bentara</div>
     <div id="weaponBox"></div>
   </div>
   <div id="crosshair"></div>
-  <div id="controlsHint">WASD jalan/mengemudi · SPACE rem tangan · F masuk/curi mobil · E interaksi · KLIK tembak · 1/2 senjata · R radio · P jeda</div>
+  <div id="controlsHint">WASD jalan/mengemudi · SPACE rem tangan · F masuk/curi mobil · E interaksi · KLIK tembak · 1/2/3 senjata · R radio · P jeda</div>
 </div>
 <div id="screen"></div>
 <p id="status" role="status" aria-live="polite"></p>

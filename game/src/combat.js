@@ -1,6 +1,11 @@
 // Shooting: one ray, tested in order against building AABBs (City.solids),
 // humans (upright cylinders) and cars (ground circles). Bullets never pass
 // through a tower — the nearest solid blocks the shot first.
+//
+// Every shot also flashes: a bright muzzle sprite at the gun and a short
+// burst of orange sparks where the round lands, so a hit reads even at
+// golden-hour distances. Both effects are pooled meshes with a life timer,
+// stepped alongside the tracers.
 import * as THREE from 'three';
 import { WEAPONS } from './config.js';
 import { rr } from './rng.js';
@@ -31,7 +36,11 @@ function rayAabb(ox, oy, oz, dx, dy, dz, minX, maxX, minZ, maxZ, h) {
 
 export function createCombat(scene, city, rng) {
   const tracers = [];
+  const flashes = [];
+  const sparks = [];
   const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.9 });
+  const flashMat = new THREE.MeshBasicMaterial({ color: 0xffd75e, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+  const sparkMat = new THREE.MeshBasicMaterial({ color: 0xff9d5c, transparent: true, opacity: 1 });
 
   function tracer(from, to) {
     const dir = new THREE.Vector3().subVectors(to, from);
@@ -41,6 +50,29 @@ export function createCombat(scene, city, rng) {
     mesh.lookAt(to);
     scene.add(mesh);
     tracers.push({ mesh, life: 0.09 });
+  }
+
+  // A star-shaped flash at the muzzle, gone in 50 ms.
+  function muzzleFlash(origin) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), flashMat.clone());
+    mesh.position.copy(origin);
+    mesh.rotation.set(rr(rng, 0, Math.PI), rr(rng, 0, Math.PI), rr(rng, 0, Math.PI));
+    scene.add(mesh);
+    flashes.push({ mesh, life: 0.05 });
+  }
+
+  // Six tiny sparks that fly out from the impact point and fall.
+  function impactSparks(at) {
+    for (let i = 0; i < 6; i += 1) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), sparkMat.clone());
+      mesh.position.copy(at);
+      scene.add(mesh);
+      sparks.push({
+        mesh,
+        vx: rr(rng, -3, 3), vy: rr(rng, 1, 4), vz: rr(rng, -3, 3),
+        life: 0.25,
+      });
+    }
   }
 
   function step(dt) {
@@ -53,6 +85,29 @@ export function createCombat(scene, city, rng) {
         tracers.splice(i, 1);
       }
     }
+    for (let i = flashes.length - 1; i >= 0; i -= 1) {
+      const f = flashes[i];
+      f.life -= dt;
+      f.mesh.material.opacity = Math.max(0, f.life / 0.05) * 0.95;
+      f.mesh.scale.multiplyScalar(1 + dt * 6);
+      if (f.life <= 0) {
+        scene.remove(f.mesh);
+        flashes.splice(i, 1);
+      }
+    }
+    for (let i = sparks.length - 1; i >= 0; i -= 1) {
+      const s = sparks[i];
+      s.life -= dt;
+      s.mesh.position.x += s.vx * dt;
+      s.mesh.position.y += s.vy * dt;
+      s.mesh.position.z += s.vz * dt;
+      s.vy -= 9 * dt;
+      s.mesh.material.opacity = Math.max(0, s.life / 0.25);
+      if (s.life <= 0) {
+        scene.remove(s.mesh);
+        sparks.splice(i, 1);
+      }
+    }
   }
 
   // Fire `weapon` from `origin` along `dir`. `targets` = { humans: [], cars: [] }.
@@ -60,6 +115,7 @@ export function createCombat(scene, city, rng) {
   function shoot(origin, dir, weaponName, targets) {
     const w = WEAPONS[weaponName] || WEAPONS.pistol;
     const pellets = w.pellets || 1;
+    muzzleFlash(origin);
     let best = null;
     for (let p = 0; p < pellets; p += 1) {
       const spread = w.spread;
@@ -105,6 +161,7 @@ export function createCombat(scene, city, rng) {
       }
       const hitAt = new THREE.Vector3().copy(origin).addScaledVector(d, bestT);
       tracer(origin, hitAt);
+      if (hit) impactSparks(hitAt);
       if (hit && (!best || hit.dist < best.dist)) best = { ...hit, at: hitAt };
     }
     return best;

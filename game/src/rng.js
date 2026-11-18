@@ -22,3 +22,15 @@ export function pick(rng, list) {
 export function chance(rng, p) {
   return rng() < p;
 }
+// Weighted pick: entries are [value, weight] pairs; the total weight is
+// summed once and a single roll selects the entry. Used for traffic kinds.
+export function pickWeighted(rng, entries) {
+  let total = 0;
+  for (const [, w] of entries) total += w;
+  let roll = rng() * total;
+  for (const [value, w] of entries) {
+    roll -= w;
+    if (roll <= 0) return value;
+  }
+  return entries[entries.length - 1][0];
+}

@@ -1,13 +1,21 @@
 // BENTARA: DRY SEASON — the game itself. Wires every system together and owns
-// the one fixed step: input, player, traffic, peds, police, missions, heat,
-// bill, autosave, audio and HUD, in that order. Nothing here is posed: the
-// screenshots reach their states through these same calls.
+// the one fixed step: input, player, traffic, peds, police, missions, taxi,
+// race, collectibles, heat, bill, autosave, audio and HUD, in that order.
+// Nothing here is posed: the screenshots reach their states through these
+// same calls.
+//
+// The step order is the game's contract: the player moves first, then the
+// world reacts (traffic brakes, peds flee, police pursue), then the jobs
+// (missions, taxi, race, collectibles) pay out, then heat decays and the
+// HUD reads the finished state. A system that needs the player's new
+// position must sit after player.step; a system that pays must sit after
+// the world that earned it.
 import * as THREE from 'three';
 import { mulberry32, rr } from './rng.js';
-import { STEP, WEAPONS, SHOTGUN_SHELLS_PRICE } from './config.js';
+import { STEP, WEAPONS, SHOTGUN_SHELLS_PRICE, STUNTS, COLLECTIBLES, CHARACTERS } from './config.js';
 import { buildCity, loc, LOCATIONS } from './city.js';
 import { createView } from './world.js';
-import { createInput, ACT_CONFIRM, ACT_PAUSE, ACT_INTERACT, ACT_ENTER, ACT_RADIO, ACT_WEAPON1, ACT_WEAPON2 } from './input.js';
+import { createInput, ACT_CONFIRM, ACT_PAUSE, ACT_INTERACT, ACT_ENTER, ACT_RADIO, ACT_WEAPON1, ACT_WEAPON2, ACT_WEAPON3 } from './input.js';
 import { createPlayer } from './player.js';
 import { createTraffic } from './actors/traffic.js';
 import { createPeds } from './actors/peds.js';
@@ -15,17 +23,21 @@ import { createPolice } from './actors/police.js';
 import { createProps } from './props.js';
 import { createBill } from './bill.js';
 import { createMissions } from './missions.js';
+import { createCollectibles } from './collectibles.js';
+import { createTaxi } from './taxi.js';
+import { createRace } from './race.js';
 import { createHud } from './hud.js';
 import { createAudio } from './audio.js';
 import { saveGame, loadGame } from './save.js';
 import { Car } from './actors/car.js';
 import { Human } from './actors/human.js';
 import { dist } from './mathx.js';
+import { missionIntro, randomTaunt } from './dialogue.js';
 
 export function createGame(canvas, seed = 7) {
   const rng = mulberry32(seed);
   const city = buildCity(rng);
-  const view = createView(canvas, city);
+  const view = createView(canvas, city, rng);
   const input = createInput(canvas);
   const hud = createHud();
   const audio = createAudio();
@@ -39,7 +51,7 @@ export function createGame(canvas, seed = 7) {
     seed, time: 0, cash: 250, rep: 0, heat: 0, day: 1,
     mode: 'title', // title | play | paused | over | caught
     saveTimer: 0, seenTimer: 0, respawnTimer: 0, down: false,
-    interactPressed: false,
+    interactPressed: false, tauntTimer: 0,
   };
 
   // Shot scripts steer through this facade instead of the keyboard, so a
@@ -70,6 +82,7 @@ export function createGame(canvas, seed = 7) {
   }
   addNpc('PAK WIRA', 'PW', 'marina', 0x7a5c2e);
   addNpc('SARI', 'SR', 'shophouseRow', 0x8a4a6b);
+  addNpc('BANG IJAL', 'BI', 'eastSafehouse', 0x4a6b8a);
   addNpc('DEDI', 'DD', 'industrialYard', 0x4a6b8a);
 
   // Parked cars, including the player's own CEMPAKA GT on the marina road,
@@ -89,6 +102,7 @@ export function createGame(canvas, seed = 7) {
     onShoot: (result, weapon) => {
       audio.gunshot();
       peds.fleeFrom(player.x, player.z);
+      traffic.fleeFrom(player.x, player.z);
       if (!result) return;
       if (result.hit === 'human') {
         const h = result.human;
@@ -108,8 +122,55 @@ export function createGame(canvas, seed = 7) {
       const prop = props.nearestUnbroken(car.x, car.z, 3.2);
       if (prop) props.breakProp(prop, bill, (h) => addHeat(h));
     },
+    onDrift: (secondsHeld, amount) => {
+      state.cash += amount;
+      state.rep += 2;
+      hud.popups.drift(amount, secondsHeld);
+      audio.drift();
+    },
   });
   player.setPos(-6, -158, 0);
+
+  // Side activities: collectibles, taxi fares and the checkpoint race.
+  // Each pays cash + REP through the same settle path as missions.
+  const collectibles = createCollectibles(view.scene, city, rng, {
+    onCollect: (item, value) => {
+      state.cash += value;
+      state.rep += COLLECTIBLES.repPer;
+      hud.popups.collect(value, item.kind);
+      audio.collect();
+      if (collectibles.collected % 6 === 0) hud.toast(`Koleksi ${collectibles.collected}/${collectibles.total} — kota ini menyimpan banyak rahasia.`, 4);
+    },
+  });
+  const taxi = createTaxi(view.scene, city, rng, {
+    onPassenger: (p) => { hud.toast(`Taksi: ${p.name} menunggu di ${loc(p.stand).label} — jemput kalau sempat.`, 4); },
+    onPickup: (p, dest) => {
+      const key = /^(Pak|Bang)/.test(p.name) ? 'ijal' : 'sari';
+      hud.dialogue(`${p.name.toUpperCase()} · PENUMPANG`, `Tolong antar saya ke ${dest.label}, ya. Saya bayar pakai argo.`, key, 5);
+      hud.toast(`Penumpang naik — antar ke ${dest.label}.`);
+      audio.taxiDing();
+    },
+    onFarePaid: (done) => {
+      state.cash += done.paid;
+      state.rep += 10;
+      hud.popups.fare(done.paid, done.name);
+      hud.toast(`Taksi selesai: +$${done.paid} (${done.distance} m).`);
+      audio.missionDone();
+    },
+    onAbandoned: () => { hud.toast('Penumpang taksi turun — kamu tinggalkan mobil.'); },
+  });
+  const race = createRace(view.scene, city, rng, {
+    onStart: (gate) => { hud.toast('BALAPAN: lewati 5 gate emas secepat mungkin!'); audio.taxiDing(); },
+    onGate: (n, total, t) => { hud.popups.raceGate(n, total); audio.collect(); },
+    onFinish: (done) => {
+      state.cash += done.paid;
+      state.rep += 120;
+      hud.toast(done.beatPar
+        ? `BALAPAN SELESAI ${done.time.toFixed(1)} dtk — di bawah par! +$${done.paid}.`
+        : `BALAPAN SELESAI ${done.time.toFixed(1)} dtk — +$${done.paid}.`, 6);
+      audio.missionDone();
+    },
+  });
 
   const missions = createMissions(view.scene, city, rng, {
     onMissionComplete: (m) => {
@@ -118,19 +179,32 @@ export function createGame(canvas, seed = 7) {
       state.cash += m.reward;
       state.rep += m.rep;
       audio.missionDone();
-      hud.dialogue('PAK WIRA · BOS MARINA', m.doneLine, 'PW', 7);
+      hud.dialogue('PAK WIRA · BOS MARINA', m.doneLine, 'wira', 7);
       hud.toast(paid > 0
         ? `Misi selesai: +$${m.reward} — tagihan kerusakan $${paid} dipotong.`
         : `Misi selesai: +$${m.reward}.`, 6);
       hud.announce(`Misi selesai. Hadiah $${m.reward}.`);
     },
-    onTalk: (line, who) => { hud.dialogue(`${who} · ${who === 'PAK WIRA' ? 'BOS MARINA' : 'KONTAK'}`, line, who === 'PAK WIRA' ? 'PW' : 'SR', 7); },
+    onTalk: (line, who) => {
+      const key = who === 'PAK WIRA' ? 'wira' : who === 'SARI' ? 'sari' : 'wira';
+      hud.dialogue(`${who} · ${who === 'PAK WIRA' ? 'BOS MARINA' : 'KONTAK'}`, line, key, 7);
+    },
     onSpawnAttacker: () => { addHeat(0.4); },
     onTargetCar: () => {},
+    onIntro: (missionIndex) => {
+      const intro = missionIntro(missionIndex);
+      const c = CHARACTERS[intro.who];
+      hud.dialogue(`${c.name} · ${c.role}`, intro.line, intro.who, 7);
+    },
   });
 
   function addHeat(amount) {
+    const before = state.heat;
     state.heat = Math.min(5, state.heat + amount);
+    // Crossing into 3 stars earns a taunt from the police captain.
+    if (before < 3 && state.heat >= 3) {
+      hud.dialogue('LETKOL RAHMAT · KAPOLRES BENTARA', randomTaunt(rng), 'rahmat', 7);
+    }
   }
 
   function damagePlayer(amount) {
@@ -155,7 +229,8 @@ export function createGame(canvas, seed = 7) {
     hud.toast('Kamu bangun di Rumah Sakit. -$25 biaya berobat.', 5);
   }
 
-  // Interactions: shop (Ruko), safehouse (Timur), talk targets, car entry.
+  // Interactions: shop (Ruko), safehouse (Timur), talk targets, taxi
+  // pickup, race start, car entry.
   function handleInteract() {
     const S = loc('shophouseRow');
     const E = loc('eastSafehouse');
@@ -180,9 +255,15 @@ export function createGame(canvas, seed = 7) {
     if (dist(player.x, player.z, E.x, E.z) < 9) {
       if (player.car) player.car.health = 100;
       player.health = 100;
-      saveGame(state);
+      saveGame(snapshot());
       hud.toast('SAFEHOUSE TIMUR — mobil diperbaiki, luka sembuh, game tersimpan.');
       audio.pickup();
+    }
+    if (!player.onFoot && taxi.nearPassenger(player.x, player.z)) {
+      if (taxi.startFare(player.x, player.z)) return;
+    }
+    if (race.nearStart(player.x, player.z)) {
+      if (race.startRace()) return;
     }
   }
 
@@ -194,11 +275,22 @@ export function createGame(canvas, seed = 7) {
       return player.hasShotgun ? 'E — Beli amunisi shotgun $40' : 'E — Beli shotgun $120';
     }
     if (dist(player.x, player.z, E.x, E.z) < 9) return 'E — Safehouse: perbaiki + simpan';
+    if (!player.onFoot && taxi.nearPassenger(player.x, player.z)) return taxi.prompt();
+    if (race.nearStart(player.x, player.z)) return 'E — Mulai balapan (5 gate)';
     if (player.onFoot) {
       const car = player.nearestCar([...traffic.cars, ...parked, missions.targetCar].filter(Boolean));
       if (car) return car.missionTarget === 'steal' ? 'F — Curi mobil ini' : `F — Masuk ${car.name}`;
     }
     return null;
+  }
+
+  function snapshot() {
+    return {
+      cash: state.cash, rep: state.rep, day: state.day,
+      missionIndex: missions.index,
+      hasShotgun: player.hasShotgun, shells: player.shells,
+      collected: collectibles.collected, taxiTrips: taxi.trips, raceBest: race.best,
+    };
   }
 
   function applySave(data) {
@@ -209,6 +301,34 @@ export function createGame(canvas, seed = 7) {
     player.shells = data.shells ?? 0;
     if (player.hasShotgun) player.weapon = 'shotgun';
     missions.setIndex(data.missionIndex || 0);
+  }
+
+  // Near-miss detection: a traffic car flashing past within 2.4 m while
+  // the player is fast. One payout per car per 3 seconds.
+  const nearMissCooldown = new Map();
+  function checkNearMiss(dt) {
+    if (player.onFoot || !player.car) return;
+    if (Math.abs(player.car.speed) * 3.6 < STUNTS.nearMissMinSpeed) return;
+    const px = player.x;
+    const pz = player.z;
+    const heading = player.heading;
+    const fx = Math.sin(heading);
+    const fz = Math.cos(heading);
+    for (const c of traffic.cars) {
+      const dx = c.x - px;
+      const dz = c.z - pz;
+      const along = dx * fx + dz * fz;
+      const lateral = Math.abs(dx * fz - dz * fx);
+      if (along > -4 && along < 6 && lateral < STUNTS.nearMissMaxGap && lateral > 1.2) {
+        const last = nearMissCooldown.get(c.id) || -10;
+        if (state.time - last > 3) {
+          nearMissCooldown.set(c.id, state.time);
+          state.cash += STUNTS.nearMiss;
+          state.rep += 3;
+          hud.popups.nearMiss(STUNTS.nearMiss);
+        }
+      }
+    }
   }
 
   function step(dt) {
@@ -222,10 +342,11 @@ export function createGame(canvas, seed = 7) {
       if (actions & ACT_PAUSE) { state.mode = 'paused'; return; }
       if (actions & ACT_RADIO) {
         audio.setRadio(!audio.radioOn());
-        hud.toast(audio.radioOn() ? 'RADIO KEMARAU 92.4 — menyala.' : 'Radio mati.');
+        hud.toast(audio.radioOn() ? 'RADIO KEMARAU 92.4 — Bang Ocid menyala.' : 'Radio mati.');
       }
       if (actions & ACT_WEAPON1) player.weapon = 'pistol';
       if (actions & ACT_WEAPON2 && player.hasShotgun) player.weapon = 'shotgun';
+      if (actions & ACT_WEAPON3) hud.toast('SMG belum dibuka — $450 di Ruko? Belum dijual. Sabar.');
       if (actions & ACT_ENTER && player.onFoot) {
         const car = player.nearestCar([...traffic.cars, ...parked, missions.targetCar].filter(Boolean));
         if (car) player.enterCar(car);
@@ -247,7 +368,16 @@ export function createGame(canvas, seed = 7) {
         interactPressed: state.interactPressed,
         playerCar: player.car, damagePlayer,
       });
+      taxi.update(dt, {
+        px: player.x, pz: player.z,
+        interactPressed: state.interactPressed,
+        playerInCar: !player.onFoot,
+      });
+      race.update(dt, { px: player.x, pz: player.z });
+      collectibles.update(dt, state.time, player.x, player.z);
+      checkNearMiss(dt);
       props.step(dt);
+      if (view.golden) view.golden.update(dt, state.time);
       // Heat decay: 11 s with no police line of sight drops one star.
       if (state.heat > 0) {
         if (police.anyoneSees(player.x, player.z)) state.seenTimer = 0;
@@ -263,17 +393,18 @@ export function createGame(canvas, seed = 7) {
       state.saveTimer += dt;
       if (state.saveTimer >= 20) {
         state.saveTimer = 0;
-        saveGame(state);
+        saveGame(snapshot());
       }
       audio.step(dt, player.speedKmh, state.heat);
       hud.prompt(promptText());
-      hud.update({ state, player, city, traffic, missions, bill, policeUnits, missionTarget }, dt);
+      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget }, dt);
     } else {
       // Title / paused / over: the city idles behind the screen.
       traffic.step(dt, null);
       peds.step(dt);
       props.step(dt);
-      hud.update({ state, player, city, traffic, missions, bill, policeUnits, missionTarget }, dt);
+      if (view.golden) view.golden.update(dt, state.time);
+      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget }, dt);
     }
   }
 
@@ -299,6 +430,7 @@ export function createGame(canvas, seed = 7) {
 
   return {
     state, city, view, player, traffic, peds, police, missions, bill, props,
+    collectibles, taxi, race,
     hud, audio, input: inputFacade, shotKeys, npcs, parked, rng,
     step, draw, audit, addHeat, damagePlayer, applySave, missionTarget, policeUnits,
     loadSave: loadGame,

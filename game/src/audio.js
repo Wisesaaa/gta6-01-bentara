@@ -1,5 +1,6 @@
-// Procedural audio: engine hum, two-tone siren, gunshots, and a tiny radio
-// sequencer. No audio files. Everything is created lazily on first user
+// Procedural audio: engine hum, two-tone siren, gunshots, a tiny radio
+// sequencer, and the new cash-register blips for collectibles, taxi fares
+// and drifts. No audio files. Everything is created lazily on first user
 // gesture; in screenshot mode there is no gesture, so nothing is created.
 export function createAudio() {
   let ctx = null;
@@ -54,6 +55,14 @@ export function createAudio() {
     o.stop(ctx.currentTime + dur);
   }
 
+  // A short ascending phrase, played with `delay` between notes.
+  function phrase(notes, delay = 0.09, type = 'sine', vol = 0.1) {
+    if (!ctx) return;
+    notes.forEach((freq, i) => {
+      setTimeout(() => blip(freq, 0.14, type, vol), i * delay * 1000);
+    });
+  }
+
   return {
     unlock() { ensure(); if (ctx && ctx.state === 'suspended') ctx.resume(); },
     setRadio(on) { radioOn = on; },
@@ -95,7 +104,15 @@ export function createAudio() {
       src.connect(g).connect(ctx.destination);
       src.start();
     },
-    pickup() { blip(660, 0.12, 'sine', 0.1); blip(880, 0.15, 'sine', 0.1); },
-    missionDone() { blip(523, 0.15); blip(659, 0.15); blip(784, 0.3); },
+    pickup() { phrase([660, 880], 0.08); },
+    missionDone() { phrase([523, 659, 784], 0.12); },
+    // New: a bright two-note chime when a wayang idol or tape is picked up.
+    collect() { phrase([988, 1319], 0.07, 'triangle', 0.12); },
+    // New: the taxi meter ding when a passenger gets in.
+    taxiDing() { phrase([1047, 1568], 0.1, 'sine', 0.12); },
+    // New: a short skid sting when a drift pays out.
+    drift() { phrase([392, 523], 0.06, 'sawtooth', 0.05); },
+    // New: DJ stinger when the radio line changes.
+    stinger() { phrase([440, 554, 659], 0.08, 'triangle', 0.06); },
   };
 }

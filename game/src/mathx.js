@@ -30,3 +30,15 @@ export function wrapAngle(a) {
 export function angleLerp(a, b, t) {
   return a + wrapAngle(b - a) * t;
 }
+export function clamp01(v) {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+// Smoothstep between two edges: 0 below `a`, 1 above `b`, eased in between.
+export function smoothstep(a, b, v) {
+  const t = clamp01((v - a) / (b - a));
+  return t * t * (3 - 2 * t);
+}
+// Signed smallest angle from `a` to `b`, in (-PI, PI].
+export function angleDiff(a, b) {
+  return wrapAngle(b - a);
+}

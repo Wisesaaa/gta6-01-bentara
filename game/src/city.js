@@ -7,6 +7,7 @@ import { PALETTE } from './config.js';
 
 // Every named place in the game. Missions reference these names only — never
 // raw coordinates, so a typo fails loudly instead of stalling a mission.
+// Taxi stands and race gates reuse the same table.
 export const LOCATIONS = {
   marina: { x: -6, z: -170, r: 7, label: 'Marina Bentara' },
   shophouseRow: { x: -70, z: -140, r: 8, label: 'Deret Ruko' },
@@ -17,6 +18,10 @@ export const LOCATIONS = {
   towerConcourse: { x: 0, z: 0, r: 11, label: 'Plaza Menara' },
   hospital: { x: -37, z: -111, r: 6, label: 'Rumah Sakit' },
 };
+
+// Where taxi passengers wait: the busy places, so a fare is never a long
+// dead drive to the middle of nowhere.
+export const TAXI_STANDS = ['towerConcourse', 'marina', 'northRowStall', 'hospital', 'arterialJunction', 'industrialYard'];
 
 // Throws on an unknown name: a silent NaN is what once hid a dead mission.
 export function loc(name) {
@@ -41,6 +46,53 @@ export function blockCentres() {
   return centres;
 }
 
+// A random point on a road (for traffic, peds and collectibles), and a
+// random sidewalk point beside one (for peds and collectibles).
+export function randomRoadPoint(rng) {
+  const lines = roadLines();
+  const line = pick(rng, lines);
+  const along = rr(rng, -180, 180);
+  return rng() < 0.5 ? { x: line, z: along } : { x: along, z: line };
+}
+
+export function randomSidewalkPoint(rng) {
+  const lines = roadLines();
+  const line = pick(rng, lines);
+  const along = rr(rng, -180, 180);
+  const side = rng() < 0.5 ? -11.5 : 11.5;
+  return rng() < 0.5 ? { x: line + side, z: along } : { x: along, z: line + side };
+}
+
+function subdivideBlock(rng, bx, bz) {
+  // Subdivide a block into a 2x2 yard of buildings with a courtyard gap.
+  // Never build over a named location: a mission point inside a wall can
+  // never be reached, and the player would stall there forever.
+  const buildings = [];
+  const n = rng() < 0.5 ? 4 : 2;
+  const spots = n === 4
+    ? [[-14, -14], [14, -14], [-14, 14], [14, 14]]
+    : [[0, -14], [0, 14]];
+  for (const [ox, oz] of spots) {
+    const w = rr(rng, 16, 24);
+    const d = rr(rng, 16, 24);
+    const h = rr(rng, 8, 34);
+    const cx = bx + ox;
+    const cz = bz + oz;
+    let coversLocation = false;
+    for (const L of Object.values(LOCATIONS)) {
+      if (Math.abs(L.x - cx) < w / 2 + 4 && Math.abs(L.z - cz) < d / 2 + 4) { coversLocation = true; break; }
+    }
+    if (coversLocation) continue;
+    buildings.push({
+      x: cx, z: cz, w, d, h,
+      color: pick(rng, PALETTE.building),
+      trim: pick(rng, PALETTE.buildingTrim),
+      tall: h > 24,
+    });
+  }
+  return buildings;
+}
+
 // Build the city from a seeded rng: blocks, buildings inside them, and the
 // solid AABBs bullets and bodies collide with.
 export function buildCity(rng) {
@@ -53,34 +105,11 @@ export function buildCity(rng) {
       const block = { x: bx, z: bz, buildings: [] };
       // The plaza block (0,0) stays open: the tower stands alone there.
       if (bx === 0 && bz === 0) { blocks.push(block); continue; }
-      // Subdivide each block into a 2x2 yard of buildings with a courtyard gap.
-      // Never build over a named location: a mission point inside a wall can
-      // never be reached, and the player would stall there forever.
-      const n = rng() < 0.5 ? 4 : 2;
-      const spots = n === 4
-        ? [[-14, -14], [14, -14], [-14, 14], [14, 14]]
-        : [[0, -14], [0, 14]];
-      for (const [ox, oz] of spots) {
-        const w = rr(rng, 16, 24);
-        const d = rr(rng, 16, 24);
-        const h = rr(rng, 8, 34);
-        const cx = bx + ox;
-        const cz = bz + oz;
-        let coversLocation = false;
-        for (const L of Object.values(LOCATIONS)) {
-          if (Math.abs(L.x - cx) < w / 2 + 4 && Math.abs(L.z - cz) < d / 2 + 4) { coversLocation = true; break; }
-        }
-        if (coversLocation) continue;
-        const tall = h > 24;
-        const building = {
-          x: cx, z: cz, w, d, h,
-          color: pick(rng, PALETTE.building),
-          trim: pick(rng, PALETTE.buildingTrim),
-          tall,
-        };
-        block.buildings.push(building);
-        buildings.push(building);
-        solids.push({ minX: building.x - w / 2, maxX: building.x + w / 2, minZ: building.z - d / 2, maxZ: building.z + d / 2, h });
+      const made = subdivideBlock(rng, bx, bz);
+      for (const b of made) {
+        block.buildings.push(b);
+        buildings.push(b);
+        solids.push({ minX: b.x - b.w / 2, maxX: b.x + b.w / 2, minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2, h: b.h });
       }
       blocks.push(block);
     }
@@ -90,7 +119,7 @@ export function buildCity(rng) {
   const tower = { x: 0, z: 0, w: 18, d: 18, h: 52, color: 0xcfc0a0, trim: 0x5f6b62, tall: true, landmark: true };
   buildings.push(tower);
   solids.push({ minX: -9, maxX: 9, minZ: -9, maxZ: 9, h: 52 });
-  return { blocks, buildings, solids, tower };
+  return { blocks, buildings, solids, tower, rng };
 }
 
 // Is a ground point inside any solid (walls stop feet, wheels and bullets)?

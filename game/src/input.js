@@ -1,14 +1,35 @@
-// Keyboard + mouse input. Held keys give movement; one-shot presses are queued
-// as bit flags and taken once, so a press between frames is never lost.
-export const ACT_CONFIRM = 1;
-export const ACT_PAUSE = 2;
-export const ACT_INTERACT = 4;
-export const ACT_ENTER = 8;
-export const ACT_RADIO = 16;
-export const ACT_WEAPON1 = 32;
-export const ACT_WEAPON2 = 64;
+// Input: WASD + SPACE handbrake, mouse aim/fire, F enter/steal, E interact,
+// R radio, P pause, 1/2/3 weapon slots, M mute. Everything the game loop
+// needs arrives as pure queries (up/down/left/right/brake/run/mouseDown)
+// or as one-shot bit flags taken exactly once per frame (takeActions /
+// takeClick), so a held key never double-fires an action.
+//
+// Space is both handbrake (held) and confirm (one-shot): it sets the
+// confirm flag AND the held key, so it can start the game from the title.
+// Pointer-down confirms anywhere on the window — the title screen sits
+// above the canvas, so a canvas-only listener would miss its clicks.
+export const ACT_ENTER = 1;
+export const ACT_INTERACT = 2;
+export const ACT_RADIO = 4;
+export const ACT_PAUSE = 8;
+export const ACT_WEAPON1 = 16;
+export const ACT_WEAPON2 = 32;
+export const ACT_WEAPON3 = 64;
+export const ACT_CONFIRM = 128;
 
-const KEYMAP = {
+const KEY_ACTIONS = {
+  KeyF: ACT_ENTER,
+  KeyE: ACT_INTERACT,
+  KeyR: ACT_RADIO,
+  KeyP: ACT_PAUSE,
+  Escape: ACT_PAUSE,
+  Enter: ACT_CONFIRM,
+  Space: ACT_CONFIRM,
+  Digit1: ACT_WEAPON1,
+  Digit2: ACT_WEAPON2,
+  Digit3: ACT_WEAPON3,
+};
+const HELD_KEYS = {
   KeyW: 'up', ArrowUp: 'up',
   KeyS: 'down', ArrowDown: 'down',
   KeyA: 'left', ArrowLeft: 'left',
@@ -22,37 +43,41 @@ export function createInput(canvas) {
   let actions = 0;
   let mouseDown = false;
   let mouseClicked = false;
+  let muted = false;
 
-  window.addEventListener('keydown', (event) => {
-    // Space is both handbrake (held) and confirm (one-shot): it must set the
-    // confirm flag AND the held key, so it can start the game from the title.
-    if (event.code === 'Space' && !event.repeat) actions |= ACT_CONFIRM;
-    const dir = KEYMAP[event.code];
-    if (dir) { held.add(dir); event.preventDefault(); return; }
+  const down = (event) => {
+    const dir = HELD_KEYS[event.code];
+    if (dir) {
+      held.add(dir);
+      event.preventDefault();
+    }
     if (event.repeat) return;
-    if (event.code === 'Enter') actions |= ACT_CONFIRM;
-    else if (event.code === 'KeyP' || event.code === 'Escape') actions |= ACT_PAUSE;
-    else if (event.code === 'KeyE') actions |= ACT_INTERACT;
-    else if (event.code === 'KeyF') actions |= ACT_ENTER;
-    else if (event.code === 'KeyR') actions |= ACT_RADIO;
-    else if (event.code === 'Digit1') actions |= ACT_WEAPON1;
-    else if (event.code === 'Digit2') actions |= ACT_WEAPON2;
-    else return;
-    event.preventDefault();
-  });
-  window.addEventListener('keyup', (event) => {
-    const dir = KEYMAP[event.code];
+    const a = KEY_ACTIONS[event.code];
+    if (a) {
+      actions |= a;
+      if (event.code === 'Space' || event.code.startsWith('Arrow')) event.preventDefault();
+    }
+    if (event.code === 'KeyM') muted = !muted;
+  };
+  const up = (event) => {
+    const dir = HELD_KEYS[event.code];
     if (dir) held.delete(dir);
-  });
-  window.addEventListener('blur', () => held.clear());
-  // Confirm presses count anywhere on the window (the title screen sits
-  // above the canvas, so a canvas-only listener would miss its clicks).
-  window.addEventListener('pointerdown', (event) => {
+  };
+  const blur = () => { held.clear(); mouseDown = false; };
+  const pointerDown = (event) => {
     mouseDown = true;
     mouseClicked = true;
     if (event.button === 0) actions |= ACT_CONFIRM;
+  };
+  const pointerUp = () => { mouseDown = false; };
+  window.addEventListener('keydown', down);
+  window.addEventListener('keyup', up);
+  window.addEventListener('blur', blur);
+  window.addEventListener('pointerdown', pointerDown);
+  window.addEventListener('pointerup', pointerUp);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { held.clear(); mouseDown = false; }
   });
-  window.addEventListener('pointerup', () => { mouseDown = false; });
 
   return {
     up: () => held.has('up'),
@@ -62,6 +87,7 @@ export function createInput(canvas) {
     brake: () => held.has('brake'),
     run: () => held.has('run'),
     mouseDown: () => mouseDown,
+    isMuted: () => muted,
     // True once per click; consumed by the caller.
     takeClick() {
       const c = mouseClicked;
@@ -72,6 +98,13 @@ export function createInput(canvas) {
       const taken = actions;
       actions = 0;
       return taken;
+    },
+    dispose() {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+      window.removeEventListener('pointerdown', pointerDown);
+      window.removeEventListener('pointerup', pointerUp);
     },
   };
 }

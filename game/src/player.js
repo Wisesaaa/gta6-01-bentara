@@ -2,9 +2,14 @@
 // (arcade driving, handbrake, enter/exit with F). The on-foot body is a Human;
 // entering a car hides it and flags the car skipTraffic so traffic never
 // steps it.
+//
+// The chase camera sits low and close now — 6.2 m back, 2.1 m up — so the
+// car fills 25–35% of the frame, bottom-centre, instead of floating small
+// in a wide shot. Drifting (handbrake + steer at speed) is timed here and
+// reported to the game as a stunt event with its payout.
 import * as THREE from 'three';
 import { Human } from './actors/human.js';
-import { CAR, PLAYER, WEAPONS } from './config.js';
+import { CAR, PLAYER, WEAPONS, STUNTS } from './config.js';
 import { clamp, damp, dist, wrapAngle } from './mathx.js';
 import { hitsSolid, clampToCity } from './city.js';
 import { createCombat } from './combat.js';
@@ -21,7 +26,7 @@ export function createPlayer(ctx) {
     health: PLAYER.health,
     weapon: 'pistol', shells: 12, hasShotgun: false,
     speedKmh: 0, moving: false,
-    shootCooldown: 0,
+    shootCooldown: 0, driftTimer: 0, drifting: false,
   };
 
   function nearestCar(cars, maxDist = 5) {
@@ -103,6 +108,23 @@ export function createPlayer(ctx) {
     p.heading = car.heading;
     p.camHeading = car.heading;
     p.speedKmh = Math.abs(car.speed) * 3.6;
+    // Drift: handbrake held, steering, and real speed — the timer runs
+    // while the slide lasts and pays out when it ends (or every second).
+    const sliding = input.brake() && steer !== 0 && Math.abs(car.speed) > 10;
+    if (sliding) {
+      p.drifting = true;
+      p.driftTimer += dt;
+      if (p.driftTimer >= 1 && ctx.onDrift) {
+        ctx.onDrift(p.driftTimer, Math.round(p.driftTimer * STUNTS.driftPerSecond));
+        p.driftTimer = 0;
+      }
+    } else if (p.drifting) {
+      p.drifting = false;
+      if (p.driftTimer >= STUNTS.driftMinSeconds && ctx.onDrift) {
+        ctx.onDrift(p.driftTimer, Math.round(p.driftTimer * STUNTS.driftPerSecond));
+      }
+      p.driftTimer = 0;
+    }
     // Ram a prop if the car brushes one.
     if (Math.abs(car.speed) > 4 && ctx.onCarBrush) ctx.onCarBrush(car);
   }
@@ -138,13 +160,16 @@ export function createPlayer(ctx) {
 
   function placeCamera() {
     if (p.onFoot) {
-      const behind = 4.6;
+      const behind = 4.2;
       const bx = p.x - Math.sin(p.camHeading) * behind + Math.cos(p.camHeading) * 0.8;
       const bz = p.z - Math.cos(p.camHeading) * behind - Math.sin(p.camHeading) * 0.8;
-      view.camera.position.set(bx, 2.6, bz);
+      view.camera.position.set(bx, 2.4, bz);
       view.camera.lookAt(p.x + Math.sin(p.heading) * 6, 1.4, p.z + Math.cos(p.heading) * 6);
     } else {
-      view.placeCamera(p.x, p.z, p.heading, 9, 3.4, 10);
+      // Low and close: 6.2 m back, 2.1 m up. The car is the hero of the
+      // frame — bottom-centre, a quarter to a third of the width — and the
+      // street ahead still reads over its roof.
+      view.placeCamera(p.x, p.z, p.heading, 6.2, 2.1, 10);
     }
   }
 
@@ -168,6 +193,7 @@ export function createPlayer(ctx) {
     set hasShotgun(v) { p.hasShotgun = v; },
     get speedKmh() { return p.speedKmh; },
     get moving() { return p.moving; },
+    get drifting() { return p.drifting; },
     nearestCar, enterCar, exitCar, step, placeCamera,
     setPos(x, z, heading = 0) {
       p.x = x; p.z = z; p.heading = heading; p.camHeading = heading;

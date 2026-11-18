@@ -3,6 +3,10 @@
 // (a marked car) / steal (enter a marked car). A gold beacon marks the current
 // objective. Completing a mission settles the damage bill against cash first,
 // then pays the reward and REP.
+//
+// Each step type has one handler in the STEP_HANDLERS table — update() is a
+// dispatch, not a chain of ifs — and each mission opens with an intro line
+// from its contact (hooks.onIntro), so the story has a voice, not just text.
 import * as THREE from 'three';
 import { Human } from './actors/human.js';
 import { Car } from './actors/car.js';
@@ -78,7 +82,8 @@ const STEP_TEXT = {
 };
 
 export function createMissions(scene, city, rng, hooks) {
-  // hooks: { onMissionComplete(m), onTalk(line, who), onSpawnAttacker(h), onTargetCar(car) }
+  // hooks: { onMissionComplete(m), onTalk(line, who), onSpawnAttacker(h),
+  //   onTargetCar(car), onIntro(missionIndex) }
   let index = 0;
   let stepIndex = 0;
   let stepState = null;
@@ -119,22 +124,91 @@ export function createMissions(scene, city, rng, hooks) {
     stepState = null;
   }
 
+  // One handler per step type: setup (spawn what the step needs) and
+  // tick (check the win condition). update() only dispatches.
+  const STEP_HANDLERS = {
+    goto: {
+      setup() {},
+      tick(s, L, ctx) {
+        stepState = { progress: Math.min(1, 1 - dist(ctx.px, ctx.pz, L.x, L.z) / 120) };
+        if (dist(ctx.px, ctx.pz, L.x, L.z) < L.r) advance();
+      },
+    },
+    collect: {
+      setup() {},
+      tick(s, L, ctx) {
+        stepState = { progress: Math.min(1, 1 - dist(ctx.px, ctx.pz, L.x, L.z) / 120) };
+        if (dist(ctx.px, ctx.pz, L.x, L.z) < 4) advance();
+      },
+    },
+    deliver: {
+      setup() {},
+      tick(s, L, ctx) {
+        stepState = { progress: Math.min(1, 1 - dist(ctx.px, ctx.pz, L.x, L.z) / 120) };
+        if (dist(ctx.px, ctx.pz, L.x, L.z) < L.r) advance();
+      },
+    },
+    talk: {
+      setup() {},
+      tick(s, L, ctx) {
+        if (ctx.interactPressed && dist(ctx.px, ctx.pz, L.x, L.z) < 5) {
+          if (hooks.onTalk) hooks.onTalk(s.line, s.who);
+          advance();
+        }
+      },
+    },
+    survive: {
+      setup(s) { stepState = { spawned: 0, timer: s.t, spawnTimer: 0.5, progress: 0 }; },
+      tick(s, L, ctx) {
+        stepState.timer -= ctx.dt;
+        stepState.spawnTimer -= ctx.dt;
+        if (stepState.spawned < s.n && stepState.spawnTimer <= 0) {
+          spawnAttacker();
+          stepState.spawned += 1;
+          stepState.spawnTimer = Math.max(1.5, s.t / s.n);
+        }
+        stepState.progress = 1 - Math.max(0, stepState.timer) / s.t;
+        // Attackers chase and shoot the player.
+        for (const a of attackers) {
+          if (!a.alive) continue;
+          const d = dist(a.x, a.z, ctx.px, ctx.pz);
+          a.face(Math.atan2(ctx.px - a.x, ctx.pz - a.z));
+          if (d > 4) a.walk(ctx.dt, 4.6);
+          else if (ctx.damagePlayer && rr(rng, 0, 1) < ctx.dt * 0.5) ctx.damagePlayer(rr(rng, 2, 5));
+        }
+        if (stepState.timer <= 0) advance();
+      },
+    },
+    destroy: {
+      setup(s, L) {
+        targetCar = new Car(scene, rng, {
+          x: L.x + 6, z: L.z + 4, heading: 0.8,
+          name: 'Mobil Target', color: 0x6b1f1f,
+        });
+        targetCar.missionTarget = 'destroy';
+        if (hooks.onTargetCar) hooks.onTargetCar(targetCar);
+      },
+      tick() { if (targetCar && targetCar.health <= 0) advance(); },
+    },
+    steal: {
+      setup(s, L) {
+        targetCar = new Car(scene, rng, {
+          x: L.x + 6, z: L.z + 4, heading: 0.8,
+          name: 'CEMPAKA GT CURIAN', color: 0xd8cdb2,
+        });
+        targetCar.missionTarget = 'steal';
+        if (hooks.onTargetCar) hooks.onTargetCar(targetCar);
+      },
+      tick(s, L, ctx) { if (ctx.playerCar && ctx.playerCar.missionTarget === 'steal') advance(); },
+    },
+  };
+
   function setupStep() {
     clearStepObjects();
     const s = step();
     const L = loc(s.loc);
     beacon.position.set(L.x, 12.5, L.z);
-    if (s.type === 'survive') {
-      stepState = { spawned: 0, timer: s.t, spawnTimer: 0.5, progress: 0 };
-    } else if (s.type === 'destroy' || s.type === 'steal') {
-      targetCar = new Car(scene, rng, {
-        x: L.x + 6, z: L.z + 4, heading: 0.8,
-        name: s.type === 'steal' ? 'CEMPAKA GT CURIAN' : 'Mobil Target',
-        color: s.type === 'steal' ? 0xd8cdb2 : 0x6b1f1f,
-      });
-      targetCar.missionTarget = s.type;
-      if (hooks.onTargetCar) hooks.onTargetCar(targetCar);
-    }
+    STEP_HANDLERS[s.type].setup(s, L);
   }
 
   function spawnAttacker() {
@@ -160,6 +234,7 @@ export function createMissions(scene, city, rng, hooks) {
       if (index >= MISSIONS.length) { done = true; return; }
       beacon.visible = true;
       setupStep();
+      if (hooks.onIntro) hooks.onIntro(index);
     } else {
       setupStep();
     }
@@ -177,40 +252,7 @@ export function createMissions(scene, city, rng, hooks) {
     if (done) return;
     const s = step();
     const L = loc(s.loc);
-    const px = ctx.px;
-    const pz = ctx.pz;
-    if (s.type === 'goto' || s.type === 'collect' || s.type === 'deliver') {
-      const r = s.type === 'collect' ? 4 : L.r;
-      stepState = { progress: Math.min(1, 1 - dist(px, pz, L.x, L.z) / 120) };
-      if (dist(px, pz, L.x, L.z) < r) advance();
-    } else if (s.type === 'talk') {
-      if (ctx.interactPressed && dist(px, pz, L.x, L.z) < 5) {
-        if (hooks.onTalk) hooks.onTalk(s.line, s.who);
-        advance();
-      }
-    } else if (s.type === 'survive') {
-      stepState.timer -= dt;
-      stepState.spawnTimer -= dt;
-      if (stepState.spawned < s.n && stepState.spawnTimer <= 0) {
-        spawnAttacker();
-        stepState.spawned += 1;
-        stepState.spawnTimer = Math.max(1.5, s.t / s.n);
-      }
-      stepState.progress = 1 - Math.max(0, stepState.timer) / s.t;
-      // Attackers chase and shoot the player.
-      for (const a of attackers) {
-        if (!a.alive) continue;
-        const d = dist(a.x, a.z, px, pz);
-        a.face(Math.atan2(px - a.x, pz - a.z));
-        if (d > 4) a.walk(dt, 4.6);
-        else if (ctx.damagePlayer && rr(rng, 0, 1) < dt * 0.5) ctx.damagePlayer(rr(rng, 2, 5));
-      }
-      if (stepState.timer <= 0) advance();
-    } else if (s.type === 'destroy') {
-      if (targetCar && targetCar.health <= 0) advance();
-    } else if (s.type === 'steal') {
-      if (ctx.playerCar && ctx.playerCar.missionTarget === 'steal') advance();
-    }
+    STEP_HANDLERS[s.type].tick(s, L, { ...ctx, dt });
   }
 
   function start() {
@@ -219,6 +261,7 @@ export function createMissions(scene, city, rng, hooks) {
     done = false;
     beacon.visible = true;
     setupStep();
+    if (hooks.onIntro) hooks.onIntro(0);
   }
 
   function setIndex(i, stepIdx = 0) {
@@ -227,6 +270,7 @@ export function createMissions(scene, city, rng, hooks) {
     done = index >= MISSIONS.length;
     beacon.visible = !done;
     setupStep();
+    if (hooks.onIntro) hooks.onIntro(index);
   }
 
   start();
