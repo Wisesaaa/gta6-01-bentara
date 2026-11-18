@@ -372,40 +372,104 @@ export function createView(canvas, city) {
   inst.receiveShadow = true;
   scene.add(inst);
 
-  // Window bands: one dark glass strip on each building's four faces,
-  // a second instanced mesh so the facades stop reading as blank concrete.
-  // Band height, height on the facade and glass tone vary per building
-  // (hashed from its position, so the variation is deterministic).
+  // Facade windows: a full grid on all four faces of every building, not
+  // one band — a single band left most of each wall blank concrete, and a
+  // tall facade close to the camera filled a third of the hero frame with
+  // it. Columns every ~3.8 m, rows every ~3.6 m from just above the ground
+  // floor; a hashed skip rate leaves some bays blank and a few windows glow
+  // warm, so no two facades read the same. Planes, not boxes: 2 triangles
+  // each, so the whole city grid costs ~10k triangles. AC boxes under some
+  // windows and a drainpipe down one edge of about half the faces break the
+  // wall up further, in the same bleached-concrete palette.
   const hash2 = (x, z) => {
     const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
     return h - Math.floor(h);
   };
-  const winGeo = new THREE.BoxGeometry(1, 1, 1);
-  const winMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const winMesh = new THREE.InstancedMesh(winGeo, winMat, city.buildings.length * 4);
-  city.buildings.forEach((b, i) => {
-    const bandH = Math.min(7, Math.max(1.5, b.h * (0.3 + hash2(b.x, b.z) * 0.2)));
-    // Tall buildings wear their band lower, so it stays in frame when the
-    // camera looks up at them from the street — the tower's band at
-    // mid-height was cut off above the hero frame.
-    const bandY = b.tall
-      ? b.h * (0.35 + hash2(b.z, b.x) * 0.1)
-      : b.h * (0.5 + hash2(b.z, b.x) * 0.15);
-    const tone = PALETTE.glassAlt[Math.floor(hash2(b.x + 7, b.z + 3) * PALETTE.glassAlt.length)];
-    m4.compose(new THREE.Vector3(b.x, bandY, b.z + b.d / 2 + 0.07), new THREE.Quaternion(), new THREE.Vector3(b.w * 0.72, bandH, 0.12));
-    winMesh.setMatrixAt(i * 4, m4);
-    winMesh.setColorAt(i * 4, col.setHex(tone));
-    m4.compose(new THREE.Vector3(b.x, bandY, b.z - b.d / 2 - 0.07), new THREE.Quaternion(), new THREE.Vector3(b.w * 0.72, bandH, 0.12));
-    winMesh.setMatrixAt(i * 4 + 1, m4);
-    winMesh.setColorAt(i * 4 + 1, col.setHex(tone));
-    m4.compose(new THREE.Vector3(b.x + b.w / 2 + 0.07, bandY, b.z), new THREE.Quaternion(), new THREE.Vector3(0.12, bandH, b.d * 0.72));
-    winMesh.setMatrixAt(i * 4 + 2, m4);
-    winMesh.setColorAt(i * 4 + 2, col.setHex(tone));
-    m4.compose(new THREE.Vector3(b.x - b.w / 2 - 0.07, bandY, b.z), new THREE.Quaternion(), new THREE.Vector3(0.12, bandH, b.d * 0.72));
-    winMesh.setMatrixAt(i * 4 + 3, m4);
-    winMesh.setColorAt(i * 4 + 3, col.setHex(tone));
+  const WIN_W = 1.7;
+  const WIN_H = 2.0;
+  const winPlacements = [];
+  const acPlacements = [];
+  const pipePlacements = [];
+  for (const b of city.buildings) {
+    // Four faces: +z / -z run along x, +x / -x run along z.
+    const faces = [
+      { along: 'x', len: b.w, fixed: b.z + b.d / 2 + 0.07, rotY: 0, out: [0, 0, 1] },
+      { along: 'x', len: b.w, fixed: b.z - b.d / 2 - 0.07, rotY: Math.PI, out: [0, 0, -1] },
+      { along: 'z', len: b.d, fixed: b.x + b.w / 2 + 0.07, rotY: Math.PI / 2, out: [1, 0, 0] },
+      { along: 'z', len: b.d, fixed: b.x - b.w / 2 - 0.07, rotY: -Math.PI / 2, out: [-1, 0, 0] },
+    ];
+    faces.forEach((f, fi) => {
+      const cols = Math.max(1, Math.floor((f.len - 4) / 3.8));
+      const colStep = f.len / (cols + 1);
+      const rows = [];
+      for (let y = 4.2; y + WIN_H / 2 < b.h - 1.2; y += 3.6) rows.push(y + WIN_H / 2);
+      for (let ci = 0; ci < cols; ci += 1) {
+        const along = -f.len / 2 + colStep * (ci + 1);
+        for (const y of rows) {
+          const r = hash2(b.x + fi * 31 + ci * 7, b.z + y * 3 + fi * 13);
+          if (r < 0.16) continue; // blank bay: variation, not a wall of glass
+          const lit = r > 0.9;
+          const tone = lit ? 0xffc46b : PALETTE.glassAlt[Math.floor(hash2(b.x + ci, b.z + y + fi) * PALETTE.glassAlt.length)];
+          const px = f.along === 'x' ? b.x + along : f.fixed;
+          const pz = f.along === 'x' ? f.fixed : b.z + along;
+          winPlacements.push({ x: px, y, z: pz, rotY: f.rotY, tone });
+          // An AC box under about one window in seven, on the same face.
+          if (hash2(b.x + ci * 3, b.z + y * 7 + fi) < 0.15) {
+            acPlacements.push({
+              x: px + f.out[0] * 0.3, y: y - WIN_H / 2 - 0.45, z: pz + f.out[2] * 0.3,
+              rotY: f.rotY, tone: 0x9a9a92,
+            });
+          }
+        }
+      }
+      // A drainpipe down one edge of the face, on about half the faces.
+      if (hash2(b.x + fi * 17, b.z + fi * 29) < 0.5) {
+        const edge = (fi % 2 === 0 ? 1 : -1) * (f.len / 2 - 1.2);
+        pipePlacements.push({
+          x: f.along === 'x' ? b.x + edge : f.fixed + f.out[0] * 0.12,
+          y: b.h / 2,
+          z: f.along === 'x' ? f.fixed + f.out[2] * 0.12 : b.z + edge,
+          h: b.h - 0.6, tone: hash2(b.x, b.z + fi) < 0.5 ? 0x5f6b62 : 0x8a6a3f,
+        });
+      }
+    });
+  }
+  const winMesh = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(WIN_W, WIN_H),
+    new THREE.MeshLambertMaterial({ color: 0xffffff }),
+    Math.max(1, winPlacements.length),
+  );
+  winPlacements.forEach((w, i) => {
+    const rotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, w.rotY, 0));
+    m4.compose(new THREE.Vector3(w.x, w.y, w.z), rotQ, new THREE.Vector3(1, 1, 1));
+    winMesh.setMatrixAt(i, m4);
+    winMesh.setColorAt(i, col.setHex(w.tone));
   });
   scene.add(winMesh);
+  const acMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshLambertMaterial({ color: 0xffffff }),
+    Math.max(1, acPlacements.length),
+  );
+  acPlacements.forEach((a, i) => {
+    const rotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, a.rotY, 0));
+    m4.compose(new THREE.Vector3(a.x, a.y, a.z), rotQ, new THREE.Vector3(1.0, 0.65, 0.55));
+    acMesh.setMatrixAt(i, m4);
+    acMesh.setColorAt(i, col.setHex(a.tone));
+  });
+  acMesh.castShadow = true;
+  scene.add(acMesh);
+  const pipeMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshLambertMaterial({ color: 0xffffff }),
+    Math.max(1, pipePlacements.length),
+  );
+  pipePlacements.forEach((p, i) => {
+    m4.compose(new THREE.Vector3(p.x, p.y, p.z), new THREE.Quaternion(), new THREE.Vector3(0.22, p.h, 0.22));
+    pipeMesh.setMatrixAt(i, m4);
+    pipeMesh.setColorAt(i, col.setHex(p.tone));
+  });
+  scene.add(pipeMesh);
 
   // Ground-floor plinth in each building's own trim colour: the base of
   // every facade gets a darker band so the boxes sit on the street.
@@ -438,7 +502,7 @@ export function createView(canvas, city) {
   scene.add(awnMesh);
 
   // Rooftop trim boxes on the tall buildings. The tower's glass is the same
-  // window band every other building gets (winMesh above) — a full-height
+  // window grid every other building gets (winMesh above) — a full-height
   // dark slab on its south face read as a black wall from the plaza, so
   // there is no separate floor-to-roof glass sheet here.
   const trimMat = new THREE.MeshLambertMaterial({ color: 0x6b5f4a });
