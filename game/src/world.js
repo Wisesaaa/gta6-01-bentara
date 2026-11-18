@@ -127,6 +127,233 @@ export function createView(canvas, city) {
   });
   scene.add(dashMesh);
 
+  // Street grammar: zebra crossings, lane arrows, street lights, road signs
+  // and ground-floor detail, so the roads read as streets, not grey strips.
+  // Everything is instanced; the whole batch costs ~5k triangles.
+  const h2 = (x, z) => {
+    const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+    return h - Math.floor(h);
+  };
+  const lines = roadLines();
+  // Zebra crossings: five bars on each approach of every intersection.
+  const zebraSpots = [];
+  for (const cx of lines) {
+    for (const cz of lines) {
+      for (const s of [-1, 1]) {
+        for (let k = -2; k <= 2; k += 1) {
+          zebraSpots.push({ x: cx + k * 3, z: cz + s * 10.5, rot: 0 });
+          zebraSpots.push({ x: cx + s * 10.5, z: cz + k * 3, rot: Math.PI / 2 });
+        }
+      }
+    }
+  }
+  const zebraMesh = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(0.8, 3.4),
+    new THREE.MeshBasicMaterial({ color: PALETTE.roadLine }),
+    zebraSpots.length,
+  );
+  zebraSpots.forEach((s, i) => {
+    e.set(-Math.PI / 2, 0, s.rot);
+    q.setFromEuler(e);
+    m4.compose(new THREE.Vector3(s.x, 0.05, s.z), q, new THREE.Vector3(1, 1, 1));
+    zebraMesh.setMatrixAt(i, m4);
+  });
+  scene.add(zebraMesh);
+
+  // Lane arrows: a painted straight-ahead arrow in every lane, every ~62 m.
+  const arrowCanvas = document.createElement('canvas');
+  arrowCanvas.width = 64;
+  arrowCanvas.height = 128;
+  const ag = arrowCanvas.getContext('2d');
+  ag.fillStyle = '#f5f2e8';
+  ag.fillRect(26, 52, 12, 62);
+  ag.beginPath();
+  ag.moveTo(32, 8);
+  ag.lineTo(56, 56);
+  ag.lineTo(40, 56);
+  ag.lineTo(40, 62);
+  ag.lineTo(24, 62);
+  ag.lineTo(24, 56);
+  ag.lineTo(8, 56);
+  ag.closePath();
+  ag.fill();
+  const arrowTex = new THREE.CanvasTexture(arrowCanvas);
+  arrowTex.colorSpace = THREE.SRGBColorSpace;
+  const arrowSpots = [];
+  for (const c of lines) {
+    for (let a = -155; a <= 155; a += 62) {
+      arrowSpots.push({ x: c + 4.5, z: a, dx: 0, dz: 1 });
+      arrowSpots.push({ x: c - 4.5, z: a, dx: 0, dz: -1 });
+      arrowSpots.push({ x: a, z: c + 4.5, dx: 1, dz: 0 });
+      arrowSpots.push({ x: a, z: c - 4.5, dx: -1, dz: 0 });
+    }
+  }
+  const arrowMesh = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(1.7, 3.4),
+    new THREE.MeshBasicMaterial({ map: arrowTex, transparent: true }),
+    arrowSpots.length,
+  );
+  const basis = new THREE.Matrix4();
+  arrowSpots.forEach((s, i) => {
+    // Local +y (texture up) maps to the travel direction, +z to world up.
+    basis.makeBasis(
+      new THREE.Vector3(-s.dz, 0, s.dx),
+      new THREE.Vector3(s.dx, 0, s.dz),
+      new THREE.Vector3(0, 1, 0),
+    );
+    basis.setPosition(s.x, 0.06, s.z);
+    arrowMesh.setMatrixAt(i, basis);
+  });
+  scene.add(arrowMesh);
+
+  // Street lights: pole, arm and a warm lamp head along the four arterials.
+  const lightSpots = [];
+  for (const c of [-37, 37]) {
+    for (let k = 0; k < 9; k += 1) {
+      const a = -148 + k * 37;
+      const side = k % 2 === 0 ? 1 : -1;
+      lightSpots.push({ x: c + side * 10.5, z: a, sx: -side, sz: 0 });
+      lightSpots.push({ x: a, z: c + side * 10.5, sx: 0, sz: -side });
+    }
+  }
+  const poleMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.18, 6, 0.18), new THREE.MeshLambertMaterial({ color: 0x3a3a38 }), lightSpots.length);
+  const armMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.8, 0.14, 0.14), new THREE.MeshLambertMaterial({ color: 0x3a3a38 }), lightSpots.length);
+  const lampMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.8, 0.16, 0.4), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }), lightSpots.length);
+  lightSpots.forEach((s, i) => {
+    m4.compose(new THREE.Vector3(s.x, 3, s.z), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+    poleMesh.setMatrixAt(i, m4);
+    const rotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s.sx !== 0 ? 0 : Math.PI / 2, 0));
+    m4.compose(new THREE.Vector3(s.x + s.sx * 0.9, 5.9, s.z + s.sz * 0.9), rotQ, new THREE.Vector3(1, 1, 1));
+    armMesh.setMatrixAt(i, m4);
+    m4.compose(new THREE.Vector3(s.x + s.sx * 1.8, 5.85, s.z + s.sz * 1.8), rotQ, new THREE.Vector3(1, 1, 1));
+    lampMesh.setMatrixAt(i, m4);
+  });
+  scene.add(poleMesh, armMesh, lampMesh);
+
+  // Road signs: STOP and one-way signs on posts at the arterial junctions.
+  function signTexture(kind) {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const g = c.getContext('2d');
+    if (kind === 'stop') {
+      g.fillStyle = '#c0392b';
+      g.fillRect(0, 0, 128, 128);
+      g.fillStyle = '#ffffff';
+      g.font = 'bold 34px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('STOP', 64, 66);
+    } else {
+      g.fillStyle = '#2f6b8a';
+      g.fillRect(0, 0, 128, 128);
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.moveTo(100, 64);
+      g.lineTo(56, 32);
+      g.lineTo(56, 52);
+      g.lineTo(24, 52);
+      g.lineTo(24, 76);
+      g.lineTo(56, 76);
+      g.lineTo(56, 96);
+      g.closePath();
+      g.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+  const roadSignSpots = [];
+  for (const cx of [-37, 37]) {
+    for (const cz of [-111, -37, 37, 111]) roadSignSpots.push({ x: cx + 10, z: cz + 10, jx: cx, jz: cz, kind: 'stop' });
+  }
+  for (const cx of [-111, 111]) {
+    for (const cz of [-37, 37]) roadSignSpots.push({ x: cx + 10, z: cz + 10, jx: cx, jz: cz, kind: 'oneway' });
+  }
+  const postMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.14, 2.8, 0.14), new THREE.MeshLambertMaterial({ color: 0x8a8a80 }), roadSignSpots.length);
+  const stopMesh = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: signTexture('stop') }),
+    roadSignSpots.filter((s) => s.kind === 'stop').length,
+  );
+  const onewayMesh = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: signTexture('oneway') }),
+    roadSignSpots.filter((s) => s.kind === 'oneway').length,
+  );
+  let stopI = 0;
+  let oneI = 0;
+  roadSignSpots.forEach((s, si) => {
+    m4.compose(new THREE.Vector3(s.x, 1.4, s.z), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+    postMesh.setMatrixAt(si, m4);
+    // Face the sign toward the junction it guards.
+    const faceQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(s.jx - s.x, s.jz - s.z), 0));
+    const facePos = new THREE.Vector3(s.x, 2.9, s.z);
+    if (s.kind === 'stop') {
+      m4.compose(facePos, faceQ, new THREE.Vector3(1, 1, 1));
+      stopMesh.setMatrixAt(stopI, m4);
+      stopI += 1;
+    } else {
+      m4.compose(facePos, faceQ, new THREE.Vector3(1, 1, 1));
+      onewayMesh.setMatrixAt(oneI, m4);
+      oneI += 1;
+    }
+  });
+  scene.add(postMesh, stopMesh, onewayMesh);
+
+  // Ground-floor detail: a door on the street-facing side of every building
+  // — a wide grey-blue rolling door on about one in four — plus small shop
+  // signs above the doors, so the ground floor is not blank concrete.
+  const doorCols = [0x4a3826, 0x2f3e46, 0x6b4a2f];
+  const dc = new THREE.Color();
+  const doorMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshLambertMaterial({ color: 0xffffff }),
+    city.buildings.length,
+  );
+  const shopNames = ['WARUNG', 'TOKO KELONTONG', 'BENGKEL', 'LAUNDRY', 'FOTOKOPI', 'WARTEG', 'TOKO OBAT', 'BARBERSHOP'];
+  const shopCols = [['#3f5a78', '#ffffff'], ['#c0392b', '#ffd75e'], ['#1f6b74', '#ffffff']];
+  city.buildings.forEach((b, i) => {
+    const nx = lines.reduce((best, L) => (Math.abs(L - b.x) < Math.abs(best - b.x) ? L : best), lines[0]);
+    const nz = lines.reduce((best, L) => (Math.abs(L - b.z) < Math.abs(best - b.z) ? L : best), lines[0]);
+    const dxFace = Math.abs(b.x - nx) - b.w / 2;
+    const dzFace = Math.abs(b.z - nz) - b.d / 2;
+    const rolling = h2(b.x + 3, b.z + 7) < 0.25;
+    const w = rolling ? 2.6 : 1.3;
+    const h = rolling ? 2.4 : 2.2;
+    let pos;
+    let rotQ;
+    if (dxFace < dzFace) {
+      const s = Math.sign(nx - b.x) || 1;
+      pos = new THREE.Vector3(b.x + s * (b.w / 2 + 0.2), h / 2, b.z);
+      rotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
+    } else {
+      const s = Math.sign(nz - b.z) || 1;
+      pos = new THREE.Vector3(b.x, h / 2, b.z + s * (b.d / 2 + 0.2));
+      rotQ = new THREE.Quaternion();
+    }
+    m4.compose(pos, rotQ, new THREE.Vector3(w, h, 0.15));
+    doorMesh.setMatrixAt(i, m4);
+    doorMesh.setColorAt(i, dc.setHex(rolling ? 0x5a6a72 : doorCols[Math.floor(h2(b.x + 5, b.z + 1) * doorCols.length)]));
+    // A shop sign above the door on about one building in seven.
+    if (!b.landmark && h2(b.x + 13, b.z + 19) < 0.14) {
+      const name = shopNames[Math.floor(h2(b.x + 21, b.z + 27) * shopNames.length)];
+      const cols = shopCols[Math.floor(h2(b.x + 29, b.z + 33) * shopCols.length)];
+      const sign = textSign(name, 5, 1.2, cols[0], cols[1]);
+      const face = dxFace < dzFace ? Math.sign(nx - b.x) || 1 : 0;
+      if (dxFace < dzFace) {
+        sign.position.set(b.x + face * (b.w / 2 + 0.25), 4.6, b.z);
+        sign.rotation.y = face > 0 ? Math.PI / 2 : -Math.PI / 2;
+      } else {
+        const s = Math.sign(nz - b.z) || 1;
+        sign.position.set(b.x, 4.6, b.z + s * (b.d / 2 + 0.25));
+        sign.rotation.y = s > 0 ? 0 : Math.PI;
+      }
+      scene.add(sign);
+    }
+  });
+  scene.add(doorMesh);
+
   // Buildings: one InstancedMesh, per-instance bleached-concrete colour.
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const boxMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -145,7 +372,7 @@ export function createView(canvas, city) {
   inst.receiveShadow = true;
   scene.add(inst);
 
-  // Window bands: one dark glass strip on each building's two long faces,
+  // Window bands: one dark glass strip on each building's four faces,
   // a second instanced mesh so the facades stop reading as blank concrete.
   // Band height, height on the facade and glass tone vary per building
   // (hashed from its position, so the variation is deterministic).
@@ -155,17 +382,28 @@ export function createView(canvas, city) {
   };
   const winGeo = new THREE.BoxGeometry(1, 1, 1);
   const winMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const winMesh = new THREE.InstancedMesh(winGeo, winMat, city.buildings.length * 2);
+  const winMesh = new THREE.InstancedMesh(winGeo, winMat, city.buildings.length * 4);
   city.buildings.forEach((b, i) => {
     const bandH = Math.min(7, Math.max(1.5, b.h * (0.3 + hash2(b.x, b.z) * 0.2)));
-    const bandY = b.h * (0.5 + hash2(b.z, b.x) * 0.15);
+    // Tall buildings wear their band lower, so it stays in frame when the
+    // camera looks up at them from the street — the tower's band at
+    // mid-height was cut off above the hero frame.
+    const bandY = b.tall
+      ? b.h * (0.35 + hash2(b.z, b.x) * 0.1)
+      : b.h * (0.5 + hash2(b.z, b.x) * 0.15);
     const tone = PALETTE.glassAlt[Math.floor(hash2(b.x + 7, b.z + 3) * PALETTE.glassAlt.length)];
     m4.compose(new THREE.Vector3(b.x, bandY, b.z + b.d / 2 + 0.07), new THREE.Quaternion(), new THREE.Vector3(b.w * 0.72, bandH, 0.12));
-    winMesh.setMatrixAt(i * 2, m4);
-    winMesh.setColorAt(i * 2, col.setHex(tone));
+    winMesh.setMatrixAt(i * 4, m4);
+    winMesh.setColorAt(i * 4, col.setHex(tone));
     m4.compose(new THREE.Vector3(b.x, bandY, b.z - b.d / 2 - 0.07), new THREE.Quaternion(), new THREE.Vector3(b.w * 0.72, bandH, 0.12));
-    winMesh.setMatrixAt(i * 2 + 1, m4);
-    winMesh.setColorAt(i * 2 + 1, col.setHex(tone));
+    winMesh.setMatrixAt(i * 4 + 1, m4);
+    winMesh.setColorAt(i * 4 + 1, col.setHex(tone));
+    m4.compose(new THREE.Vector3(b.x + b.w / 2 + 0.07, bandY, b.z), new THREE.Quaternion(), new THREE.Vector3(0.12, bandH, b.d * 0.72));
+    winMesh.setMatrixAt(i * 4 + 2, m4);
+    winMesh.setColorAt(i * 4 + 2, col.setHex(tone));
+    m4.compose(new THREE.Vector3(b.x - b.w / 2 - 0.07, bandY, b.z), new THREE.Quaternion(), new THREE.Vector3(0.12, bandH, b.d * 0.72));
+    winMesh.setMatrixAt(i * 4 + 3, m4);
+    winMesh.setColorAt(i * 4 + 3, col.setHex(tone));
   });
   scene.add(winMesh);
 
@@ -199,7 +437,10 @@ export function createView(canvas, city) {
   awnMesh.castShadow = true;
   scene.add(awnMesh);
 
-  // Rooftop trim boxes on the tall buildings, and glass strips on the tower.
+  // Rooftop trim boxes on the tall buildings. The tower's glass is the same
+  // window band every other building gets (winMesh above) — a full-height
+  // dark slab on its south face read as a black wall from the plaza, so
+  // there is no separate floor-to-roof glass sheet here.
   const trimMat = new THREE.MeshLambertMaterial({ color: 0x6b5f4a });
   for (const b of city.buildings) {
     if (!b.tall) continue;
@@ -208,12 +449,6 @@ export function createView(canvas, city) {
     trim.castShadow = true;
     scene.add(trim);
   }
-  const glass = new THREE.Mesh(
-    new THREE.BoxGeometry(19, 40, 0.6),
-    new THREE.MeshLambertMaterial({ color: PALETTE.glass }),
-  );
-  glass.position.set(0, 24, 9.4);
-  scene.add(glass);
 
   // Signs with real names, big enough to read at thumbnail size.
   // Brick-red is the one warm accent; the marina sign stays deep teal.

@@ -39,19 +39,69 @@ export function createPolice(scene, city, rng) {
 
   function spawnHeli() {
     const group = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 5), new THREE.MeshLambertMaterial({ color: 0x1d2a3a }));
-    const rotor = new THREE.Mesh(new THREE.BoxGeometry(9, 0.1, 0.5), new THREE.MeshLambertMaterial({ color: 0x111111 }));
-    rotor.position.y = 1;
-    const spot = new THREE.Mesh(
-      new THREE.ConeGeometry(6, 26, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }),
+    // Pale blue-grey body with a white cheatline and a light glass nose, so
+    // the machine reads against the sky instead of melting into one dark blob.
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x3a5a6e });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.3, 4.6), bodyMat);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.06, 0.28, 3.6), new THREE.MeshLambertMaterial({ color: 0xe8e4da }));
+    stripe.position.y = 0.18;
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.8, 0.9), new THREE.MeshLambertMaterial({ color: 0x7fa3b5 }));
+    nose.position.set(0, 0.1, 2.3);
+    // Tail boom, fin and tail rotor: the silhouette that says "helicopter".
+    const boom = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 3.6), bodyMat);
+    boom.position.set(0, 0.15, -4.0);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.3, 0.9), bodyMat);
+    fin.position.set(0, 0.6, -5.6);
+    const tailRotor = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.28), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+    tailRotor.position.set(0.32, 0.5, -5.7);
+    // Main rotor: two blades over a translucent disc, the classic blurred
+    // rotor read from below, plus a short mast.
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.7, 8), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+    mast.position.y = 0.95;
+    const rotor = new THREE.Mesh(new THREE.BoxGeometry(9, 0.08, 0.5), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
+    rotor.position.y = 1.3;
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(4.6, 24),
+      new THREE.MeshBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
     );
-    spot.position.y = -13;
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = 1.32;
+    // Skids: two rails on short struts, standing the body off the air.
+    const skidMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+    const skidL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 3.6), skidMat);
+    skidL.position.set(-1.15, -1.05, 0.2);
+    const skidR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 3.6), skidMat);
+    skidR.position.set(1.15, -1.05, 0.2);
+    for (const sx of [-1.15, 1.15]) {
+      for (const sz of [-0.9, 1.1]) {
+        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), skidMat);
+        strut.position.set(sx, -0.8, sz);
+        group.add(strut);
+      }
+    }
+    // Belly strobe: a red lamp with a soft glow halo, blinking on a
+    // deterministic timer so the shot stays reproducible.
+    const strobe = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff2a2a }),
+    );
+    strobe.position.set(0, -0.85, 1.6);
+    const strobeGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff6a5a, transparent: true, opacity: 0.3, depthWrite: false }),
+    );
+    strobeGlow.position.copy(strobe.position);
+    // Spotlight cone, hung under the nose and aimed at the player below.
+    const spot = new THREE.Mesh(
+      new THREE.ConeGeometry(4.0, 26, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    spot.position.set(0, -13, 1.6);
     spot.rotation.x = Math.PI;
-    group.add(body, rotor, spot);
+    group.add(body, stripe, nose, boom, fin, tailRotor, mast, rotor, disc, skidL, skidR, strobe, strobeGlow, spot);
     group.position.set(0, 34, 0);
     scene.add(group);
-    heli = { group, rotor, spot, unitName: HELI_NAME, status: 'SPOTLIGHT' };
+    heli = { group, rotor, tailRotor, strobe, strobeGlow, spot, unitName: HELI_NAME, status: 'SPOTLIGHT' };
     return heli;
   }
 
@@ -139,6 +189,11 @@ export function createPolice(scene, city, rng) {
       );
       heli.group.lookAt(px, 0, pz);
       heli.rotor.rotation.y += dt * 22;
+      heli.tailRotor.rotation.x += dt * 30;
+      // Strobe blinks twice a second on sim time, never wall-clock.
+      const strobeOn = Math.floor(t * 2) % 2 === 0;
+      heli.strobe.visible = strobeOn;
+      heli.strobeGlow.visible = strobeOn;
     }
     if (roadblock) roadblock.sync();
   }
@@ -162,5 +217,5 @@ export function createPolice(scene, city, rng) {
     return list;
   }
 
-  return { step, anyoneSees, units, despawnAll, cruisers, cops, get heli() { return heli; } };
+  return { step, anyoneSees, units, despawnAll, cruisers, cops, get heli() { return heli; }, get roadblock() { return roadblock; } };
 }

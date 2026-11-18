@@ -129,7 +129,7 @@ export function createMissions(scene, city, rng, hooks) {
     } else if (s.type === 'destroy' || s.type === 'steal') {
       targetCar = new Car(scene, rng, {
         x: L.x + 6, z: L.z + 4, heading: 0.8,
-        name: s.type === 'steal' ? 'KANCIL GT CURian' : 'Mobil Target',
+        name: s.type === 'steal' ? 'KIDANG GT CURIAN' : 'Mobil Target',
         color: s.type === 'steal' ? 0xd8cdb2 : 0x6b1f1f,
       });
       targetCar.missionTarget = s.type;
