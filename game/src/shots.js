@@ -264,16 +264,23 @@ export function stageShot(name, game, atSeconds) {
       heli.group.position.set(G.player.x + 8, 13, G.player.z - 16);
       heli.group.lookAt(G.player.x, 0, G.player.z);
     }
-    // Hero camera (v2): 18 m back, 8 m up — far enough that the mural on
-    // the east building (z ≈ 134) sits ahead of the camera instead of
-    // behind it, close enough that the car still reads at ~20% of the
-    // frame. The look target swings east (x+24) to keep the car left of
-    // the dialogue box and the mural upper-right. Render directly: G.draw()
-    // would reset the camera to the chase cam.
+    // Hero camera (v2.1): 12.5 m back, 5.4 m up — the car is the hero now,
+    // bottom-centre at a quarter to a third of the frame, a real sports
+    // car (spoiler, light bar, rims) instead of a small red box. The
+    // mural on the east building (z ≈ 134) still sits ahead of the
+    // camera, and the look target swings east (x+16) to keep the car
+    // left of the dialogue box and the mural upper-right. Render
+    // directly: G.draw() would reset the camera to the chase cam.
     G.setShotInput({ active: false });
     const cam = G.view.camera;
-    cam.position.set(G.player.x + 2, 8, G.player.z + 18);
-    cam.lookAt(G.player.x + 24, 2, G.player.z - 50);
+    cam.position.set(G.player.x + 1.5, 5.4, G.player.z + 12.5);
+    cam.lookAt(G.player.x + 16, 1.8, G.player.z - 44);
+    // Re-show the drift popup the chase really earned (cash 18250 -> 18295,
+    // 0.8 s slide) with a 60 s lifetime: popups fade on wall-clock time,
+    // and one slow SwiftShader frame outlives the 2.6 s default, so the
+    // frozen frame would lose the popup the cover is supposed to prove.
+    // Same values, same call the game itself makes when a drift pays.
+    G.hud.popups.drift(45, 0.8, 60);
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };
@@ -303,6 +310,43 @@ export function stageShot(name, game, atSeconds) {
       G.step(STEP);
       if (i > 70) G.setShotInput({ active: true, up: true, mouse: false });
     }
+    // Plaza fill (v2.1): the v2 frame was half bare tan concourse. Pull
+    // six street props and four more pedestrians into the near and
+    // mid-ground — flanking the player's walking line (heading 0.38 runs
+    // +x/+z), never on it — plus two parked cars at the plaza's south
+    // edge, so the foreground reads as a busy square, not a gap.
+    const plazaProps = [[-12, 30], [-16, 22], [16, 30], [20, 20], [-6, 34], [12, 36]];
+    let plazaPlaced = 0;
+    for (const prop of G.props.props) {
+      if (plazaPlaced >= plazaProps.length || prop.broken) continue;
+      const s = plazaProps[plazaPlaced];
+      prop.x = s[0];
+      prop.z = s[1];
+      prop.mesh.position.x = s[0];
+      prop.mesh.position.z = s[1];
+      plazaPlaced += 1;
+    }
+    const plazaPeds = [[-10, 26, -16, 20], [-14, 18, -8, 24], [14, 24, 20, 18], [18, 16, 12, 22]];
+    G.peds.peds.slice(3, 3 + plazaPeds.length).forEach((p, k) => {
+      const s = plazaPeds[k];
+      p.setPos(s[0], s[1]);
+      p.target = { x: s[2], z: s[3] };
+    });
+    [G.parked[1], G.parked[2]].forEach((c, k) => {
+      if (!c) return;
+      c.x = k === 0 ? -24 : 24;
+      c.z = 34;
+      c.heading = k === 0 ? 1.2 : -1.2;
+      c.sync();
+    });
+    // Re-show the idol popup the walk really earned (counter 1/24, +$60)
+    // with a 60 s lifetime, for the same slow-capture reason as the cover's
+    // drift popup. Render directly and freeze — the shared rAF tail would
+    // let the popup age two more slow renders before the capture.
+    G.hud.popups.collect(60, 'idol', 60);
+    G.draw();
+    window.__shotReady = true;
+    return { name, seconds, steps };
   } else {
     // story: wide marina shot, Pak Wira facing the player, his line live
     // with his painted portrait in the dialogue box — and a taxi passenger
@@ -323,7 +367,7 @@ export function stageShot(name, game, atSeconds) {
     // in it: v1.5 put them on the sightline and they read as black
     // monoliths hiding the player. They are staged after the sim steps,
     // so their final positions are exactly the ones in the frame.
-    const fgProps = [[-26, -162], [-24, -168], [2, -158], [4, -165]];
+    const fgProps = [[-26, -162], [-24, -168], [2, -158], [4, -165], [-30, -160], [-28, -167], [8, -158], [10, -164], [-2, -174], [4, -176]];
     let placed = 0;
     for (const prop of G.props.props) {
       if (placed >= fgProps.length || prop.broken) continue;
@@ -337,11 +381,21 @@ export function stageShot(name, game, atSeconds) {
     const fgPeds = [
       [-25, -159.5, -18, -163], [-23, -166, -16, -160],
       [0, -157.5, 6, -162], [3, -164, -2, -158],
+      [-28, -160, -24, -164], [10, -166, 6, -160],
     ];
     G.peds.peds.slice(0, fgPeds.length).forEach((p, k) => {
       const s = fgPeds[k];
       p.setPos(s[0], s[1]);
       p.target = { x: s[2], z: s[3] };
+    });
+    // Two parked cars at the pier's edges (v2.1): the promenade's near
+    // band was bare tan. They sit clear of the camera-to-Wira corridor.
+    [G.parked[1], G.parked[2]].forEach((c, k) => {
+      if (!c) return;
+      c.x = k === 0 ? 16 : -32;
+      c.z = k === 0 ? -156 : -162;
+      c.heading = k === 0 ? -1.2 : 1.2;
+      c.sync();
     });
     // Close, low camera from further west: the player fills the foreground
     // with his back to us, Wira stands just beyond him, and the MARINA

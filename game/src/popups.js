@@ -26,16 +26,21 @@ export function createPopups(container) {
     return item;
   }
 
-  function drift(amount, secondsHeld) {
-    return spawn(`DRIFT +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot`, 'stunt');
+  // `seconds` is the on-screen lifetime: live play uses the 2.6 s default;
+  // a screenshot stage may pass a longer one so the popup survives the
+  // slow headless capture (a SwiftShader frame blocks the main thread
+  // longer than the default lifetime, so the popup would fade before the
+  // capture). The text and amount are always the real earned ones.
+  function drift(amount, secondsHeld, seconds = 2.6) {
+    return spawn(`DRIFT +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot`, 'stunt', seconds);
   }
 
   function nearMiss(amount) {
     return spawn(`NEAR MISS +$${amount}`, 'Nyaris tabrakan di kecepatan penuh', 'stunt');
   }
 
-  function collect(amount, kind) {
-    return spawn(kind === 'idol' ? 'IDOL +$' + amount : 'KASET +$' + amount, kind === 'idol' ? 'Wayang emas Bentara' : 'Radio Kemarau 92.4', 'collect');
+  function collect(amount, kind, seconds = 2.6) {
+    return spawn(kind === 'idol' ? 'IDOL +$' + amount : 'KASET +$' + amount, kind === 'idol' ? 'Wayang emas Bentara' : 'Radio Kemarau 92.4', 'collect', seconds);
   }
 
   function fare(amount, name) {

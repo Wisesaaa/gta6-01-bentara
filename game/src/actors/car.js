@@ -2,7 +2,16 @@
 // steering that bites harder at low speed, handbrake slide — and solid
 // collision against the city's AABB walls.
 //
-// Kinds: sedan (the default), angkot (tall minibus with a yellow roof
+// The mesh is built in five passes, one job each: buildChassis (the low
+// body, hood, trunk, splitter, skirts, diffuser), buildGlasshouse (cabin,
+// sloped windshield, roof), buildAero (spoiler, scoop and stripe — the
+// sport silhouette), buildLightBar (full-width headlight/taillight strips
+// and exhausts), buildWheelSet (tyres plus rim discs, so wheels read from
+// the side instead of hiding under the body). Cop kit, angkot kit and the
+// ojek rider bolt on afterwards.
+//
+// Kinds: sedan (the default), sport (the player's CEMPAKA GT: lower,
+// wider stance, spoiler, stripe), angkot (tall minibus with a yellow roof
 // stripe), bajaj (short three-wheeler), ojek (narrow bike with a rider),
 // truck (long flatbed). The kind changes the silhouette, not the physics,
 // so traffic reads as Indonesian at a glance without a second code path.
@@ -48,11 +57,16 @@ function polisiTexture() {
 
 const KIND_SHAPE = {
   sedan: { len: 1, h: 1, cabin: 1, wheels: 4 },
+  sport: { len: 1.08, h: 0.82, cabin: 0.8, wheels: 4, sport: true },
   angkot: { len: 1.15, h: 1.25, cabin: 1.35, wheels: 4 },
   bajaj: { len: 0.55, h: 0.85, cabin: 0.9, wheels: 3 },
   ojek: { len: 0.5, h: 0.7, cabin: 0, wheels: 2 },
   truck: { len: 1.6, h: 1.1, cabin: 0.8, wheels: 6 },
 };
+
+// Shared dark trim material: splitter, skirts, diffuser, grille, spoiler.
+const TRIM = 0x17171a;
+const RIM = 0xb8b8b0;
 
 export class Car {
   constructor(scene, rng, opts = {}) {
@@ -75,13 +89,17 @@ export class Car {
     const len = CAR.length * shape.len;
     const group = new THREE.Group();
     const bodyMat = new THREE.MeshLambertMaterial({ color: this.isCop ? PALETTE.cop : this.color });
+    const trimMat = new THREE.MeshLambertMaterial({ color: TRIM });
+    const glassMat = new THREE.MeshLambertMaterial({ color: this.isCop ? 0x24344a : 0x5d7a8a });
     this.bodyMat = bodyMat;
-    this.buildBody(group, bodyMat, shape, len);
-    this.buildLights(group, len);
+    this.buildChassis(group, bodyMat, trimMat, shape, len);
+    this.buildGlasshouse(group, bodyMat, glassMat, shape, len);
+    if (shape.sport) this.buildAero(group, bodyMat, trimMat, shape, len);
+    this.buildLightBar(group, trimMat, len);
     if (this.isCop) this.buildCopKit(group, len);
     if (this.kind === 'angkot') this.buildAngkotKit(group, len);
     if (this.kind === 'ojek') this.buildRider(group);
-    this.buildWheels(group, shape, len);
+    this.buildWheelSet(group, shape, len);
     this.buildSmoke(group, len);
     group.traverse((m) => { if (m.isMesh) m.castShadow = true; });
     group.position.set(this.x, 0, this.z);
@@ -91,41 +109,121 @@ export class Car {
     this.scene = scene;
   }
 
-  buildBody(group, bodyMat, shape, len) {
+  // Pass 1 — the low body: a slab, a lower narrower hood up front and a
+  // lower narrower trunk at the rear, so the car tapers at both ends
+  // instead of reading as one plain box from the chase camera. The dark
+  // trim underneath — splitter, side skirts, rear diffuser — draws the
+  // ground line and makes the body sit on its wheels.
+  buildChassis(group, bodyMat, trimMat, shape, len) {
     const w = CAR.width;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.65 * shape.h, len), bodyMat);
+    const bodyH = 0.65 * shape.h;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, bodyH, len), bodyMat);
     body.position.y = 0.55 * shape.h;
-    // Nose and tail taper: both are lower and narrower than the mid-body,
-    // so the car reads as a car from the chase camera, not a plain box.
-    const hood = new THREE.Mesh(new THREE.BoxGeometry(w - 0.25, 0.4, 0.9), bodyMat);
-    hood.position.set(0, 0.62, len / 2 - 0.35);
-    const trunk = new THREE.Mesh(new THREE.BoxGeometry(w - 0.25, 0.42, 0.7), bodyMat);
-    trunk.position.set(0, 0.63, -len / 2 + 0.25);
-    group.add(body, hood, trunk);
-    if (shape.cabin > 0) {
-      // Glasshouse in a pale blue-grey, clearly lighter than the body, with
-      // a body-colour roof panel so it reads as glass plus roof.
-      const cabin = new THREE.Mesh(
-        new THREE.BoxGeometry(w - 0.3, 0.55 * shape.cabin, len * 0.45),
-        new THREE.MeshLambertMaterial({ color: this.isCop ? 0x24344a : 0x5d7a8a }),
-      );
-      cabin.position.set(0, (0.55 + 0.55 * shape.cabin / 2) * shape.h, -0.2);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(w - 0.45, 0.08, len * 0.42), bodyMat);
-      roof.position.set(0, (0.55 + 0.55 * shape.cabin) * shape.h + 0.04, -0.2);
-      group.add(cabin, roof);
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(w - 0.25, 0.4 * shape.h, 0.9), bodyMat);
+    hood.position.set(0, 0.62 * shape.h, len / 2 - 0.35);
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(w - 0.25, 0.42 * shape.h, 0.7), bodyMat);
+    trunk.position.set(0, 0.63 * shape.h, -len / 2 + 0.25);
+    // Sloped nose: a thin wedge tilted down toward the front, so the hood
+    // line falls instead of stopping flat.
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, 0.1, 0.55), bodyMat);
+    nose.position.set(0, 0.52 * shape.h, len / 2 + 0.05);
+    nose.rotation.x = -0.28;
+    // Dark ground trim.
+    const splitter = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.12, 0.5), trimMat);
+    splitter.position.set(0, 0.16, len / 2 - 0.05);
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(w - 0.15, 0.16, 0.4), trimMat);
+    diffuser.position.set(0, 0.18, -len / 2 + 0.05);
+    group.add(body, hood, trunk, nose, splitter, diffuser);
+    for (const sx of [-1, 1]) {
+      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, len * 0.62), trimMat);
+      skirt.position.set(sx * (w / 2 - 0.02), 0.2, -0.1);
+      group.add(skirt);
+      // Side mirror: a small stalk + head at the front of the cabin line.
+      const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.22), bodyMat);
+      mirror.position.set(sx * (w / 2 + 0.06), 0.95 * shape.h, len * 0.18);
+      group.add(mirror);
     }
   }
 
-  buildLights(group, len) {
-    // Warm-white headlights up front, red taillights at the rear.
-    const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
-    const tailMat = new THREE.MeshBasicMaterial({ color: 0xd23b2e });
+  // Pass 2 — the glasshouse: pale blue-grey glass, clearly lighter than
+  // the body, with a body-colour roof panel, a windshield sloped back
+  // from the hood and a rear window sloped down to the trunk.
+  buildGlasshouse(group, bodyMat, glassMat, shape, len) {
+    if (shape.cabin <= 0) return;
+    const w = CAR.width;
+    const cabinY = (0.55 + 0.55 * shape.cabin / 2) * shape.h;
+    const cabin = new THREE.Mesh(
+      new THREE.BoxGeometry(w - 0.3, 0.55 * shape.cabin, len * 0.45),
+      glassMat,
+    );
+    cabin.position.set(0, cabinY, -0.2);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(w - 0.45, 0.08, len * 0.42), bodyMat);
+    roof.position.set(0, (0.55 + 0.55 * shape.cabin) * shape.h + 0.04, -0.2);
+    const shield = new THREE.Mesh(new THREE.BoxGeometry(w - 0.34, 0.5 * shape.cabin, 0.06), glassMat);
+    shield.position.set(0, cabinY + 0.05, len * 0.03);
+    shield.rotation.x = -0.38;
+    const rearGlass = new THREE.Mesh(new THREE.BoxGeometry(w - 0.34, 0.45 * shape.cabin, 0.06), glassMat);
+    rearGlass.position.set(0, cabinY + 0.02, -len * 0.24);
+    rearGlass.rotation.x = 0.3;
+    group.add(cabin, roof, shield, rearGlass);
+  }
+
+  // Pass 3 — sport aero only: a rear wing on two struts, a hood scoop and
+  // a dark centre stripe over hood, roof and trunk. These three pieces are
+  // what make the CEMPAKA GT read as a sports car from behind at a glance.
+  buildAero(group, bodyMat, trimMat, shape, len) {
+    const w = CAR.width;
+    const wingY = (0.55 + 0.55 * shape.cabin) * shape.h + 0.32;
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.07, 0.34), trimMat);
+    wing.position.set(0, wingY, -len / 2 + 0.28);
+    wing.rotation.x = -0.08;
+    group.add(wing);
     for (const sx of [-0.6, 0.6]) {
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.08), headMat);
-      head.position.set(sx, 0.62, len / 2 + 0.02);
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.08), tailMat);
-      tail.position.set(sx, 0.62, -len / 2 - 0.02);
-      group.add(head, tail);
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.12), trimMat);
+      strut.position.set(sx, wingY - 0.16, -len / 2 + 0.28);
+      group.add(strut);
+    }
+    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.6), trimMat);
+    scoop.position.set(0, 0.86 * shape.h, len / 2 - 0.7);
+    group.add(scoop);
+    // Centre stripe: three flat panels laid over hood, roof and trunk.
+    const stripeMat = new THREE.MeshLambertMaterial({ color: 0x1d2a3a });
+    const stripeHood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.03, 0.95), stripeMat);
+    stripeHood.position.set(0, 0.84 * shape.h, len / 2 - 0.4);
+    const stripeRoof = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.03, len * 0.42), stripeMat);
+    stripeRoof.position.set(0, (0.55 + 0.55 * shape.cabin) * shape.h + 0.09, -0.2);
+    const stripeTrunk = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.03, 0.7), stripeMat);
+    stripeTrunk.position.set(0, 0.86 * shape.h, -len / 2 + 0.25);
+    group.add(stripeHood, stripeRoof, stripeTrunk);
+  }
+
+  // Pass 4 — lights and exhausts: one full-width warm-white strip up
+  // front and one full-width red strip at the rear, a dark grille between
+  // the headlights, and twin exhaust pipes under the diffuser. From the
+  // chase camera the rear strip is the car's signature.
+  buildLightBar(group, trimMat, len) {
+    const w = CAR.width;
+    const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+    const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2a1e });
+    const headStrip = new THREE.Mesh(new THREE.BoxGeometry(w - 0.5, 0.13, 0.08), headMat);
+    headStrip.position.set(0, 0.62, len / 2 + 0.02);
+    // Dark backing plate so the red tail strip reads against the red
+    // body from the chase camera instead of vanishing into it.
+    const tailPlate = new THREE.Mesh(new THREE.BoxGeometry(w - 0.4, 0.24, 0.05), trimMat);
+    tailPlate.position.set(0, 0.62, -len / 2 - 0.01);
+    const tailStrip = new THREE.Mesh(new THREE.BoxGeometry(w - 0.5, 0.13, 0.08), tailMat);
+    tailStrip.position.set(0, 0.62, -len / 2 - 0.05);
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(w - 0.7, 0.2, 0.06), trimMat);
+    grille.position.set(0, 0.42, len / 2 + 0.02);
+    group.add(headStrip, tailStrip, grille);
+    for (const sx of [-0.45, 0.45]) {
+      const pipe = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09, 0.09, 0.22, 8),
+        new THREE.MeshLambertMaterial({ color: 0x3a3a3a }),
+      );
+      pipe.rotation.x = Math.PI / 2;
+      pipe.position.set(sx, 0.22, -len / 2 - 0.08);
+      group.add(pipe);
     }
   }
 
@@ -182,12 +280,15 @@ export class Car {
     group.add(torso, head, helmet);
   }
 
-  buildWheels(group, shape, len) {
+  // Pass 5 — wheels: dark tyres out at the body's flanks so they show
+  // from the side, each with a pale rim disc on its outer face so the
+  // wheel reads as a wheel, not a black blob, from the chase camera.
+  buildWheelSet(group, shape, len) {
     const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.28, 10);
     const wheelMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
+    const rimGeo = new THREE.CylinderGeometry(0.21, 0.21, 0.3, 10);
+    const rimMat = new THREE.MeshLambertMaterial({ color: RIM });
     this.wheels = [];
-    // Wheels sit out at the body's flanks so they show from the side
-    // instead of hiding underneath the body.
     const spots = shape.wheels === 2
       ? [[0, 1.0], [0, -1.0]]
       : shape.wheels === 3
@@ -199,7 +300,10 @@ export class Car {
       const w = new THREE.Mesh(wheelGeo, wheelMat);
       w.rotation.z = Math.PI / 2;
       w.position.set(wx, 0.36, wz);
-      group.add(w);
+      const rim = new THREE.Mesh(rimGeo, rimMat);
+      rim.rotation.z = Math.PI / 2;
+      rim.position.set(wx, 0.36, wz);
+      group.add(w, rim);
       this.wheels.push(w);
     }
   }

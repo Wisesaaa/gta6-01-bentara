@@ -166,10 +166,11 @@ export function createPlayer(ctx) {
       view.camera.position.set(bx, 2.4, bz);
       view.camera.lookAt(p.x + Math.sin(p.heading) * 6, 1.4, p.z + Math.cos(p.heading) * 6);
     } else {
-      // Low and close: 6.2 m back, 2.1 m up. The car is the hero of the
+      // Low and close: 5.0 m back, 1.9 m up. The car is the hero of the
       // frame — bottom-centre, a quarter to a third of the width — and the
-      // street ahead still reads over its roof.
-      view.placeCamera(p.x, p.z, p.heading, 6.2, 2.1, 10);
+      // street ahead still reads over its roof. (v2.1: pulled in from
+      // 6.2 m / 2.1 m, where the car read as a small red box.)
+      view.placeCamera(p.x, p.z, p.heading, 5.0, 1.9, 10);
     }
   }
 

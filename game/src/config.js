@@ -18,10 +18,10 @@ export const CITY = {
 // shadows east across the road and the facades catch a warm edge.
 export const SUN = { x: 230, y: 46, z: 95 };
 export const SUN_COLOR = 0xffb066;
-export const SUN_INTENSITY = 3.1;
-export const SKY_TOP = 0x7fa8c9;
-export const SKY_HORIZON = 0xff9e57;
-export const HAZE_COLOR = 0xe8a06a;
+export const SUN_INTENSITY = 3.4;
+export const SKY_TOP = 0x5f97c4;
+export const SKY_HORIZON = 0xff8a3d;
+export const HAZE_COLOR = 0xdd8f4e;
 export const HAZE_NEAR = 190;
 export const HAZE_FAR = 470;
 
@@ -115,13 +115,15 @@ export const STUNTS = {
 };
 
 export const PALETTE = {
-  sky: 0xf7a55c,
-  haze: 0xe8a06a,
-  ground: 0xdcc9a8,
+  sky: 0xf08a3c,
+  haze: 0xdd8f4e,
+  ground: 0xd0b184,
   road: 0x6e6a63,
   roadLine: 0xf5eeda,
-  sidewalk: 0xc9b89a,
-  building: [0xe8d9b0, 0xd8b878, 0xc4a06a, 0xd0a878, 0xcf9a6a, 0xb88a5a],
+  sidewalk: 0xbd9c72,
+  // v2.1: warmer, more saturated facades — the old tans washed to pale
+  // cream at distance. Ochre, terracotta and brick, still kemarau.
+  building: [0xe3c78d, 0xcf9a55, 0xb87a48, 0xc98f5f, 0xbd7a4a, 0xa86a42],
   buildingTrim: [0x7a5a3f, 0x5f6b62, 0x8a6a4c, 0x6b4f3a],
   glass: 0x2f4a55,
   glassAlt: [0x4a5a63, 0x42586a, 0x5d6d75],

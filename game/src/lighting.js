@@ -11,11 +11,14 @@ function skyTexture() {
   c.height = 256;
   const g = c.getContext('2d');
   const grad = g.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#6f9cc4');
-  grad.addColorStop(0.42, '#e8a06a');
-  grad.addColorStop(0.62, '#ff9e57');
-  grad.addColorStop(0.78, '#ffc46b');
-  grad.addColorStop(1, '#e8b07a');
+  // v2.1: deeper, hotter stops — the old gradient washed out to pale cream
+  // under ACES + fog. Dusty blue on top, saturated amber at the horizon,
+  // still kemarau gold, never a sunset bay.
+  grad.addColorStop(0, '#4f83b8');
+  grad.addColorStop(0.42, '#e07f3a');
+  grad.addColorStop(0.62, '#ff8a2e');
+  grad.addColorStop(0.78, '#ffb03d');
+  grad.addColorStop(1, '#e0914f');
   g.fillStyle = grad;
   g.fillRect(0, 0, 4, 256);
   const tex = new THREE.CanvasTexture(c);

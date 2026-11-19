@@ -43,12 +43,16 @@
   #minimap { border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: #10161d; display: block; box-shadow: 0 0 0 4px rgba(16,22,29,.55); }
   #locName { font-size: 13px; letter-spacing: 2px; margin-top: 4px; }
   /* Character portrait + dialogue, bottom-centre — raised clear of the
-     controls hint at the very bottom. */
-  #dialogue { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); width: 460px; display: none; align-items: center; gap: 10px; }
+     controls hint at the very bottom. v2.1: widened 460 -> 600 px and
+     border-box, so a long line wraps INSIDE the panel instead of bleeding
+     past its right edge (the Marina line was clipped mid-word); the text
+     column also gets min-width: 0 so the flex row can shrink it. */
+  #dialogue { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); width: 600px; box-sizing: border-box; display: none; align-items: center; gap: 10px; }
   #portraitCanvas { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #ffd75e; flex: none; background: #7a5c2e; }
+  #dialogueText { min-width: 0; }
   #dialogueText b { display: block; font-size: 13px; color: #ffd75e; letter-spacing: 1px; }
-  #dialogueText span { font-size: 14px; font-style: italic; }
-  #toast { position: absolute; bottom: 168px; left: 50%; transform: translateX(-50%); font-size: 17px; font-style: italic; max-width: 640px; text-align: center; }
+  #dialogueText span { font-size: 14px; font-style: italic; overflow-wrap: break-word; }
+  #toast { position: absolute; bottom: 168px; left: 50%; transform: translateX(-50%); font-size: 17px; font-style: italic; width: max-content; max-width: 920px; padding: 0 12px; box-sizing: border-box; text-align: center; }
   /* Score popups, centre-right above the gauge. */
   #popups { position: absolute; right: 190px; bottom: 190px; width: 260px; text-align: right; }
   .popup { margin-bottom: 6px; transition: opacity .4s, transform .4s; }
