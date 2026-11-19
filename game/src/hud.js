@@ -1,4 +1,4 @@
-// HUD rebuild (v3): four corner clusters + a centre band, no text walls.
+// HUD: four corner clusters + a centre band, no text walls.
 // TOP-CENTER: mission stinger (2 s full, then a mini-pill with the
 // objective + distance), segmented stage bar, NEXT chip, act pips.
 // LEFT-MID: police response list, max 5 rows + "+N unit lagi", status
@@ -78,7 +78,7 @@ export function createHud() {
     dialogue: $('dialogue'), dialogueLine: $('dialogueLine'), portraitCanvas: $('portraitCanvas'),
     dialogueName: $('dialogueName'), dialogueRole: $('dialogueRole'),
     toast: $('toast'), prompt: $('prompt'), popups: $('popups'), centerFx: $('centerFx'),
-    ticker: $('ticker'),
+    ticker: $('ticker'), raceChip: $('raceChip'),
     gauge: $('gauge'), vehicleName: $('vehicleName'), vehiclePlate: $('vehiclePlate'),
     fuelBar: $('fuelBar'), fuelFill: $('fuelFill'), nitroBar: $('nitroBar'), nitroFill: $('nitroFill'),
     armorBar: $('armorBar'), armorFill: $('armorFill'),
@@ -337,6 +337,15 @@ export function createHud() {
     els.stingerMini.textContent = G.missions.done
       ? 'BENTARA MILIKMU'
       : `${G.missions.objectiveText()} · ${missionDistance(G)} m`;
+    // Race chip: only while a checkpoint race is running — gate count +
+    // live timer, so the race system is visible in the HUD, not just as
+    // a gold ring in the world.
+    if (G.race && G.race.active && G.race.nextGate) {
+      els.raceChip.style.display = 'block';
+      els.raceChip.textContent = `BALAPAN · GATE ${G.race.gateIndex + 1}/${G.race.gateCount} · ${G.race.timer.toFixed(1)} dtk`;
+    } else {
+      els.raceChip.style.display = 'none';
+    }
     // Act chip + pips (top-left).
     const act = actForMission(G.missions.done ? 7 : G.missions.index);
     els.actChip.textContent = actNameForMission(G.missions.done ? 7 : G.missions.index);
@@ -425,10 +434,12 @@ export function createHud() {
       const magKey = { shotgun: 'shellMag', smg: 'smgMag', bedil: 'bedilMag', pelontar: 'pelontarMag' }[id];
       const resKey = w.reserveField;
       const owned = id === 'pistol' || (hasKey && P[hasKey]);
-      const lockedByRep = w.repNeeded && repLevel(S.rep) < w.repNeeded;
       if (!owned) {
-        const why = lockedByRep ? `REP ${w.repNeeded}` : `$${w.price}`;
-        return `<span class="slot locked">${i + 1} ${w.name} · 🔒 ${why}</span>`;
+        // Rail stays compact: name + padlock only. The price / REP
+        // requirement lives in the shop panel — the rail only advertises
+        // that the slot exists. (r3 showed "$120"/"REP 4" blowing the
+        // rail to ~640 px wide.)
+        return `<span class="slot locked">${i + 1} ${w.name} · 🔒</span>`;
       }
       const ammo = id === 'pistol' ? '∞' : `${P[magKey] ?? 0}/${P[resKey] ?? 0}`;
       return `<span class="slot${P.weapon === id ? ' active' : ''}">${i + 1} ${w.name} · ${ammo}</span>`;
@@ -439,7 +450,7 @@ export function createHud() {
       const owned = G.garage.ownedList();
       const current = P.car ? P.car.name : null;
       els.progressRail.innerHTML = `<div class="rail-title">GARASI</div>` + (owned.length === 0
-        ? `<div class="rail-car">CEMPAKA GT</div><div class="rail-note">Beli di Bengkel Roda Jaya</div>`
+        ? `<div class="rail-car">CEMPAKA GT</div><div class="rail-note">Beli di Bengkel</div>`
         : owned.map((c) => `<div class="rail-car${current === c.name ? ' current' : ''}">${c.name}</div>`).join(''));
     }
     // Crosshair: on foot only, never in capture mode.

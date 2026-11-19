@@ -17,10 +17,7 @@
 //   update(dt) dipanggil koordinator dari step() game.js tiap frame.
 // - Tidur semalam = 8 jam game (SLEEP_HOURS): sleep() menambah accrual
 //   semalam, lalu mencairkan seluruh pot ke cash dan menaikkan state.day + 1.
-//   CATATAN: base v2.1 belum punya mekanisme tidur / pergantian hari
-//   (safehouse hanya perbaiki + simpan, state.day tidak pernah naik) —
-//   koordinator yang menambahkan interaksi tidur di safehouse dan
-//   memanggil usaha.sleep() di sana.
+//   The safehouse calls usaha.sleep() when the player sleeps there.
 //
 // Save: serialize()/restore(data) mengikuti pola save.js (plain object).
 // Bump schema TIDAK dilakukan di sini — koordinator yang tangani di save.js.

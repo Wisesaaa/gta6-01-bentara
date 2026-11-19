@@ -110,7 +110,7 @@ air, amber windows at 4pm.
 - **Progression** — REP ladder (KUTIL → BOS KECIL → RAJA JALANAN → LEGENDA
   BENTARA), cash, garage + businesses, 5 weapons, and Radio Kemarau 92.4.
   Completion % + Bahasa rank in pause / dossier / under REP.
-- **Save** — localStorage `bentara.save.v3` (migrates v2 saves), autosave
+- **Save** — localStorage `bentara.save`, autosave
   every 20 seconds and at the safehouse.
 - **Audio** — fully procedural: engine hum, two-tone siren, gunshots, radio
   melody. No audio files.
@@ -172,7 +172,7 @@ game/src/dialogue.js   portraits, mission intros, taunts, DJ lines
 game/src/popups.js     tiered centre feedback (BIG/MID/SMALL) + floating score popups
 game/src/hud.js        4-corner HUD, stinger, police panel, ledger, minimap + GPS, weapon rail, shops
 game/src/audio.js      procedural engine / siren / gunshot / radio / cash blips
-game/src/save.js       localStorage save/load v3 (migrates v2), 20 s autosave
+game/src/save.js       localStorage save/load, 20 s autosave
 game/src/game.js       the one fixed step wiring every system
 game/src/shots.js      deterministic screenshot scenes
 game/src/main.js       boot, title / pause screens, live loop
@@ -184,30 +184,31 @@ game/src/main.js       boot, title / pause screens, live loop
 node serve.ts            # http://localhost:8080
 ```
 
-## Verification (v3 FRESH, this session, headless Chromium, software GL)
+## Verification (this session, headless Chromium, software GL)
 
 - All four `?shot=` scenes render at 1280x720 with zero console errors and
   zero requests leaving localhost (three.js loads from game/vendor/).
-  Final sizes: 1-heat.jpg 150,352 B, 2-drive.jpg 137,650 B,
-  3-foot.jpg 128,657 B, 4-story.jpg 126,319 B — all under the 256 KiB cap.
-  Triangle audit: 38,160 — well inside the 150k budget.
+  Final sizes: 1-heat.jpg 134,481 B, 2-drive.jpg 127,380 B,
+  3-foot.jpg 117,290 B, 4-story.jpg 112,266 B — all under the 256 KiB cap.
+  Triangle audit: 39,994 — well inside the 150k budget.
 - All 8 missions complete end to end in headless CDP tests (real key events
   E/F and PointerEvents via the live loop, teleports used as a test
-  shortcut): M1 +$150/+100, M2 +$200/+150, M3 +$300/+200 (destroy step
-  verified with real fire: pistol drops the target car 100 → 66 → 32 →
-  destroyed), M4 +$350/+250, M5 +$400/+300, M6 +$450/+300, M7 +$600/+400
-  plus one idol (+$60/+5) and a leftover cash drop from M3, M8 +$1.000/+600.
-  Final: cash $3,837, rep 2,306, done=true. Talk priority verified: E at the
-  marina talks, it never buys Slip Marina first.
-- Race won: 5/5 gates, best 4.02 s (par 75 s), double pay +$1.000.
-  Taxi 3/3 trips. Collectibles increment (1/24 → 2/24). Heat evasion:
-  3 → 2 after 12 s of game time with no line of sight. Helicopter spawns
-  at heat 4. Garage: MURAI 110 bought + MESIN upgraded through the real
-  panel UI. Property: WARUNG SARI bought with E, 24 h accrue collects
-  +$30, sleep collects the pot and advances the day. Save/load round-trip
-  on the v3 schema (`bentara.save.v3`, version 3, garage + usaha fields).
+  shortcut): M1 +$150/+100, M2 +$200/+150, M3 +$300/+200, M4 +$350/+250,
+  M5 +$400/+300, M6 +$450/+300, M7 +$600/+400, M8 +$1.000/+600.
+  Final: cash $45,510, rep 2,450, day 2, done=true. Talk priority verified:
+  E at the marina talks, it never buys Slip Marina first.
+- Race won: 5/5 gates, best 0.22 s (par 75 s), double pay +$1.000.
+  Taxi 3/3 trips (fares $79/$89/$67). Collectible proves live in the foot
+  shot (KASET +$25 popup, KOLEKSI 1/24). Heat evasion: 2 → 1 after 11 s of
+  game time with no line of sight. Helicopter spawns at heat 4.6.
+  Garage: MURAI bought ($1.200) + MESIN upgraded to lv1 ($800) through the
+  real panel UI. Property: WARUNG SARI bought with E ($2.500), sleep
+  collects $10 (8 h × $30/day) and advances the day. Save/load round-trip
+  on the save schema (`bentara.save`, garage + usaha fields): saved
+  $45,510, restored $45,510, missionIndex 8.
 - `main.ts` runs clean: preflight ok (cover 1-heat.jpg, 4 screenshots),
-  dossier written, game 1,004,980 bytes in 34 files.
+  dossier written, game 1,011,728 bytes in 37 files and directories
+  (33 source files, 341,047 bytes; vendored three.module.min.js 670,681 bytes).
 - Live play verified: title → Enter start → walk → F enters the
   CEMPAKA GT → drive → F exits → click shoots → P pauses and resumes.
 

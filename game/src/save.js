@@ -1,11 +1,9 @@
 // Save / load through localStorage. Autosave runs on a timer in the game loop
 // (every 20 s); the safehouse also saves immediately.
 //
-// v3 adds the garage + usaha economies, the full weapon rack and armor to
-// the snapshot. A v2 save still loads: it migrates (missing fields fall
-// back to defaults) and is re-saved under the v3 key on the next save.
-export const SAVE_KEY = 'bentara.save.v3';
-export const SAVE_KEY_V2 = 'bentara.save.v2';
+// The snapshot carries the garage + usaha economies, the full weapon rack
+// and armor. Missing fields fall back to defaults on load.
+export const SAVE_KEY = 'bentara.save';
 
 const DEFAULTS = {
   cash: 250, rep: 0, day: 1,
@@ -25,7 +23,7 @@ const BOOL_FIELDS = ['hasShotgun', 'hasSmg', 'hasBedil', 'hasPelontar'];
 
 export function buildSnapshot(data) {
   const out = {
-    version: 3,
+    version: 1,
     cash: Math.round(data.cash ?? DEFAULTS.cash),
     rep: Math.round(data.rep ?? DEFAULTS.rep),
     day: Math.max(1, data.day ?? DEFAULTS.day),
@@ -70,7 +68,7 @@ function validate(data) {
   if (data.raceBest !== undefined && data.raceBest !== null && typeof data.raceBest !== 'number') return null;
   if (data.garage !== undefined && data.garage !== null && typeof data.garage !== 'object') return null;
   if (data.usaha !== undefined && data.usaha !== null && typeof data.usaha !== 'object') return null;
-  return { ...DEFAULTS, ...data, version: 3 };
+  return { ...DEFAULTS, ...data, version: 1 };
 }
 
 export function loadGame() {
@@ -78,12 +76,6 @@ export function loadGame() {
     const raw = window.localStorage.getItem(SAVE_KEY);
     if (raw) {
       const data = validate(JSON.parse(raw));
-      if (data) return data;
-    }
-    // v2 migration: same shape minus the v3 fields, defaults fill the gap.
-    const old = window.localStorage.getItem(SAVE_KEY_V2);
-    if (old) {
-      const data = validate(JSON.parse(old));
       if (data) return data;
     }
     return null;
@@ -99,6 +91,5 @@ export function hasSave() {
 export function clearSave() {
   try {
     window.localStorage.removeItem(SAVE_KEY);
-    window.localStorage.removeItem(SAVE_KEY_V2);
   } catch { /* storage unavailable */ }
 }

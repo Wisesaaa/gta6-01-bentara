@@ -211,7 +211,7 @@ export function createGame(canvas, seed = 7) {
     },
   });
 
-  // v3 systems: world effects (skids, smoke, sparks, cop drops), the
+  // Depth systems: world effects (skids, smoke, sparks, cop drops), the
   // garage economy and the property economy.
   const effects = createEffects(view.scene, rng);
   const garage = new Garage({ state, scene: view.scene, rng, parked, hud, audio, player });

@@ -63,34 +63,40 @@
   #repFill { height: 100%; width: 0%; background: #7dd87d; }
   #nextUnlock { display: block; margin-top: 4px; font-size: 11px; color: var(--gold); text-align: left; }
   #chipRow { margin-top: 6px; font-size: 12px; color: var(--gold); text-align: left; }
-  /* BOTTOM-RIGHT vehicle card + weapon rail. */
-  #driveBox { position: absolute; bottom: 34px; right: 12px; text-align: right; min-width: 230px; }
-  #gauge { display: block; margin-left: auto; }
+  /* BOTTOM-RIGHT vehicle card + weapon rail — COMPACT: the r3 panel was
+     ~630 px wide and ate 40% of the frame, hiding the hero car and
+     cutting dialogue. Gauge scaled down, rail wraps in two short rows,
+     radio on one ellipsised line, so the whole cluster is ~300 px wide. */
+  #driveBox { position: absolute; bottom: 34px; right: 12px; text-align: right; min-width: 0; width: 300px; padding: 6px 10px; }
+  #gauge { display: block; margin-left: auto; width: 104px; height: 104px; }
   #vehicleName { font-size: 13px; letter-spacing: 1px; color: var(--gold); }
   #vehiclePlate { font-size: 11px; letter-spacing: 1px; opacity: .85; }
-  .meter { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 0 auto; width: 150px; overflow: hidden; }
+  .meter { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 0 auto; width: 130px; overflow: hidden; }
   .meter i { display: block; height: 100%; }
   #fuelFill { background: #2fd8c8; }
   #nitroFill { background: #b06bff; }
   #nitroBar.locked #nitroFill { background: #5a5a52; }
   #armorFill { background: #7dd87d; }
-  #radioLine { font-size: 12px; opacity: .95; max-width: 260px; margin-left: auto; }
+  #radioLine { font-size: 12px; opacity: .95; max-width: 280px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #eqBars { display: inline-flex; gap: 2px; height: 12px; align-items: flex-end; margin-left: 6px; vertical-align: middle; }
   #eqBars i { width: 3px; background: var(--gold); animation: eq 0.7s ease-in-out infinite alternate; }
   #eqBars i:nth-child(1) { height: 5px; } #eqBars i:nth-child(2) { height: 9px; animation-delay: .15s; }
   #eqBars i:nth-child(3) { height: 12px; animation-delay: .3s; } #eqBars i:nth-child(4) { height: 7px; animation-delay: .45s; }
   #eqBars i:nth-child(5) { height: 10px; animation-delay: .6s; }
   @keyframes eq { from { transform: scaleY(.4); } to { transform: scaleY(1); } }
-  #weaponBox { font-size: 13px; margin-top: 4px; }
-  #weaponBox .slot { display: inline-block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 5px; padding: 2px 7px; margin-left: 4px; }
+  #weaponBox { font-size: 11px; margin-top: 4px; max-width: 280px; margin-left: auto; }
+  #weaponBox .slot { display: inline-block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 5px; padding: 2px 5px; margin-left: 3px; margin-top: 3px; }
   #weaponBox .slot.active { border-color: var(--gold); color: var(--gold); }
   #weaponBox .locked { opacity: .45; }
-  /* RIGHT-EDGE progress rail. */
-  #progressRail { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); text-align: right; font-size: 11px; }
+  /* RIGHT-EDGE progress rail — a real chip with a panel background now
+     (r3/r4 first take: bare text at 10 px / opacity .6 hugging the edge
+     read as running off the frame even though the box ended at 1266).
+     Anchored 24 px in, short rows only, so it can never be misread. */
+  #progressRail { position: absolute; top: 50%; right: 24px; transform: translateY(-50%); text-align: right; font-size: 11px; white-space: nowrap; background: var(--panel); border: 2px solid var(--panel-line); border-radius: 10px; padding: 6px 10px; }
   #progressRail .rail-title { letter-spacing: 2px; color: var(--gold); font-weight: 700; margin-bottom: 4px; }
-  #progressRail .rail-car { opacity: .6; padding: 1px 0; }
+  #progressRail .rail-car { opacity: .85; padding: 1px 0; }
   #progressRail .rail-car.current { opacity: 1; color: var(--gold); font-weight: 700; }
-  #progressRail .rail-note { opacity: .6; font-size: 10px; }
+  #progressRail .rail-note { opacity: .85; font-size: 10px; }
   /* CENTRE feedback layer (~35% height) + dispatch ticker + ledger. */
   #centerFx { position: absolute; left: 50%; top: 35%; transform: translate(-50%, -50%); text-align: center; width: 760px; max-width: 90vw; }
   .fx { transform: rotate(8deg); animation: fxIn .7s ease-out; }
@@ -112,16 +118,22 @@
   #ledgerCard h3 { margin: 0 0 6px; font-size: 15px; letter-spacing: 2px; color: var(--gold); }
   #ledgerCard .row { display: flex; justify-content: space-between; padding: 2px 0; }
   #ledgerCard .total { border-top: 1px solid rgba(255,255,255,.4); margin-top: 4px; padding-top: 4px; font-weight: 700; }
-  /* Character portrait + dialogue, bottom-centre, 24px safe margins. */
-  #dialogue { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); width: 600px; max-width: calc(100vw - 48px); box-sizing: border-box; display: none; align-items: center; gap: 10px; }
+  /* Character portrait + dialogue, bottom-centre, 24px safe margins.
+     Narrowed to 560 px so the (now compact) bottom-right cluster can
+     never reach its right end — r3 cut Aska's line there. */
+  #dialogue { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); width: 560px; max-width: calc(100vw - 48px); box-sizing: border-box; display: none; align-items: center; gap: 10px; }
   #portraitCanvas { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); flex: none; background: #7a5c2e; }
   #dialogueText { min-width: 0; flex: 1; }
   #dialogueName { display: inline-block; font-size: 13px; color: var(--gold); letter-spacing: 1px; font-weight: 700; }
   #dialogueRole { display: inline-block; font-size: 10px; letter-spacing: 1px; background: #1f6b74; color: #fff; border-radius: 8px; padding: 1px 7px; margin-left: 6px; vertical-align: 1px; }
   #dialogueLine { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; font-style: italic; overflow-wrap: break-word; line-height: 1.35; }
   #toast { position: absolute; bottom: 168px; left: 50%; transform: translateX(-50%); font-size: 17px; font-style: italic; width: max-content; max-width: 920px; padding: 0 12px; box-sizing: border-box; text-align: center; }
-  /* Score popups, centre-right above the gauge. */
-  #popups { position: absolute; right: 190px; bottom: 190px; width: 260px; text-align: right; }
+  /* Race chip: shown only while a checkpoint race is running (gate
+     count + live timer), tucked under the mission stinger. */
+  #raceChip { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--gold); background: rgba(20,10,8,.8); border: 1px solid var(--panel-line); border-radius: 14px; padding: 3px 12px; display: none; white-space: nowrap; }
+  /* Score popups, centre-right above the gauge — anchored 360 px from the
+     right so they never touch the bottom-right cluster. */
+  #popups { position: absolute; right: 360px; bottom: 190px; width: 260px; text-align: right; }
   .popup { margin-bottom: 6px; transition: opacity .4s, transform .4s; }
   .popup b { display: block; font-size: 22px; letter-spacing: 1px; color: var(--gold); }
   .popup span { font-size: 13px; opacity: .9; }
@@ -180,6 +192,7 @@
     <div id="chipRow">KOLEKSI 0/24 · ASET 0/3 · KEMAJUAN 0%</div>
   </div>
   <div id="ticker"></div>
+  <div id="raceChip"></div>
   <div id="centerFx"></div>
   <div id="ledgerCard" class="panel"></div>
   <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="64" height="64"></canvas><div id="dialogueText"><b id="dialogueName">PAK WIRA</b><span id="dialogueRole">BOS MARINA</span><span id="dialogueLine"></span></div></div>

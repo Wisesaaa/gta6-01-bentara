@@ -8,9 +8,8 @@
 // Aturan harga:
 // - Diskon REP: level 4 LEGENDA BENTARA (rep >= 2500, ladder [0, 250, 1000, 2500])
 //   = 20% untuk SEMUA pembelian di garasi (mobil, upgrade, respray). Helper
-//   repDiscount(rep) mengembalikan 0.8 kalau rep >= 2500, else 1. Tidak ada
-//   aturan diskon di base v2.1 (hud.js masih pakai ladder lama) — ladder baru
-//   diimplementasikan koordinator di progress; file ini mengikuti ladder baru.
+//   repDiscount(rep) mengembalikan 0.8 kalau rep >= 2500, else 1. The
+//   discount ladder lives in progress; this file follows that ladder.
 // - Upgrade (per level, harga level berikutnya): MESIN $800/$1.600/$3.200,
 //   BAN $500/$1.000/$2.000, TURBO $1.200/$2.400/$4.800. Efeknya dipakai
 //   Car.drive() (koordinator): MESIN +12% top speed/level, BAN grip,

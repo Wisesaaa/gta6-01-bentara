@@ -1,4 +1,4 @@
-// Golden-hour lighting rig, rebuilt for v3: a real shader sky dome
+// Golden-hour lighting rig: a real shader sky dome
 // (burnt-orange horizon -> blood-red mid -> bruised-purple top), an
 // exponential haze fog, a low amber sun with a halo, fake bloom as
 // additive glow sprites (no post-processing — nothing here needs an
@@ -106,15 +106,20 @@ export function createGoldenHour(scene, city, rng, lights = {}) {
   scene.add(dome);
 
   // --- the sun itself: a hard disc low over the avenue + a halo sprite.
+  // The disc is near-white and large enough to read against the orange
+  // sky (r3's small yellow disc washed out), and the halo MUST ignore
+  // fog — a SpriteMaterial fogs by default, and at 815 m the Exp2 haze
+  // erased it entirely, which is why r3 had no visible sun at all.
   const sunDir = new THREE.Vector3(SUN.x, SUN.y, SUN.z).normalize();
   const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(34, 32),
-    new THREE.MeshBasicMaterial({ color: 0xffd75e, fog: false }),
+    new THREE.CircleGeometry(48, 32),
+    new THREE.MeshBasicMaterial({ color: 0xfff3b0, fog: false }),
   );
   disc.position.copy(sunDir).multiplyScalar(820);
   disc.lookAt(0, 0, 0);
   scene.add(disc);
-  const halo = makeGlowSprite(0xffb367, 260, 0.85);
+  const halo = makeGlowSprite(0xffb367, 340, 1.0);
+  halo.material.fog = false;
   halo.position.copy(sunDir).multiplyScalar(815);
   scene.add(halo);
 

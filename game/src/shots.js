@@ -120,13 +120,18 @@ export function stageShot(name, game, atSeconds) {
     // shows it: same-direction cars ahead in the right lane, oncoming cars
     // in the left lane. The start spots are chosen by where the cars END
     // UP after 2.5 s (same-direction +30 m, oncoming -30 m), so the frame
-    // holds a convoy 10–85 m ahead instead of an empty road. The other
-    // cars stay scattered on the grid.
+    // holds a convoy 10–85 m ahead instead of an empty road. Oncoming
+    // cars start well north of the player (z 35–110), so they all end up
+    // AHEAD of him. Same-direction cars start at z -25..50 for the same
+    // reason: the second polish take started one at z -50 and it ended
+    // up 5 m from the player, a huge yellow taxi filling the bottom-left
+    // corner and hiding the trailing cruiser. The other cars stay
+    // scattered on the grid.
     const arterial = [
-      { lane: 41.5, z: -75, dir: 1 }, { lane: 41.5, z: -50, dir: 1 },
       { lane: 41.5, z: -25, dir: 1 }, { lane: 41.5, z: 0, dir: 1 },
-      { lane: 32.5, z: -20, dir: -1 }, { lane: 32.5, z: 5, dir: -1 },
-      { lane: 32.5, z: 30, dir: -1 }, { lane: 32.5, z: 55, dir: -1 },
+      { lane: 41.5, z: 25, dir: 1 }, { lane: 41.5, z: 50, dir: 1 },
+      { lane: 32.5, z: 35, dir: -1 }, { lane: 32.5, z: 60, dir: -1 },
+      { lane: 32.5, z: 85, dir: -1 }, { lane: 32.5, z: 110, dir: -1 },
     ];
     G.traffic.cars.slice(0, arterial.length).forEach((c, k) => {
       const a = arterial[k];
@@ -156,6 +161,14 @@ export function stageShot(name, game, atSeconds) {
     // gold collectible on the left one.
     stageTaxi(G, 'northRowStall', 48, 12);
     stageCollectible(G, 28, 5);
+    // The race is really running for this shot: start it before the sim
+    // so the timer accrues and the HUD race chip shows, and the first
+    // gold gate is moved onto the player's lane ahead (same honest
+    // staging as the collectible — a real gate, really active, just
+    // placed where the camera can see it). The gate sits at +32 m, past
+    // the roadblock at +46 m, so the frame proves the race system: gold
+    // ring in the world, gold circle on the minimap, timer chip on top.
+    G.race.startRace();
     G.hud.toast('', 0.01);
     G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: false });
     G.draw();
@@ -164,11 +177,21 @@ export function stageShot(name, game, atSeconds) {
       G.step(STEP);
       // Stage the convoy on the second-to-last step, so one more step runs
       // after the move (HUD distances read the staged spots) and the final
-      // frame holds the formation: one cruiser tight behind the player
-      // (RAMMING range — the MENABRAK pill), two staggered ahead, and the
-      // roadblock sideways across the road further ahead.
+      // frame holds the formation: TWO cruisers tight behind the player,
+      // flanking so both read, and one cruiser 11 m ahead — inside the
+      // 12 m RAMMING range, so the MENABRAK pill stays live. The geometry
+      // is unforgiving and two takes got it wrong: the drive camera sits
+      // 11 m behind the player, so a cruiser staged 14–21 m behind the
+      // player lands BEHIND the camera and is invisible (probe-measured),
+      // and a cruiser closer than 8 m to the camera has its wheels cut
+      // off at the bottom edge. "Tight behind" therefore means 3 m
+      // behind the player (8 m ahead of the camera): both trailing
+      // cruisers fully in frame, lightbars reading, flanking the player
+      // car. Lateral -1.75 m on the west side keeps that cruiser clear
+      // of the bottom-right HUD panel; +3.5 m on the east side keeps the
+      // other one clear of the frame's left edge.
       if (i === steps - 2) {
-        const offsets = [[4, 8], [-5, -14], [5, -24]];
+        const offsets = [[-1.75, -3], [3.5, -3], [0, 11]];
         G.police.cruisers.forEach((c, k) => {
           const off = offsets[k % offsets.length];
           c.x = G.player.x + off[0];
@@ -177,6 +200,16 @@ export function stageShot(name, game, atSeconds) {
           c.speed = 42;
           c.sync();
         });
+        // The race gate, moved onto the lane ahead of the player.
+        const gate = G.race.nextGate;
+        if (gate) {
+          gate.x = G.player.x;
+          gate.z = G.player.z + 32;
+          gate.ring.position.set(gate.x, 4.5, gate.z);
+          gate.ring.rotation.y = 0;
+          gate.post.position.set(gate.x - 4.5, 2.25, gate.z);
+          gate.post2.position.set(gate.x + 4.5, 2.25, gate.z);
+        }
         const rb = G.police.roadblock;
         if (rb) {
           rb.x = G.player.x;
@@ -187,10 +220,11 @@ export function stageShot(name, game, atSeconds) {
         }
       }
     }
-    // The drive camera: 8 m back, 3.2 m up — far enough to hold the
-    // trailing cruiser at the bottom of the frame, close enough that the
-    // player car stays the hero (never the 22 m pull-back). Render
-    // directly: G.draw() would reset the camera to the chase cam.
+    // The drive camera: 11 m back, 4.2 m up — far enough to hold BOTH
+    // trailing cruisers fully in frame (at 10 m back the nearer one was
+    // half cut off at the bottom edge), close enough that the player car
+    // stays the hero (never the 22 m pull-back). Render directly:
+    // G.draw() would reset the camera to the chase cam.
     // The heat-3 escalation dialogue (Letkol Rahmat) fires DURING the sim
     // when the heat crosses 3, so it is hidden here — after the loop,
     // not after setIndex (the first take hid it too early and the box
@@ -199,7 +233,7 @@ export function stageShot(name, game, atSeconds) {
     G.setShotInput({ active: false });
     const cam = G.view.camera;
     const h = G.player.heading;
-    cam.position.set(G.player.x - Math.sin(h) * 8, 3.2, G.player.z - Math.cos(h) * 8);
+    cam.position.set(G.player.x - Math.sin(h) * 11, 4.2, G.player.z - Math.cos(h) * 11);
     cam.lookAt(G.player.x + Math.sin(h) * 20, 1.5, G.player.z + Math.cos(h) * 20);
     // Re-show the dispatch line the chase really earned, with a 60 s
     // lifetime so the slow capture keeps it.
@@ -238,10 +272,14 @@ export function stageShot(name, game, atSeconds) {
     // Heat set after the breaks, so the shot reads exactly 4.2 stars.
     G.state.heat = 4.2;
     // Traffic on the same arterial: eastbound cars ahead of the player,
-    // westbound cars in the far lane.
+    // westbound cars in the far lane — but the westbound pair starts WEST
+    // of the player (x 40 / 15), so after the 2 s sim they end up BEHIND
+    // the camera instead of driving into the centre of the frame: the
+    // first polish take started them at x 100 / 70 and a big brown box
+    // truck ended up dead-centre, hiding the avenue end and the sun.
     const arterial = [
       { lane: 106.5, x: 120, dir: 1 }, { lane: 106.5, x: 150, dir: 1 },
-      { lane: 115.5, x: 100, dir: -1 }, { lane: 115.5, x: 70, dir: -1 },
+      { lane: 115.5, x: 40, dir: -1 }, { lane: 115.5, x: 15, dir: -1 },
     ];
     G.traffic.cars.slice(0, arterial.length).forEach((c, k) => {
       const a = arterial[k];
@@ -330,6 +368,15 @@ export function stageShot(name, game, atSeconds) {
       heli.spotX = G.player.x;
       heli.spotZ = G.player.z;
       heli.pool.position.set(G.player.x, 0.08, G.player.z);
+      // Re-aim the cone for the STAGED heli position, same formula the
+      // live update uses: the last sim step aimed it from the pre-staging
+      // hover spot 20 m ahead, so without this the beam points ~7 m off
+      // the heli and the pool. (r3 left the stale aim in place.)
+      heli.spot.position.set(
+        (heli.spotX - heli.group.position.x) * 0.35,
+        -11,
+        (heli.spotZ - heli.group.position.z) * 0.35 + 1.6,
+      );
     }
     // Hero camera: 12.5 m back, 5.4 m up — the car is the hero now,
     // bottom-centre at a quarter to a third of the frame, a real sports
@@ -349,7 +396,9 @@ export function stageShot(name, game, atSeconds) {
     // wall-clock time, and one slow SwiftShader frame outlives the 2.6 s
     // default, so the frozen frame would lose the popup the cover is
     // supposed to prove. Same values, same call the game itself makes
-    // when a drift pays.
+    // when a drift pays. Clear first: the live drift already left one
+    // popup, and re-showing without clearing stacks a duplicate.
+    G.hud.popups.clear();
     G.hud.popups.drift(42, 0.7, 60);
     // The mission stinger, held for the capture too.
     G.hud.stinger('MISI 3/8 — RAMPOKAN KECIL', 'Kawasan Industri', 60);
@@ -377,9 +426,19 @@ export function stageShot(name, game, atSeconds) {
     // lower — (42,3.2,96), hanging over the stall's front at a normal
     // shop-sign height — so it reads clear of PASAR PAGI and WARUNG
     // KOPI. The sign is real; only its staged position moves.
+    // Same for the WARUNG KOPI banner (37,5.5,96): from the foot camera
+    // it sits exactly over PASAR PAGI and the two read as one garbled
+    // "PA WARUNG KOPI" — and moving it WEST made it worse, because this
+    // camera looks north-east, so screen-right runs south-east: a smaller
+    // x reads FURTHER right (probe-measured: x 37 -> px 780, x 33 ->
+    // px 919). So the banner moves EAST to (48,5.5,94), clear of
+    // PASAR PAGI's span, still strung across the market street.
     G.view.scene.traverse((obj) => {
       if (obj !== G.view.scene && Math.hypot(obj.position.x - 42, obj.position.y - 5, obj.position.z - 104) < 0.5) {
         obj.position.set(42, 3.2, 96);
+      }
+      if (obj !== G.view.scene && Math.hypot(obj.position.x - 37, obj.position.y - 5.5, obj.position.z - 96) < 0.5) {
+        obj.position.set(48, 5.5, 94);
       }
     });
     // The player's own red car, parked clearly ON THE ROAD west of the
@@ -441,6 +500,28 @@ export function stageShot(name, game, atSeconds) {
       G.step(STEP);
       if (i > 70) G.setShotInput({ active: true, up: true, mouse: false });
     }
+    // Re-stage the pedestrians AFTER the sim, frozen mid-flee across the
+    // visible street band: r3 staged them before the sim and the shots
+    // scattered them out of frame, so only 1–2 showed. Fourteen peds,
+    // spread x 32–58 / z 88–110 — the first polish take still only showed
+    // 6–7, so four more were added in the central band (42–50, 94–104)
+    // where the camera holds them. Three more in the NEAR band (z 86–90,
+    // 8–12 m from the camera, so they read big): the second polish take
+    // showed 7–8 peds but several read as small distant figures — the
+    // target is 8–12 CLEARLY visible, and the near band guarantees it.
+    // Flee targets outward — they read as a crowd reacting, and the frame
+    // freezes before any of them can leave.
+    const footPedSpots = [
+      [34, 90], [40, 92], [46, 90], [52, 94], [36, 100],
+      [56, 100], [38, 106], [48, 108], [54, 104], [32, 96],
+      [42, 94], [50, 98], [38, 102], [46, 104],
+      [36, 88], [48, 86], [56, 90],
+    ];
+    G.peds.peds.slice(0, footPedSpots.length).forEach((p, k) => {
+      p.setPos(footPedSpots[k][0], footPedSpots[k][1]);
+      p.target = { x: footPedSpots[k][0] + (k % 2 === 0 ? 10 : -10), z: footPedSpots[k][1] - 8 };
+      p.fleeTimer = 2;
+    });
     // Market fill: pull six street props into the near and mid-ground —
     // flanking the player's walking line, never on it — so the foreground
     // reads as a busy market street, not a gap.
@@ -465,24 +546,22 @@ export function stageShot(name, game, atSeconds) {
     });
     // Re-show the popup the walk really earned, with the STAGED item's
     // real kind and value and a 60 s lifetime, for the same slow-capture
-    // reason as the cover's drift popup. The foot camera is custom (not
-    // the chase cam): west of the scene, 4.5 m up, looking SOUTH-EAST
-    // at the warung — the WARUNG SARI sign (staged forward, see above)
-    // sits centre-left, the red CEMPAKA GT sits left of the player, the
-    // player stands centre beside his car, the market stalls fill the
-    // mid-ground. (Facing south, west is the screen's right: the car at
-    // x=40 reads right-of-centre from a due-south camera, where the HUD
-    // panels cover it — the south-east angle pulls it clear.) Render
-    // directly and freeze — the shared rAF tail would let the popup age
-    // two more slow renders before the capture.
+    // reason as the cover's drift popup. Clear first: the live collect
+    // already left one popup, and re-showing without clearing stacks a
+    // duplicate "KASET +$25" that collides with the panel edge.
     const itemValue = stagedItem
       ? (stagedItem.kind === 'idol' ? COLLECTIBLES.idolValue : COLLECTIBLES.tapeValue)
       : 25;
+    G.hud.popups.clear();
     G.hud.popups.collect(itemValue, stagedItem ? stagedItem.kind : 'tape', 60);
     G.setShotInput({ active: false });
+    // Foot camera: pulled back to (30, 4.5, 78) looking north-east — from
+    // 13 m the 8–9 m market signs filled the frame as giants; from ~28 m
+    // they read at normal shop-sign size, the red CEMPAKA GT sits left of
+    // the player, the player stands centre beside his car.
     const cam = G.view.camera;
-    cam.position.set(36, 4.5, 84);
-    cam.lookAt(48, 2.5, 102);
+    cam.position.set(30, 4.5, 78);
+    cam.lookAt(45, 2.5, 100);
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };

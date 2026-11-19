@@ -3,7 +3,6 @@
 // — kemarau, not a sunset bay. The palette stays inside that identity:
 // warm amber, brick red, deep teal, dusty olive. No palms, no neon coast.
 export const STEP = 1 / 60;
-export const SAVE_KEY = 'bentara.save.v2';
 
 // City: 5x5 blocks of 56 m, roads 18 m wide, 388 m across.
 export const CITY = {
@@ -14,9 +13,13 @@ export const CITY = {
   half: 194,
 };
 
-// Golden-hour sun: low from the west (high x), so the arterials throw long
-// shadows east across the road and the facades catch a warm edge.
-export const SUN = { x: 230, y: 46, z: 95 };
+// Golden-hour sun: from the west (high x), ~22° up — high enough to
+// clear the rooftops from the cover camera (at ~11° it hid behind the
+// buildings and the disc never showed), low enough that the arterials
+// still throw long shadows east across the road and the facades catch a
+// warm edge. Far enough south (high z) that the disc clears the mission
+// stinger at the top of the cover frame.
+export const SUN = { x: 230, y: 100, z: 150 };
 export const SUN_COLOR = 0xffb066;
 export const SUN_INTENSITY = 3.4;
 export const SKY_TOP = 0x5f97c4;
@@ -127,7 +130,7 @@ export const PALETTE = {
   road: 0x6e6a63,
   roadLine: 0xf5eeda,
   sidewalk: 0xbd9c72,
-  // v2.1: warmer, more saturated facades — the old tans washed to pale
+  // Warmer, more saturated facades — the old tans washed to pale
   // cream at distance. Ochre, terracotta and brick, still kemarau.
   building: [0xe3c78d, 0xcf9a55, 0xb87a48, 0xc98f5f, 0xbd7a4a, 0xa86a42],
   buildingTrim: [0x7a5a3f, 0x5f6b62, 0x8a6a4c, 0x6b4f3a],

@@ -151,15 +151,16 @@ export function createPolice(scene, city, rng) {
       new THREE.MeshBasicMaterial({ color: 0xff6a5a, transparent: true, opacity: 0.3, depthWrite: false }),
     );
     strobeGlow.position.copy(strobe.position);
-    // Spotlight: a NARROW cone (radius 1.7, not the old 4.0 wash) hung
-    // under the nose, plus a bright pool of light on the ground where it
-    // lands. The beam reads as a searchlight, not a pale fog.
+    // Spotlight: a proper searchlight cone — apex AT the heli, widening
+    // to the ground (radius 2.4 at the pool), not the old inverted one
+    // that was wide at the heli and narrowed to a point underground, which
+    // is why the r3 beam read as a faint wisp. Height 22 matches the live
+    // hover altitude, so the base lands exactly on the road.
     const spot = new THREE.Mesh(
-      new THREE.ConeGeometry(1.7, 30, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.ConeGeometry(2.4, 22, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false }),
     );
-    spot.position.set(0, -15, 1.6);
-    spot.rotation.x = Math.PI;
+    spot.position.set(0, -11, 1.6);
     // A real light source inside the cone so the player and the road under
     // the beam actually brighten.
     const spotLight = new THREE.SpotLight(0xffe9a8, 60, 60, 0.16, 0.45, 1.2);
@@ -173,8 +174,8 @@ export function createPolice(scene, city, rng) {
     scene.add(group);
     // The ground pool: a bright disc that follows the player under the beam.
     const pool = new THREE.Mesh(
-      new THREE.CircleGeometry(4.5, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.35, depthWrite: false }),
+      new THREE.CircleGeometry(5.5, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.5, depthWrite: false }),
     );
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.08;
@@ -369,7 +370,7 @@ export function createPolice(scene, city, rng) {
       heli.status = searching ? 'SEARCHING' : 'SPOTLIGHT';
       heli.spot.position.set(
         (heli.spotX - heli.group.position.x) * 0.35,
-        -15,
+        -11,
         (heli.spotZ - heli.group.position.z) * 0.35 + 1.6,
       );
       // The cone itself stays pointing down; the lean of its position
