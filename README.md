@@ -176,18 +176,32 @@ game/src/main.js       boot, title / pause screens, live loop
 node serve.ts            # http://localhost:8080
 ```
 
-## Verification (v3 MASSIVE, this session, headless Chromium, software GL)
+## Verification (v3 visual fixes, this session, headless Chromium, software GL)
 
 - All four `?shot=` scenes render at 1280x720 with zero console errors and
   zero requests leaving localhost (three.js loads from game/vendor/).
-  Final sizes: 1-heat.jpg 157,199 B · 2-drive.jpg 148,650 B ·
-  3-foot.jpg 157,440 B · 4-story.jpg 128,085 B — all under the 256 KiB cap.
-  Triangle audit (G.audit()): 9,246 triangles, 123 draw calls, ok=true —
+  Final sizes: 1-heat.jpg 150,973 B · 2-drive.jpg 151,871 B ·
+  3-foot.jpg 157,309 B · 4-story.jpg 129,551 B — all under the 256 KiB cap.
+  Triangle audit (G.audit()): 9,150 triangles, 119 draw calls, ok=true —
   inside the 150k budget.
-- 8/8 missions complete end to end in headless CDP tests, plus 1 race win,
-  3 fares, garage buy + upgrade, property buy + sleep collect, 3-star
-  evasion, heli spawn, and a save/load round-trip on the v3 schema.
-- `main.ts` runs clean: preflight ok, dossier written.
+- Visual fixes verified by eye on the captures: cover shows the red
+  CEMPAKA GT mid-drift with the helicopter, spotlight cone and ground pool
+  clear and no dialogue box over the car; drive shows two cruisers tight
+  behind the player (BAYU 9 m MENABRAK) with the dial at 151; foot shows
+  the red CEMPAKA GT parked by the warung (WARUNG KOPI, ASET 1/3); story
+  shows the M8 ledger live — PANAS TERAKHIR SELESAI, Hasil +$1,000 /
+  Tagihan −$0 / REP +600 / BERSIH +$1,000 — with Pak Aska's line in full
+  and no crosshair over the ledger.
+- 8/8 missions complete end to end in headless CDP tests with exact
+  rewards (M1 +$150/+100, M2 +$200/+150, M3 +$300/+200, M4 +$350/+250,
+  M5 +$400/+300, M6 +$450/+300, M7 +$660/+405, M8 +$1,000/+600), plus
+  1 race win, 3 fares, garage buy (MURAI $960) + engine/turbo upgrades,
+  property buy + sleep collect, 3-star evasion (heat 3→2), heli spawn at
+  heat 4, and a save/load round-trip on the v3 schema. E double-fire fix
+  re-verified: E at the marina talk target completes M1 (+$150) without
+  buying SLIP MARINA (cash $25,000 → $25,150, usaha 0).
+- `main.ts` runs clean: preflight ok (cover 1-heat.jpg, 4 screenshots,
+  game 35 files / 966 KiB), dossier written.
 - Live play verified: title → start → walk → F enters the CEMPAKA GT →
   drive → F exits → click shoots → Q reloads → P pauses and resumes.
 

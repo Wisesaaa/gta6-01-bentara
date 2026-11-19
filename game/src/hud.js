@@ -78,6 +78,10 @@ export function createHud() {
   let stingerTimer = 0;
   let tickerTimer = 0;
   let ledgerTimer = 0;
+  // Staging-only crosshair hide (story shot): the crosshair sits at
+  // screen centre, dead on top of the mission ledger. Normal play
+  // always shows it again on foot — update() re-applies this flag.
+  let crosshairHidden = false;
   let lastLedger = null;
   let lastMissionKey = '';
   let lastStepKey = '';
@@ -407,7 +411,7 @@ export function createHud() {
       + slot(3, WEAPONS.smg.name, P.hasSmg, magText('smg'), P.weapon === 'smg')
       + slot(4, WEAPONS.rifle.name, P.hasRifle, magText('rifle'), P.weapon === 'rifle')
       + slot(5, WEAPONS.launcher.name, P.hasLauncher, magText('launcher'), P.weapon === 'launcher');
-    els.crosshair.style.display = P.onFoot ? 'block' : 'none';
+    els.crosshair.style.display = (!crosshairHidden && P.onFoot) ? 'block' : 'none';
     els.locName.textContent = districtName(P.x, P.z);
     drawMinimap(G);
     if (toastTimer > 0) {
@@ -480,6 +484,16 @@ export function createHud() {
     document.body.classList.toggle('photo', !!on);
   }
 
+  // Hide / show the crosshair. Used by the story shot only: the
+  // crosshair is centred on screen, exactly where the mission ledger
+  // card sits, so it prints a "+" over the ledger. update() keeps the
+  // hide in force every frame while the flag is set; normal play never
+  // calls this, so the crosshair is always there on foot.
+  function setCrosshairVisible(visible) {
+    crosshairHidden = !visible;
+    els.crosshair.style.display = visible ? 'block' : 'none';
+  }
+
   // who: display name; portraitKey: a CHARACTERS key ('wira', 'aska', ...).
   // The role chip is teal; the line clamps to 2, inside 24px safe margins.
   function dialogue(who, line, portraitKey = 'wira', seconds = 6) {
@@ -522,5 +536,6 @@ export function createHud() {
   return {
     update, toast, ticker, dialogue, prompt, announce, showScreen, hideScreen,
     popups, els, showLedger, reshowLedger, damageFlash, setPhotoMode, showStinger,
+    setCrosshairVisible,
   };
 }

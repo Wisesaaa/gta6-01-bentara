@@ -124,7 +124,7 @@ export function createPolice(scene, city, rng) {
     rotor.position.y = 1.3;
     const disc = new THREE.Mesh(
       new THREE.CircleGeometry(4.6, 24),
-      new THREE.MeshBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
     );
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 1.32;
@@ -153,12 +153,12 @@ export function createPolice(scene, city, rng) {
       new THREE.MeshBasicMaterial({ color: 0xff6a5a, transparent: true, opacity: 0.3, depthWrite: false }),
     );
     strobeGlow.position.copy(strobe.position);
-    // Spotlight: a NARROW cone (radius 1.7, not the old 4.0 wash) hung
+    // Spotlight: a NARROW cone (radius 2.0, not the old 4.0 wash) hung
     // under the nose, plus a bright pool of light on the ground where it
     // lands. The beam reads as a searchlight, not a pale fog.
     const spot = new THREE.Mesh(
-      new THREE.ConeGeometry(1.7, 30, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.ConeGeometry(2.0, 30, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
     );
     spot.position.set(0, -15, 1.6);
     spot.rotation.x = Math.PI;
@@ -175,8 +175,8 @@ export function createPolice(scene, city, rng) {
     scene.add(group);
     // The ground pool: a bright disc that follows the player under the beam.
     const pool = new THREE.Mesh(
-      new THREE.CircleGeometry(4.5, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.35, depthWrite: false }),
+      new THREE.CircleGeometry(5.5, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.5, depthWrite: false }),
     );
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.08;

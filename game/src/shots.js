@@ -141,11 +141,14 @@ export function stageShot(name, game, atSeconds) {
     for (let i = 0; i < steps; i += 1) {
       driveStraight(G, STEP, 37, 42);
       G.step(STEP);
-      // Stage the convoy on the second-to-last step: 3 cruisers staggered
-      // behind the player (the closest 8 m back reads MENABRAK), the
-      // roadblock sideways across the road ahead.
+      // Stage the convoy on the second-to-last step: two cruisers tight
+      // BEHIND the player (8 m and 11 m back, flanking left/right) so
+      // they read in the pull-back camera with lightbars flashing — both
+      // within MENABRAK range — one ahead as escort, and the roadblock
+      // sideways across the road ahead. (Closer to the camera than this,
+      // the near cruiser slides under the bottom edge of the frame.)
       if (i === steps - 2) {
-        const offsets = [[0, 8], [-6, 18], [6, 28]];
+        const offsets = [[-4, -8], [4, -11], [0, 25]];
         G.police.cruisers.forEach((c, k) => {
           const off = offsets[k % offsets.length];
           c.x = G.player.x + off[0];
@@ -172,11 +175,23 @@ export function stageShot(name, game, atSeconds) {
     G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: false });
     G.step(STEP);
     G.setShotInput({ active: false });
+    // Pull-back camera: 22 m behind and 5.5 m up, so the two cruisers
+    // staged tight behind the player read in frame flanking the CEMPAKA
+    // GT, lightbars flashing — the pursuit is visible, not just a panel
+    // + minimap. G.draw() would reset to the 5 m chase cam (which puts
+    // anything behind the player behind the camera), so render directly.
+    const cam = G.view.camera;
+    cam.position.set(G.player.x, 5.5, G.player.z - 22);
+    cam.lookAt(G.player.x, 1.5, G.player.z + 28);
     // Re-show the mission card (stinger) and the dispatch ticker for the
     // frozen frame: both are live HUD, not posed text.
     G.hud.showStinger(G);
     G.hud.ticker('POLISI: Semua unit — kejar sedan merah di Kawasan Industri!', 60);
-    G.draw();
+    // Hide the dialogue box for the frozen frame: the mission-intro line
+    // (Letkol Rahmat, fired by setIndex) sits bottom-centre and covers
+    // the left cruiser. Dialogue is still proven in the foot/story shots.
+    document.getElementById('dialogue').style.display = 'none';
+    G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };
   } else if (name === 'heat') {
@@ -244,9 +259,9 @@ export function stageShot(name, game, atSeconds) {
     // collectible / hailable, neither in the driving line.
     stageTaxi(G, 'industrialYard', 28, 122);
     stageCollectible(G, 22, 99);
-    // Pak Wira on the radio, portrait and all: the cover shows the boss
-    // talking while the chase runs. 600 s so the box never times out.
-    G.hud.dialogue('PAK WIRA · BOS MARINA', 'Jangan berhenti. Polisi itu cuma angin — kamu yang punya jalan.', 'wira', 600);
+    // No dialogue on the cover: the Pak Wira box sits bottom-centre and
+    // covers the hero car. The boss still talks in the drive, foot and
+    // story shots — the cover's job is the car and the chase.
     G.hud.toast('', 0.01);
     G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: false });
     G.draw();
@@ -288,28 +303,27 @@ export function stageShot(name, game, atSeconds) {
         }
       }
     }
-    // Helicopter staging: pull it over the road itself, ahead-right of the
-    // player, higher and further out, nose on the player, so it reads as a
-    // helicopter with its spotlight beam on the player — small, lit, in
-    // the upper third of the frame instead of a dark blob against a
-    // building. (At +30 m it was still a black smudge overlapping the
-    // popup; +45 m and 22 m up puts it in clear sky.)
+    // Helicopter staging: pull it in close and low over the road, ahead
+    // of the player, nose on the player — big in the upper third, its
+    // spotlight cone slanting down to the player and the ground pool
+    // under the car, so it reads as a HELICOPTER, not a pale block.
+    // (At +45 m / 22 m up it was a small smudge against the sky.)
     const heli = G.police.heli;
     if (heli) {
-      heli.group.position.set(G.player.x + 45, 22, G.player.z - 14);
+      heli.group.position.set(G.player.x + 26, 15, G.player.z - 9);
       heli.group.lookAt(G.player.x, 0, G.player.z);
     }
     // Hero camera: 12.5 m back, 5.4 m up — the car is the hero now,
     // bottom-centre at a quarter to a third of the frame. The look target
-    // swings east (x+40) and a touch south (z+6) so the sun disc at ~11°
-    // elevation sits in the upper third and the mural stays ahead-right,
-    // while the car stays in frame: looking any higher pushes the car
-    // below the bottom edge. Render directly: G.draw() would reset the
+    // swings east (x+40) and down (y 1.5) so the sun disc at ~11°
+    // elevation sits in the upper third, the mural stays ahead-right,
+    // and the car lifts off the bottom edge instead of sliding under
+    // the dialogue box. Render directly: G.draw() would reset the
     // camera to the chase cam.
     G.setShotInput({ active: false });
     const cam = G.view.camera;
     cam.position.set(G.player.x - 12.5, 5.4, G.player.z + 1.5);
-    cam.lookAt(G.player.x + 40, 5, G.player.z + 6);
+    cam.lookAt(G.player.x + 40, 1.5, G.player.z + 6);
     // Re-show the mission stinger for the frozen frame, and the drift
     // popup the chase really earned (cash 18250 -> 18295, 0.8 s slide)
     // with a 60 s lifetime: popups fade on wall-clock time, and one slow
@@ -319,6 +333,10 @@ export function stageShot(name, game, atSeconds) {
     // makes this re-show read NGEPOT ×2.
     G.hud.showStinger(G);
     G.hud.popups.drift(45, 0.8, 60);
+    // Hide the dialogue box for the frozen frame: the mission-intro line
+    // (Sari, fired by setIndex) sits bottom-centre and covers the hero
+    // car. Dialogue is still proven in the drive, foot and story shots.
+    document.getElementById('dialogue').style.display = 'none';
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };
@@ -350,6 +368,18 @@ export function stageShot(name, game, atSeconds) {
     G.parked[0].z = 96;
     G.parked[0].heading = 1.2;
     G.parked[0].sync();
+    // Clear through-traffic from the frame: a teal Kijang on the x=32.5
+    // lane drove right past the warung and stopped (in screen space)
+    // exactly over the red CEMPAKA GT, hiding it. Teleport any traffic
+    // car near the stall far down its own lane — 60 m radius, so no car
+    // can drive back into the frame during the 2 s sim.
+    for (const c of G.traffic.cars) {
+      if (Math.hypot(c.x - L.x, c.z - L.z) < 60) {
+        if (c.axis === 'x') c.x = c.x > L.x ? 170 : -170;
+        else c.z = c.z > L.z ? 170 : -170;
+        c.sync();
+      }
+    }
     // Glowing drops in frame: a cash bundle and an ammo crate, live.
     G.drops.spawnCash(L.x - 2, L.z + 10, 35);
     G.drops.spawnAmmo(L.x + 3, L.z + 12, 1);
@@ -393,29 +423,35 @@ export function stageShot(name, game, atSeconds) {
     window.__shotReady = true;
     return { name, seconds, steps };
   } else {
-    // story: the Marina handoff. Mission 1 is completed FOR REAL in the
-    // staging (walk to Wira, press E, talk) so the ledger shows true
-    // numbers; then the mission jumps to 8 (BABAK III, red dusk) and Pak
-    // Aska delivers the handoff line. Letterbox bars frame the shot.
-    G.missions.setIndex(0);
+    // story: the Marina handoff. Mission 8 (PANAS TERAKHIR, the finale)
+    // is completed FOR REAL in the staging so the ledger shows the
+    // biggest true numbers — gross $1,000, bill $0, BERSIH +$1,000,
+    // REP +600. (Mission 1's +$150 ledger understated the game.) Then
+    // the mission resets to 8 (BABAK III, red dusk) and Pak Aska
+    // delivers the handoff line. Letterbox bars frame the shot.
+    G.missions.setIndex(7);
     G.state.cash = 250;
     G.state.rep = 0;
     G.state.heat = 0;
-    // Close enough to Wira for the talk step (within 5 m).
-    G.player.setPos(-6, -166, Math.PI);
+    // Start at Plaza Menara: the goto step is already satisfied there.
+    G.player.setPos(0, 0, Math.PI);
     G.draw();
-    // Complete mission 1 live: the goto step is already satisfied at the
-    // marina, so step a few frames for it to advance, THEN press E — the
-    // talk step needs the press on its own step (one-shot action bits).
+    // Step a few frames for the goto to advance to the survive step.
     for (let i = 0; i < 5; i += 1) G.step(STEP);
-    window.dispatchEvent(new window.KeyboardEvent('keydown', { code: 'KeyE' }));
-    for (let i = 0; i < 25; i += 1) G.step(STEP);
-    window.dispatchEvent(new window.KeyboardEvent('keyup', { code: 'KeyE' }));
-    // Mission 8 (BABAK III · MISI 8/8) snaps the light to red dusk.
-    // Re-show the stinger explicitly: no more steps run after this, so
-    // hud.update never gets the chance to notice the mission changed —
-    // without it the card keeps showing the mission the live completion
-    // advanced to (MISI 2/8) instead of MISI 8/8.
+    // Survive 30 s for real: 5 attackers spawn and shoot, so boost health
+    // to 9999 first (they deal ~1.75 dps each in range — ~260 over the
+    // full 30 s would kill a 100-HP player). Restore it after.
+    G.player.health = 9999;
+    for (let i = 0; i < 1800; i += 1) G.step(STEP);
+    G.player.health = 100;
+    // Deliver: teleport to the marina (4 m from the beacon, inside its
+    // 7 m radius) and step a few frames for the deliver to complete.
+    G.player.setPos(-6, -166, Math.PI);
+    for (let i = 0; i < 10; i += 1) G.step(STEP);
+    // Mission 8 is done (index advanced past the last mission); reset to
+    // 8 (BABAK III · MISI 8/8) so the stinger shows the finale. Re-show
+    // the stinger explicitly: no more steps run after this, so hud.update
+    // never gets the chance to notice the mission changed.
     G.missions.setIndex(7);
     G.hud.showStinger(G);
     G.hud.dialogue('PAK ASKA · PENERIMA MARINA', 'Barang sampai, uang jalan. Marina tidak pernah tidur.', 'aska', 600);
@@ -463,6 +499,10 @@ export function stageShot(name, game, atSeconds) {
     // the mission stinger instead of hiding behind it — the sign stands
     // on the same sightline as Aska, so centring on Aska centres the
     // sign behind the card.
+    // The crosshair sits at screen centre — dead on top of the ledger
+    // card ("+" over the Tagihan row). Hide it for the frozen frame;
+    // normal play is untouched (the flag defaults to visible on foot).
+    G.hud.setCrosshairVisible(false);
     const cam = G.view.camera;
     cam.position.set(-24, 3.4, -154);
     cam.lookAt(2, 1.0, -172);
