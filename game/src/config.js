@@ -71,10 +71,16 @@ export const TRAFFIC_KINDS = [
 ];
 
 export const WEAPONS = {
-  pistol: { name: 'Pistol', damage: 34, rate: 0.22, range: 60, spread: 0.012, auto: false },
-  shotgun: { name: 'Shotgun', damage: 22, pellets: 5, rate: 0.9, range: 26, spread: 0.09, auto: false, price: 120 },
-  smg: { name: 'SMG', damage: 16, rate: 0.09, range: 45, spread: 0.03, auto: true, price: 450 },
+  // magSize = peluru per magasin; reserve = stok di kantong (Q = isi ulang).
+  // Pistol tidak pernah habis; shotgun/SMG/bedil/pelontar memakai reserve.
+  pistol: { name: 'Pistol', damage: 34, rate: 0.22, range: 60, spread: 0.012, auto: false, magSize: Infinity },
+  shotgun: { name: 'Shotgun', damage: 22, pellets: 5, rate: 0.9, range: 26, spread: 0.09, auto: false, price: 120, magSize: 6, reserveField: 'shells' },
+  smg: { name: 'SMG', damage: 16, rate: 0.09, range: 45, spread: 0.03, auto: true, price: 450, magSize: 30, reserveField: 'smgAmmo' },
+  bedil: { name: 'Bedil', damage: 40, rate: 0.7, range: 80, spread: 0.006, auto: false, price: 900, magSize: 5, reserveField: 'bedilAmmo', repNeeded: 3 },
+  pelontar: { name: 'Pelontar', damage: 90, pellets: 1, rate: 1.4, range: 40, spread: 0.02, auto: false, price: 1800, magSize: 1, reserveField: 'pelontarAmmo', repNeeded: 4 },
 };
+// Lima slot senjata di rail: pistol, shotgun, smg, bedil, pelontar.
+export const WEAPON_SLOTS = ['pistol', 'shotgun', 'smg', 'bedil', 'pelontar'];
 export const SHOTGUN_SHELLS_PRICE = 40;
 
 // Collectibles: 24 idols and tapes scattered on the sidewalks. An idol pays
@@ -151,6 +157,7 @@ export const CHARACTERS = {
   ijal: { name: 'BANG IJAL', role: 'BENGKEL LAS', initials: 'BI', skin: 0x8a5a3b, shirt: 0x4a6b8a, hat: 'cap', line: 'Mesin bunyi begitu, remuk dikit. Bawa ke bengkel, saya yang urus.' },
   rahmat: { name: 'LETKOL RAHMAT', role: 'KAPOLRES BENTARA', initials: 'LR', skin: 0xc89b6d, shirt: 0x1d2a3a, hat: 'police', line: 'Menyerah sekarang, atau saya yang jemput kamu dari sel.' },
   ocid: { name: 'BANG OCID', role: 'RADIO KEMARAU 92.4', initials: 'BO', skin: 0x6b4423, shirt: 0xd8a13a, hat: 'cap', line: 'Ini Radio Kemarau — lagu buat yang kabur dari polisi.' },
+  aska: { name: 'PAK ASKA', role: 'PENERIMA MARINA', initials: 'PA', skin: 0xb08a5e, shirt: 0x1f6b74, hat: 'peci', line: 'Barang sampai, uang jalan. Marina tidak pernah tidur.' },
 };
 
 export const DJ_LINES = [

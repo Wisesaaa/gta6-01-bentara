@@ -84,6 +84,20 @@ export class Car {
     this.z = opts.z ?? 0;
     this.steerVis = 0;
     this._smokeT = 0;
+    // Garage upgrades (set by the Garage when bought/upgraded):
+    // MESIN raises top speed, BAN sharpens steering, TURBO fills the
+    // nitro meter. boost is the nitro meter 0..1 (Shift = NOS, REP 2+).
+    this.engineLevel = 0;
+    this.tireLevel = 0;
+    this.turboLevel = 0;
+    this.boost = 0;
+    this.boosting = false;
+    // Fuel drains while driving; empty tank halves top speed. Refuel is
+    // free at the safehouse and the garage.
+    this.fuel = 100;
+    this.plate = opts.plate || '';
+    // True for the step this car scraped a wall (sparks + sound hook).
+    this.scraped = false;
 
     const shape = KIND_SHAPE[this.kind] || KIND_SHAPE.sedan;
     const len = CAR.length * shape.len;
@@ -216,6 +230,43 @@ export class Car {
     const grille = new THREE.Mesh(new THREE.BoxGeometry(w - 0.7, 0.2, 0.06), trimMat);
     grille.position.set(0, 0.42, len / 2 + 0.02);
     group.add(headStrip, tailStrip, grille);
+    // Fake bloom on the lights: additive glows so the strips read as lit,
+    // not painted. The brake glow brightens with the brake in sync().
+    const glowTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const g = c.getContext('2d');
+      const grad = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.4, 'rgba(255,255,255,0.4)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    const headGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xfff2b0, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
+    headGlow.scale.set(2.2, 0.7, 1);
+    headGlow.position.set(0, 0.62, len / 2 + 0.3);
+    group.add(headGlow);
+    const brakeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff2a1e, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    brakeGlow.scale.set(2.2, 0.7, 1);
+    brakeGlow.position.set(0, 0.62, -len / 2 - 0.3);
+    group.add(brakeGlow);
+    this.headGlow = headGlow;
+    this.brakeGlow = brakeGlow;
+    // Headlight cones for Act 3 dusk: two faint additive cones pointing
+    // forward, off until the dusk preset switches them on.
+    const coneMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const coneGeo = new THREE.ConeGeometry(1.1, 7, 10, 1, true);
+    this.headCones = [];
+    for (const sx of [-0.6, 0.6]) {
+      const cone = new THREE.Mesh(coneGeo, coneMat);
+      cone.rotation.x = Math.PI / 2 - 0.12;
+      cone.position.set(sx, 0.5, len / 2 + 3.4);
+      cone.visible = false;
+      group.add(cone);
+      this.headCones.push(cone);
+    }
     for (const sx of [-0.45, 0.45]) {
       const pipe = new THREE.Mesh(
         new THREE.CylinderGeometry(0.09, 0.09, 0.22, 8),
@@ -259,6 +310,29 @@ export class Car {
     group.add(red, blue);
     this.lightBarRed = red;
     this.lightBarBlue = blue;
+    // Alternating glow halos over the bar: the ~5 Hz flash that makes a
+    // cruiser read as police at a glance, even at thumbnail distance.
+    const glowTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const g = c.getContext('2d');
+      const grad = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.4, 'rgba(255,255,255,0.4)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    const redGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff2a2a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+    redGlow.scale.set(1.6, 1.6, 1);
+    redGlow.position.set(-0.23, 1.5, -0.2);
+    const blueGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x2a6bff, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
+    blueGlow.scale.set(1.6, 1.6, 1);
+    blueGlow.position.set(0.23, 1.5, -0.2);
+    group.add(redGlow, blueGlow);
+    this.lightGlowRed = redGlow;
+    this.lightGlowBlue = blueGlow;
   }
 
   buildAngkotKit(group, len) {
@@ -326,6 +400,11 @@ export class Car {
     if (this.bodyMat) this.bodyMat.color.setHex(hex);
   }
 
+  // Act 3 dusk: headlight cones on or off for every car at once.
+  setHeadlights(on) {
+    if (this.headCones) for (const c of this.headCones) c.visible = !!on;
+  }
+
   sync() {
     this.group.position.set(this.x, 0, this.z);
     this.group.rotation.y = this.heading;
@@ -335,6 +414,8 @@ export class Car {
       const redOn = this._blink % 20 < 10;
       this.lightBarRed.material.color.setHex(redOn ? 0xff2a2a : 0x5a0f0f);
       this.lightBarBlue.material.color.setHex(redOn ? 0x0f2a5a : 0x2a6bff);
+      if (this.lightGlowRed) this.lightGlowRed.material.opacity = redOn ? 0.85 : 0.15;
+      if (this.lightGlowBlue) this.lightGlowBlue.material.opacity = redOn ? 0.15 : 0.85;
     }
     if (this.smoke) {
       // Damage smoke: thickens as health falls, pulsing on the frame counter.
@@ -348,9 +429,19 @@ export class Car {
   }
 
   // Arcade step: throttle -1..1, steer -1..1, handbrake bool. Returns distance moved.
+  // Upgrades bite here: MESIN +12% top speed and +10% accel per level,
+  // BAN +8% steering bite per level, TURBO feeds the nitro meter, and a
+  // lit nitro (Shift, REP 2+) multiplies accel and top speed while it
+  // drains. An empty tank halves top speed.
   drive(dt, throttle, steer, handbrake) {
+    this.scraped = false;
+    const boosting = this.boosting && this.boost > 0 && this.turboLevel > 0;
+    if (boosting) this.boost = Math.max(0, this.boost - dt * 0.4);
+    else if (this.turboLevel > 0) this.boost = Math.min(1, this.boost + dt * 0.04);
     const forward = throttle > 0 ? 1 : -1;
-    const accel = throttle !== 0 ? CAR.accel * Math.abs(throttle) : 0;
+    const accel = throttle !== 0
+      ? CAR.accel * Math.abs(throttle) * (1 + 0.1 * this.engineLevel) * (boosting ? 1.6 : 1)
+      : 0;
     this.speed += forward * accel * dt;
     if (throttle === 0) this.speed = damp(this.speed, 0, 2.5, dt);
     // Handbrake is a slide, not a stop: it bleeds speed slowly (rate 1.0)
@@ -358,12 +449,14 @@ export class Car {
     // can reach its 0.8 s payout. At rate 6 the car dropped under 10 m/s
     // in 0.2 s and a drift could never pay out.
     if (handbrake) this.speed = damp(this.speed, 0, 1.0, dt);
-    const max = this.speed >= 0 ? CAR.maxSpeed : CAR.maxReverse;
-    this.speed = clamp(this.speed, -CAR.maxReverse, CAR.maxSpeed);
+    const topSpeed = CAR.maxSpeed * (1 + 0.12 * this.engineLevel) * (boosting ? 1.35 : 1) * (this.fuel <= 0 ? 0.5 : 1);
+    this.speed = clamp(this.speed, -CAR.maxReverse, topSpeed);
     if (Math.abs(this.speed) > 0.3) {
-      const grip = handbrake ? 0.5 : 1;
+      const grip = (handbrake ? 0.5 : 1) * (1 + 0.08 * this.tireLevel);
       this.heading += steer * CAR.steer * grip * dt * clamp(Math.abs(this.speed) / 8, 0.25, 1) * (this.speed >= 0 ? 1 : -1);
     }
+    // Fuel drains while the car actually moves.
+    if (Math.abs(this.speed) > 1) this.fuel = Math.max(0, this.fuel - dt * 0.25);
     const dx = Math.sin(this.heading) * this.speed * dt;
     const dz = Math.cos(this.heading) * this.speed * dt;
     this.x += dx;
@@ -382,6 +475,7 @@ export class Car {
       else this.z = pushZ;
       this.speed *= 0.4;
       this.health = Math.max(0, this.health - 2);
+      this.scraped = true;
     }
     for (const w of this.wheels) w.rotation.x += this.speed * dt * 2;
     this.sync();

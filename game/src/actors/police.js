@@ -59,7 +59,25 @@ export function createPolice(scene, city, rng) {
   let heli = null;
   let roadblock = null;
   let roadblockProps = [];
+  let roadblockBeacons = [];
   let shootTimer = 0;
+  let dispatchTimer = 0;
+  let lastSeen = { x: 0, z: 0 };
+  let heliSearchPhase = 0;
+  let heliPrevX = 0;
+  let heliPrevZ = 0;
+
+  // "ZONA PENCARIAN" — the ring on the ground where police last saw the
+  // player. It only shows while the player is out of sight with heat on
+  // the board, and it grows as the search drags on.
+  const searchRing = new THREE.Mesh(
+    new THREE.RingGeometry(9.4, 10, 48),
+    new THREE.MeshBasicMaterial({ color: 0xff6a5a, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  searchRing.rotation.x = -Math.PI / 2;
+  searchRing.position.y = 0.09;
+  searchRing.visible = false;
+  scene.add(searchRing);
 
   function spawnCruiser(name) {
     const car = new Car(scene, rng, { isCop: true, name, x: rr(rng, -60, 60), z: rr(rng, -60, 60) });
@@ -104,7 +122,7 @@ export function createPolice(scene, city, rng) {
     rotor.position.y = 1.3;
     const disc = new THREE.Mesh(
       new THREE.CircleGeometry(4.6, 24),
-      new THREE.MeshBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
     );
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 1.32;
@@ -192,6 +210,18 @@ export function createPolice(scene, city, rng) {
       scene.add(strip);
       props.push(strip);
     }
+    // Blinking beacons on the barriers: the roadblock reads from 60 m.
+    roadblockBeacons = [];
+    for (const s of [-6, 6]) {
+      const beacon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xff2a2a }),
+      );
+      beacon.position.set(bx + sideX * s, 1.5, bz + sideZ * s);
+      scene.add(beacon);
+      roadblockBeacons.push(beacon);
+      props.push(beacon);
+    }
     roadblockProps = props;
     return car;
   }
@@ -199,6 +229,7 @@ export function createPolice(scene, city, rng) {
   function clearRoadblockProps() {
     for (const p of roadblockProps) scene.remove(p);
     roadblockProps = [];
+    roadblockBeacons = [];
   }
 
   function despawnAll() {
@@ -209,6 +240,14 @@ export function createPolice(scene, city, rng) {
     clearRoadblockProps();
     cruisers.length = 0;
     cops.length = 0;
+  }
+
+  // The player stole a cruiser: pull it out of the pursuit so the police
+  // stop driving a car the player now owns. matchStrength will spawn a
+  // fresh unit if the heat still demands one.
+  function stealCruiser(car) {
+    const i = cruisers.indexOf(car);
+    if (i >= 0) cruisers.splice(i, 1);
   }
 
   // Desired strength from the wanted level; spawn or trim to match.
@@ -225,15 +264,51 @@ export function createPolice(scene, city, rng) {
     if (heat < 3 && roadblock) { roadblock.dispose(); roadblock = null; clearRoadblockProps(); }
   }
 
+  const DISPATCH_LINES = [
+    'POLISI: Semua unit — kejar sedan merah di Kawasan Industri!',
+    'POLISI: Tersangka menuju Plaza Menara. Tutup semua jalan keluar!',
+    'POLISI: Jangan biarkan dia sampai ke Marina. Ulangi: Marina!',
+    'POLISI: Unit BAYU, potong dari utara. Unit ANGIN, dari selatan!',
+    'POLISI: Dia cepat, tapi kota ini kecil. Terus kejar!',
+  ];
+
   function step(dt, ctx) {
     const { px, pz, heading, playerInCar, heat } = ctx;
+    const t = ctx.t || 0;
+    const prevHeat = step._prevHeat || 0;
+    step._prevHeat = heat;
     matchStrength(heat, px, pz, heading);
+    // Line of sight decides the whole pursuit mood: seen = hunt,
+    // unseen with heat = search. The HUD pills and the search ring read
+    // this one flag.
+    const sees = heat > 0 && anyoneSees(px, pz);
+    const searching = heat > 0 && !sees;
+    if (sees) {
+      lastSeen = { x: px, z: pz };
+      step._searchTime = 0;
+    } else if (searching) {
+      step._searchTime = (step._searchTime || 0) + dt;
+    }
+    // Dispatch ticker: a line when the response escalates, then one
+    // every ~25 s while the chase is live.
+    if (ctx.onDispatch) {
+      if (prevHeat < 3 && heat >= 3) ctx.onDispatch('POLISI: Blokade di depan — jangan sampai lolos!');
+      if (prevHeat < 4 && heat >= 4) ctx.onDispatch('POLISI: GARUDA-1 sudah di udara — kejar dari atas!');
+      dispatchTimer -= dt;
+      if (heat >= 1 && dispatchTimer <= 0) {
+        dispatchTimer = 25;
+        ctx.onDispatch(DISPATCH_LINES[Math.floor(rng() * DISPATCH_LINES.length)]);
+      }
+    }
     // Cruisers: steer toward the player and ram; close in, they read RAMMING.
+    // Blind, they sweep toward the last place the player was seen.
     for (const c of cruisers) {
+      const tx = searching ? lastSeen.x : px;
+      const tz = searching ? lastSeen.z : pz;
       const d = dist(c.x, c.z, px, pz);
-      const want = Math.atan2(px - c.x, pz - c.z);
+      const want = Math.atan2(tx - c.x, tz - c.z);
       const turn = clamp(wrapAngle(want - c.heading), -1, 1);
-      c.status = d < 12 ? 'RAMMING' : 'PURSUIT';
+      c.status = d < 12 ? 'RAMMING' : searching ? 'SEARCHING' : 'PURSUIT';
       const throttle = d > 4 ? 1 : 0.3;
       c.drive(dt, throttle, turn, false);
       if (d < 4.5) {
@@ -260,28 +335,63 @@ export function createPolice(scene, city, rng) {
       }
     }
     // Helicopter: hover ahead of the player, high enough to stay in the
-    // chase camera's frame, spotlight pinned on them. The pool of light
-    // follows the player on the ground.
+    // chase camera's frame. It bobs ±0.3 m, banks into its turns, and its
+    // spotlight sweeps a search pattern while the player is unseen —
+    // pinned on the player the moment eyes are back on them. The pool of
+    // light follows the beam, not the player.
     if (heli) {
-      const t = ctx.t || 0;
       const fx = Math.sin(heading);
       const fz = Math.cos(heading);
       const lx = Math.cos(heading);
       const lz = -Math.sin(heading);
-      heli.group.position.set(
-        px + fx * 20 + lx * 6,
-        22 + Math.sin(t * 0.7) * 1.5,
-        pz + fz * 20 + lz * 6,
-      );
+      const hx = px + fx * 20 + lx * 6;
+      const hz = pz + fz * 20 + lz * 6;
+      // Bank into the turn: lean by lateral velocity.
+      const bank = clamp((hx - heliPrevX) * 0.03 + (hz - heliPrevZ) * 0.03, -0.22, 0.22);
+      heliPrevX = hx;
+      heliPrevZ = hz;
+      heli.group.position.set(hx, 22 + Math.sin(t * 1.4) * 0.3, hz);
       heli.group.lookAt(px, 0, pz);
+      heli.group.rotateZ(bank);
       heli.rotor.rotation.y += dt * 22;
       heli.tailRotor.rotation.x += dt * 30;
-      heli.pool.position.set(px, 0.08, pz);
+      // Spotlight: sweep a lerp search pattern around the last-seen point
+      // while searching, snap onto the player when seen.
+      heliSearchPhase += dt * 0.9;
+      const sweepX = searching
+        ? lastSeen.x + Math.sin(heliSearchPhase) * 8
+        : px;
+      const sweepZ = searching
+        ? lastSeen.z + Math.cos(heliSearchPhase * 0.7) * 8
+        : pz;
+      heli.spotX = heli.spotX === undefined ? sweepX : heli.spotX + (sweepX - heli.spotX) * Math.min(1, dt * 1.5);
+      heli.spotZ = heli.spotZ === undefined ? sweepZ : heli.spotZ + (sweepZ - heli.spotZ) * Math.min(1, dt * 1.5);
+      heli.status = searching ? 'SEARCHING' : 'SPOTLIGHT';
+      heli.spot.position.set(
+        (heli.spotX - heli.group.position.x) * 0.35,
+        -15,
+        (heli.spotZ - heli.group.position.z) * 0.35 + 1.6,
+      );
+      // The cone itself stays pointing down; the lean of its position
+      // plus the moving light target and pool read as a sweeping beam.
+      heli.spotLight.target.position.set(heli.spotX - heli.group.position.x, -30, heli.spotZ - heli.group.position.z + 1.6);
+      heli.pool.position.set(heli.spotX, 0.08, heli.spotZ);
       // Strobe blinks twice a second on sim time, never wall-clock.
       const strobeOn = Math.floor(t * 2) % 2 === 0;
       heli.strobe.visible = strobeOn;
       heli.strobeGlow.visible = strobeOn;
     }
+    // Search ring: visible only while the player is unseen with heat on.
+    searchRing.visible = searching;
+    if (searching) {
+      searchRing.position.set(lastSeen.x, 0.09, lastSeen.z);
+      const grow = Math.min(2, 1 + (step._searchTime || 0) * 0.05);
+      searchRing.scale.setScalar(grow);
+      searchRing.material.opacity = 0.5 + Math.sin(t * 3) * 0.2;
+    }
+    // Roadblock beacons blink twice a second on sim time.
+    const beaconOn = Math.floor(t * 2) % 2 === 0;
+    for (const b of roadblockBeacons) b.visible = beaconOn;
     if (roadblock) roadblock.sync();
   }
 
@@ -304,5 +414,5 @@ export function createPolice(scene, city, rng) {
     return list;
   }
 
-  return { step, anyoneSees, units, despawnAll, cruisers, cops, get heli() { return heli; }, get roadblock() { return roadblock; } };
+  return { step, anyoneSees, units, despawnAll, stealCruiser, cruisers, cops, get heli() { return heli; }, get roadblock() { return roadblock; } };
 }

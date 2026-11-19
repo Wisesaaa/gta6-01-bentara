@@ -346,6 +346,8 @@ function buildStreetGrammar(scene) {
     }
   });
   scene.add(postMesh, stopMesh, onewayMesh);
+  // The lighting rig reads these for its fake-bloom lamp glows.
+  scene.userData.lampSpots = lightSpots;
 }
 
 function buildBuildings(scene, city) {
@@ -653,6 +655,16 @@ function buildSigns(scene) {
   signWarung.position.set(37, 5.5, 96);
   signWarung.rotation.y = Math.PI;
   scene.add(signWarung);
+  // Bengkel Roda Jaya — the garage — on the industrial yard's road face,
+  // and Warung Sari's own sign over its stall at the north row.
+  const signGarage = textSign('BENGKEL RODA JAYA', 11, 2.4, '#c0392b', '#ffd75e');
+  signGarage.position.set(120, 7, 88);
+  signGarage.rotation.y = Math.PI;
+  scene.add(signGarage);
+  const signWarungSari = textSign('WARUNG SARI', 8, 2, '#1f6b74', '#ffd75e');
+  signWarungSari.position.set(42, 5, 104);
+  signWarungSari.rotation.y = Math.PI;
+  scene.add(signWarungSari);
 }
 
 function buildSkyline(scene) {
@@ -861,6 +873,7 @@ export function createView(canvas, city) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
   scene.userData.city = city;
+  scene.userData.renderer = renderer;
   applyGoldenHour(renderer, scene);
 
   const camera = new THREE.PerspectiveCamera(62, 1280 / 720, 0.1, 2000);
@@ -882,10 +895,12 @@ export function createView(canvas, city) {
   scene.add(sun.target);
 
   const rng = city.rng || Math.random;
-  const golden = createGoldenHour(scene, city, rng);
   buildGround(scene);
   buildRoads(scene);
   buildStreetGrammar(scene);
+  // Golden hour AFTER the street grammar: the lamp positions the glow
+  // sprites need are only known once the lamps are placed.
+  const golden = createGoldenHour(scene, city, rng, { sun, hemi });
   buildBuildings(scene, city);
   buildFacades(scene, city);
   buildSigns(scene);

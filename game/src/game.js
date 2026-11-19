@@ -15,7 +15,7 @@ import { mulberry32, rr } from './rng.js';
 import { STEP, WEAPONS, SHOTGUN_SHELLS_PRICE, STUNTS, COLLECTIBLES, CHARACTERS } from './config.js';
 import { buildCity, loc, LOCATIONS } from './city.js';
 import { createView } from './world.js';
-import { createInput, ACT_CONFIRM, ACT_PAUSE, ACT_INTERACT, ACT_ENTER, ACT_RADIO, ACT_WEAPON1, ACT_WEAPON2, ACT_WEAPON3 } from './input.js';
+import { createInput, ACT_CONFIRM, ACT_PAUSE, ACT_INTERACT, ACT_ENTER, ACT_RADIO, ACT_WEAPON1, ACT_WEAPON2, ACT_WEAPON3, ACT_WEAPON4, ACT_WEAPON5, ACT_RELOAD, ACT_BRIBE, ACT_SLEEP } from './input.js';
 import { createPlayer } from './player.js';
 import { createTraffic } from './actors/traffic.js';
 import { createPeds } from './actors/peds.js';
@@ -33,6 +33,10 @@ import { Car } from './actors/car.js';
 import { Human } from './actors/human.js';
 import { dist } from './mathx.js';
 import { missionIntro, randomTaunt } from './dialogue.js';
+import { Garage, discountedPrice } from './garage.js';
+import { Usaha } from './usaha.js';
+import { createEffects } from './effects.js';
+import { actForMission, repLevel, hasUnlock } from './progress.js';
 
 export function createGame(canvas, seed = 7) {
   const rng = mulberry32(seed);
@@ -51,8 +55,10 @@ export function createGame(canvas, seed = 7) {
     seed, time: 0, cash: 250, rep: 0, heat: 0, day: 1,
     mode: 'title', // title | play | paused | over | caught
     saveTimer: 0, seenTimer: 0, respawnTimer: 0, down: false,
-    interactPressed: false, tauntTimer: 0,
+    interactPressed: false, tauntTimer: 0, shopOpen: false,
   };
+  // The lighting grade follows the act; 1 until the first mission starts.
+  let currentAct = 1;
 
   // Shot scripts steer through this facade instead of the keyboard, so a
   // screenshot state is reached by the same code path as a player's input.
@@ -81,6 +87,10 @@ export function createGame(canvas, seed = 7) {
     return h;
   }
   addNpc('PAK WIRA', 'PW', 'marina', 0x7a5c2e);
+  // PAK ASKA, the marina receiver, stands beside Pak Wira at the pier —
+  // he takes the handoff in the story shot and in Mission 8.
+  const aska = addNpc('PAK ASKA', 'PA', 'marina', 0x1f6b74);
+  aska.setPos(-2, -166);
   addNpc('SARI', 'SR', 'shophouseRow', 0x8a4a6b);
   addNpc('BANG IJAL', 'BI', 'eastSafehouse', 0x4a6b8a);
   addNpc('DEDI', 'DD', 'industrialYard', 0x4a6b8a);
@@ -109,15 +119,44 @@ export function createGame(canvas, seed = 7) {
         const killed = h.damage(WEAPONS[weapon].damage * (weapon === 'shotgun' ? 1 : 1));
         if (h.role === 'ped') addHeat(1);
         else addHeat(0.3);
-        if (killed && h.role === 'attacker') audio.pickup();
+        // A downed cop or attacker drops loot: cash, sometimes ammo.
+        if (killed && (h.role === 'cop' || h.role === 'attacker')) {
+          audio.pickup();
+          effects.dropCash(h.x, h.z, 20 + Math.floor(rng() * 40));
+          if (rng() < 0.5) effects.dropAmmo(h.x + 1, h.z, 'shells', 6);
+        }
       } else if (result.hit === 'car') {
         const dead = result.car.damage(WEAPONS[weapon].damage * (weapon === 'shotgun' ? 3 : 1));
-        if (dead) { addHeat(1); hud.toast('Mobil target hancur.'); }
-        else addHeat(0.1);
+        if (dead) {
+          addHeat(1);
+          hud.toast('Mobil target hancur.');
+          effects.dropCash(result.car.x, result.car.z, 30 + Math.floor(rng() * 50));
+          effects.dropAmmo(result.car.x + 1, result.car.z, 'smg', 30);
+        } else addHeat(0.1);
       }
     },
-    onEnterCar: (car) => { hud.toast(`${car.name} — milikmu sekarang.`); audio.pickup(); },
-    onExitCar: () => {},
+    onEnterCar: (car) => {
+      hud.toast(`${car.name} — milikmu sekarang.`);
+      audio.pickup();
+      // Steal-unlock: a cruiser becomes the PANTHERA, the mission target
+      // car becomes the gang PREMAN — registered when the player gets
+      // OUT, so the car is never teleported away mid-mission.
+      if (car.isCop && police.cruisers.includes(car)) {
+        police.stealCruiser(car);
+        car.stolenFor = 'panthera';
+        hud.toast('Cruiser polisi dicuri — bawa pulang ke garasi untuk jadi milikmu.');
+      } else if (car.missionTarget === 'steal') {
+        car.stolenFor = 'preman';
+        hud.toast('Mobil curian — antar ke tujuan, lalu bawa pulang ke garasi.');
+      }
+    },
+    onExitCar: (car) => {
+      if (car.stolenFor) {
+        const id = car.stolenFor;
+        car.stolenFor = null;
+        garage.unlockSteal(id, car);
+      }
+    },
     onCarBrush: (car) => {
       const prop = props.nearestUnbroken(car.x, car.z, 3.2);
       if (prop) props.breakProp(prop, bill, (h) => addHeat(h));
@@ -172,6 +211,12 @@ export function createGame(canvas, seed = 7) {
     },
   });
 
+  // v3 systems: world effects (skids, smoke, sparks, cop drops), the
+  // garage economy and the property economy.
+  const effects = createEffects(view.scene, rng);
+  const garage = new Garage({ state, scene: view.scene, rng, parked, hud, audio, player });
+  const usaha = new Usaha({ state, hud, audio });
+
   const missions = createMissions(view.scene, city, rng, {
     onMissionComplete: (m) => {
       const paid = bill.settle(state.cash);
@@ -179,6 +224,16 @@ export function createGame(canvas, seed = 7) {
       state.cash += m.reward;
       state.rep += m.rep;
       audio.missionDone();
+      // End-of-mission ledger card + a BIG centre stamp, both from the
+      // real numbers: reward, bill paid, net, REP.
+      hud.ledger({
+        title: m.title,
+        hasil: m.reward,
+        tagihan: paid,
+        bersih: m.reward - paid,
+        rep: m.rep,
+      });
+      hud.popups.big(`MISI SELESAI +$${m.reward.toLocaleString('en-US')}`, m.title);
       hud.dialogue('PAK WIRA · BOS MARINA', m.doneLine, 'wira', 7);
       hud.toast(paid > 0
         ? `Misi selesai: +$${m.reward} — tagihan kerusakan $${paid} dipotong.`
@@ -186,8 +241,12 @@ export function createGame(canvas, seed = 7) {
       hud.announce(`Misi selesai. Hadiah $${m.reward}.`);
     },
     onTalk: (line, who) => {
-      const key = who === 'PAK WIRA' ? 'wira' : who === 'SARI' ? 'sari' : 'wira';
-      hud.dialogue(`${who} · ${who === 'PAK WIRA' ? 'BOS MARINA' : 'KONTAK'}`, line, key, 7);
+      // "PAK ASKA" -> 'aska', "LETKOL RAHMAT" -> 'rahmat', "PAK WIRA" ->
+      // 'wira', "BANG IJAL" -> 'ijal', "SARI" -> 'sari'. The role chip
+      // comes from the character table.
+      const key = String(who).split(' ').pop().toLowerCase();
+      const c = CHARACTERS[key];
+      hud.dialogue(`${who} · ${c ? c.role : 'KONTAK'}`, line, c ? key : 'wira', 7);
     },
     onSpawnAttacker: () => { addHeat(0.4); },
     onTargetCar: () => {},
@@ -209,6 +268,13 @@ export function createGame(canvas, seed = 7) {
 
   function damagePlayer(amount) {
     if (state.down || state.mode !== 'play') return;
+    // Armor absorbs damage first, 1:1, until it is gone.
+    if (player.armor > 0) {
+      const absorbed = Math.min(player.armor, amount);
+      player.armor -= absorbed;
+      amount -= absorbed;
+      if (amount <= 0) return;
+    }
     player.health = Math.max(0, player.health - amount);
     if (player.health <= 0) {
       state.down = true;
@@ -229,53 +295,202 @@ export function createGame(canvas, seed = 7) {
     hud.toast('Kamu bangun di Rumah Sakit. -$25 biaya berobat.', 5);
   }
 
-  // Interactions: shop (Ruko), safehouse (Timur), talk targets, taxi
-  // pickup, race start, car entry.
+  // Interactions: talk targets FIRST (a mission talk must never lose to
+  // a shop behind it), then garage, properties, weapon shop, safehouse,
+  // taxi pickup, race start. The M1 rule lives here: E at the marina
+  // talks to Pak Wira — it never buys SLIP MARINA before the talk runs.
+  // (missions.update consumes the talk on the same press.)
   function handleInteract() {
+    if (missions.nearTalkTarget(player.x, player.z)) return;
+    // Taxi first (after talk): the passenger is time-sensitive (maxWait)
+    // and the pickup needs the player in a car, so it never steals an
+    // on-foot E press from the garage or a property — but a player in a
+    // car near a property AND a waiting passenger picks the passenger
+    // up instead of accidentally buying the property.
+    if (!player.onFoot && taxi.nearPassenger(player.x, player.z)) {
+      if (taxi.startFare(player.x, player.z)) return;
+    }
     const S = loc('shophouseRow');
     const E = loc('eastSafehouse');
-    if (dist(player.x, player.z, S.x, S.z) < 9) {
-      if (!player.hasShotgun && state.cash >= WEAPONS.shotgun.price) {
-        state.cash -= WEAPONS.shotgun.price;
-        player.hasShotgun = true;
-        player.shells = 12;
-        player.weapon = 'shotgun';
-        hud.toast('Shotgun dibeli — $120. Tekan 2 untuk pakai.');
-        audio.pickup();
-      } else if (player.hasShotgun && state.cash >= SHOTGUN_SHELLS_PRICE) {
-        state.cash -= SHOTGUN_SHELLS_PRICE;
-        player.shells += 12;
-        hud.toast('Amunisi shotgun +12 — $40.');
-        audio.pickup();
+    const G = loc('industrialYard'); // Bengkel Roda Jaya
+    const N = loc('northRowStall'); // Warung Sari
+    const T = loc('towerConcourse'); // Kios Kaki Lima
+    const M = loc('marina'); // Slip Marina
+    if (dist(player.x, player.z, G.x, G.z) < 10) {
+      state.shopOpen = true;
+      hud.showGarage(garage, state, () => { state.shopOpen = false; });
+      return;
+    }
+    if (dist(player.x, player.z, N.x, N.z) < 9) {
+      if (usaha.isOwned('warung')) {
+        state.shopOpen = true;
+        hud.showUsaha(usaha, state, () => { state.shopOpen = false; });
       } else {
-        hud.toast('Uang tidak cukup. Shotgun $120, amunisi $40.');
+        const r = usaha.buy('warung');
+        if (!r.ok) hud.toast(r.reason, 4);
       }
+      return;
+    }
+    // Kios Kaki Lima is a small stall: a 6 m radius, not 9. The race
+    // starts at the same plaza (towerConcourse, 10 m radius), so a 9 m
+    // property radius swallowed the race start whole — E at the plaza
+    // bought a $9.500 stall instead of starting the race. With 6 m the
+    // plaza has a clear ring: <6 m buys the stall, 6–10 m starts the race.
+    if (dist(player.x, player.z, T.x, T.z) < 6) {
+      if (usaha.isOwned('kakiLima')) {
+        state.shopOpen = true;
+        hud.showUsaha(usaha, state, () => { state.shopOpen = false; });
+      } else {
+        const r = usaha.buy('kakiLima');
+        if (!r.ok) hud.toast(r.reason, 4);
+      }
+      return;
+    }
+    if (dist(player.x, player.z, M.x, M.z) < 9) {
+      if (usaha.isOwned('slip')) {
+        state.shopOpen = true;
+        hud.showUsaha(usaha, state, () => { state.shopOpen = false; });
+      } else {
+        const r = usaha.buy('slip');
+        if (!r.ok) hud.toast(r.reason, 4);
+      }
+      return;
+    }
+    if (dist(player.x, player.z, S.x, S.z) < 9) {
+      state.shopOpen = true;
+      hud.showWeaponShop(weaponShop, state, () => { state.shopOpen = false; });
       return;
     }
     if (dist(player.x, player.z, E.x, E.z) < 9) {
       if (player.car) player.car.health = 100;
       player.health = 100;
+      if (player.car) player.car.fuel = 100;
       saveGame(snapshot());
-      hud.toast('SAFEHOUSE TIMUR — mobil diperbaiki, luka sembuh, game tersimpan.');
+      hud.toast('SAFEHOUSE TIMUR — mobil diperbaiki, bensin penuh, luka sembuh, game tersimpan.');
       audio.pickup();
-    }
-    if (!player.onFoot && taxi.nearPassenger(player.x, player.z)) {
-      if (taxi.startFare(player.x, player.z)) return;
     }
     if (race.nearStart(player.x, player.z)) {
       if (race.startRace()) return;
     }
   }
 
+  // Weapon shop (Deret Ruko): the full rack, ammo packs and armor. All
+  // prices honour the REP 4 discount; bedil needs REP 3, pelontar REP 4.
+  const weaponShop = {
+    title: 'TOKO SENJATA — DERET RUKO',
+    sub: () => 'Diskon 20% di REP 4 (LEGENDA BENTARA) · Q isi ulang magasin · 1–5 ganti senjata',
+    catalog() {
+      const rep = state.rep;
+      const rows = [];
+      const guns = [
+        { id: 'shotgun', name: 'Shotgun', sub: '5 peluru sekali tembak, dekat mematikan', price: WEAPONS.shotgun.price, owned: player.hasShotgun, ammo: { id: 'ammo-shotgun', label: 'Amunisi Shotgun +12', price: SHOTGUN_SHELLS_PRICE } },
+        { id: 'smg', name: 'SMG', sub: 'Otomatis, 30 peluru per magasin', price: WEAPONS.smg.price, owned: player.hasSmg, ammo: { id: 'ammo-smg', label: 'Amunisi SMG +60', price: 60 } },
+        { id: 'bedil', name: 'Bedil', sub: 'Laras panjang, jangkauan 80 m', price: WEAPONS.bedil.price, owned: player.hasBedil, repNeeded: 3, ammo: { id: 'ammo-bedil', label: 'Amunisi Bedil +10', price: 100 } },
+        { id: 'pelontar', name: 'Pelontar', sub: 'Satu tembakan, satu mobil', price: WEAPONS.pelontar.price, owned: player.hasPelontar, repNeeded: 4, ammo: { id: 'ammo-pelontar', label: 'Amunisi Pelontar +2', price: 150 } },
+      ];
+      for (const g of guns) {
+        const lockedByRep = g.repNeeded && repLevel(rep) < g.repNeeded;
+        rows.push({
+          id: g.id, name: g.name, sub: g.sub,
+          price: discountedPrice(g.price, rep), owned: g.owned,
+          disabled: lockedByRep, disabledReason: lockedByRep ? `REP ${g.repNeeded}` : null,
+        });
+        if (g.owned) {
+          rows.push({
+            id: g.ammo.id, name: g.ammo.label, sub: 'Stok cadangan',
+            price: discountedPrice(g.ammo.price, rep), owned: false,
+          });
+        }
+      }
+      rows.push({
+        id: 'armor', name: 'Armor +50', sub: `Pelindung badan (sekarang ${Math.round(player.armor)}/100)`,
+        price: discountedPrice(200, rep), owned: player.armor >= 100,
+      });
+      return rows;
+    },
+    buy(id) {
+      const price = (n) => discountedPrice(n, state.rep);
+      const pay = (n) => {
+        if (state.cash < n) return { ok: false, reason: `Uang tidak cukup — $${n.toLocaleString('en-US')}, kamu punya $${Math.round(state.cash).toLocaleString('en-US')}.` };
+        state.cash -= n;
+        return { ok: true };
+      };
+      const done = (msg) => { audio.pickup(); hud.toast(msg, 4); return { ok: true }; };
+      switch (id) {
+        case 'shotgun': {
+          if (player.hasShotgun) return { ok: false, reason: 'Shotgun sudah dibeli.' };
+          const r = pay(price(WEAPONS.shotgun.price)); if (!r.ok) return r;
+          player.hasShotgun = true; player.shells += 12; player.shellMag = WEAPONS.shotgun.magSize; player.weapon = 'shotgun';
+          return done('Shotgun dibeli — $120 + 12 peluru. Tekan 2 untuk pakai.');
+        }
+        case 'smg': {
+          if (player.hasSmg) return { ok: false, reason: 'SMG sudah dibeli.' };
+          const r = pay(price(WEAPONS.smg.price)); if (!r.ok) return r;
+          player.hasSmg = true; player.smgAmmo += 60; player.smgMag = WEAPONS.smg.magSize; player.weapon = 'smg';
+          return done('SMG dibeli — $450 + 60 peluru. Tekan 3 untuk pakai.');
+        }
+        case 'bedil': {
+          if (repLevel(state.rep) < 3) return { ok: false, reason: 'Bedil butuh REP 3 (RAJA JALANAN).' };
+          if (player.hasBedil) return { ok: false, reason: 'Bedil sudah dibeli.' };
+          const r = pay(price(WEAPONS.bedil.price)); if (!r.ok) return r;
+          player.hasBedil = true; player.bedilAmmo += 10; player.bedilMag = WEAPONS.bedil.magSize; player.weapon = 'bedil';
+          return done('Bedil dibeli — $900 + 10 peluru. Tekan 4 untuk pakai.');
+        }
+        case 'pelontar': {
+          if (repLevel(state.rep) < 4) return { ok: false, reason: 'Pelontar butuh REP 4 (LEGENDA BENTARA).' };
+          if (player.hasPelontar) return { ok: false, reason: 'Pelontar sudah dibeli.' };
+          const r = pay(price(WEAPONS.pelontar.price)); if (!r.ok) return r;
+          player.hasPelontar = true; player.pelontarAmmo += 2; player.pelontarMag = WEAPONS.pelontar.magSize; player.weapon = 'pelontar';
+          return done('Pelontar dibeli — $1.800 + 2 peluru. Tekan 5 untuk pakai.');
+        }
+        case 'ammo-shotgun': {
+          const r = pay(price(SHOTGUN_SHELLS_PRICE)); if (!r.ok) return r;
+          player.shells += 12; return done('Amunisi shotgun +12.');
+        }
+        case 'ammo-smg': {
+          const r = pay(price(60)); if (!r.ok) return r;
+          player.smgAmmo += 60; return done('Amunisi SMG +60.');
+        }
+        case 'ammo-bedil': {
+          const r = pay(price(100)); if (!r.ok) return r;
+          player.bedilAmmo += 10; return done('Amunisi bedil +10.');
+        }
+        case 'ammo-pelontar': {
+          const r = pay(price(150)); if (!r.ok) return r;
+          player.pelontarAmmo += 2; return done('Amunisi pelontar +2.');
+        }
+        case 'armor': {
+          if (player.armor >= 100) return { ok: false, reason: 'Armor sudah penuh.' };
+          const r = pay(price(200)); if (!r.ok) return r;
+          player.armor = Math.min(100, player.armor + 50);
+          return done('Armor +50.');
+        }
+        default: return { ok: false, reason: 'Barang tidak dikenal.' };
+      }
+    },
+  };
+
   function promptText() {
     const S = loc('shophouseRow');
     const E = loc('eastSafehouse');
+    const G = loc('industrialYard');
+    const N = loc('northRowStall');
+    const T = loc('towerConcourse');
+    const M = loc('marina');
     if (missions.nearTalkTarget(player.x, player.z)) return 'E — Bicara';
-    if (dist(player.x, player.z, S.x, S.z) < 9) {
-      return player.hasShotgun ? 'E — Beli amunisi shotgun $40' : 'E — Beli shotgun $120';
-    }
-    if (dist(player.x, player.z, E.x, E.z) < 9) return 'E — Safehouse: perbaiki + simpan';
     if (!player.onFoot && taxi.nearPassenger(player.x, player.z)) return taxi.prompt();
+    if (dist(player.x, player.z, G.x, G.z) < 10) return 'E — Bengkel Roda Jaya: beli / upgrade mobil';
+    if (dist(player.x, player.z, N.x, N.z) < 9) {
+      return usaha.isOwned('warung') ? 'E — Warung Sari (milikmu)' : `E — Beli WARUNG SARI $${usaha.priceFor('warung').toLocaleString('en-US')} (+$30/hari)`;
+    }
+    if (dist(player.x, player.z, T.x, T.z) < 6) {
+      return usaha.isOwned('kakiLima') ? 'E — Kios Kaki Lima (milikmu)' : `E — Beli KIOS KAKI LIMA $${usaha.priceFor('kakiLima').toLocaleString('en-US')} (+$80/hari)`;
+    }
+    if (dist(player.x, player.z, M.x, M.z) < 9) {
+      return usaha.isOwned('slip') ? 'E — Slip Marina (milikmu)' : `E — Beli SLIP MARINA $${usaha.priceFor('slip').toLocaleString('en-US')} (+$180/hari)`;
+    }
+    if (dist(player.x, player.z, S.x, S.z) < 9) return 'E — Toko Senjata Ruko';
+    if (dist(player.x, player.z, E.x, E.z) < 9) return `E — Safehouse: perbaiki + simpan · T — Tidur (usaha +$${Math.round(usaha.pot).toLocaleString('en-US')})`;
     if (race.nearStart(player.x, player.z)) return 'E — Mulai balapan (5 gate)';
     if (player.onFoot) {
       const car = player.nearestCar([...traffic.cars, ...parked, missions.targetCar].filter(Boolean));
@@ -289,7 +504,12 @@ export function createGame(canvas, seed = 7) {
       cash: state.cash, rep: state.rep, day: state.day,
       missionIndex: missions.index,
       hasShotgun: player.hasShotgun, shells: player.shells,
+      hasSmg: player.hasSmg, smgAmmo: player.smgAmmo,
+      hasBedil: player.hasBedil, bedilAmmo: player.bedilAmmo,
+      hasPelontar: player.hasPelontar, pelontarAmmo: player.pelontarAmmo,
+      armor: player.armor,
       collected: collectibles.collected, taxiTrips: taxi.trips, raceBest: race.best,
+      garage: garage.serialize(), usaha: usaha.serialize(),
     };
   }
 
@@ -299,7 +519,21 @@ export function createGame(canvas, seed = 7) {
     state.day = data.day || 1;
     player.hasShotgun = !!data.hasShotgun;
     player.shells = data.shells ?? 0;
+    player.shellMag = WEAPONS.shotgun.magSize;
+    player.hasSmg = !!data.hasSmg;
+    player.smgAmmo = data.smgAmmo ?? 0;
+    player.smgMag = player.hasSmg ? WEAPONS.smg.magSize : 0;
+    player.hasBedil = !!data.hasBedil;
+    player.bedilAmmo = data.bedilAmmo ?? 0;
+    player.bedilMag = player.hasBedil ? WEAPONS.bedil.magSize : 0;
+    player.hasPelontar = !!data.hasPelontar;
+    player.pelontarAmmo = data.pelontarAmmo ?? 0;
+    player.pelontarMag = player.hasPelontar ? WEAPONS.pelontar.magSize : 0;
+    player.armor = data.armor ?? 0;
     if (player.hasShotgun) player.weapon = 'shotgun';
+    else if (player.hasSmg) player.weapon = 'smg';
+    if (data.garage) garage.restore(data.garage);
+    if (data.usaha) usaha.restore(data.usaha);
     missions.setIndex(data.missionIndex || 0);
   }
 
@@ -344,24 +578,76 @@ export function createGame(canvas, seed = 7) {
         audio.setRadio(!audio.radioOn());
         hud.toast(audio.radioOn() ? 'RADIO KEMARAU 92.4 — Bang Ocid menyala.' : 'Radio mati.');
       }
+      // Weapon slots 1–5; a locked slot explains itself instead of
+      // silently doing nothing.
       if (actions & ACT_WEAPON1) player.weapon = 'pistol';
-      if (actions & ACT_WEAPON2 && player.hasShotgun) player.weapon = 'shotgun';
-      if (actions & ACT_WEAPON3) hud.toast('SMG belum dibuka — $450 di Ruko? Belum dijual. Sabar.');
+      if (actions & ACT_WEAPON2) {
+        if (player.hasShotgun) player.weapon = 'shotgun';
+        else hud.toast('Shotgun belum dibeli — $120 di Deret Ruko.');
+      }
+      if (actions & ACT_WEAPON3) {
+        if (player.hasSmg) player.weapon = 'smg';
+        else hud.toast('SMG belum dibeli — $450 di Deret Ruko.');
+      }
+      if (actions & ACT_WEAPON4) {
+        if (player.hasBedil) player.weapon = 'bedil';
+        else hud.toast('Bedil butuh REP 3 — $900 di Deret Ruko.');
+      }
+      if (actions & ACT_WEAPON5) {
+        if (player.hasPelontar) player.weapon = 'pelontar';
+        else hud.toast('Pelontar butuh REP 4 — $1.800 di Deret Ruko.');
+      }
+      if (actions & ACT_RELOAD) {
+        if (!player.reload()) hud.toast('Magasin penuh atau tidak ada cadangan — beli amunisi di Deret Ruko.');
+        else hud.toast('Isi ulang.');
+      }
+      // Bribe (B): $250 per star, REP 3+. Clears the whole heat.
+      if (actions & ACT_BRIBE) {
+        const stars = Math.ceil(state.heat);
+        if (state.heat <= 0) hud.toast('Tidak ada polisi yang mengejarmu.');
+        else if (!hasUnlock(state.rep, 'bribe')) hud.toast('Sogok polisi butuh REP 3 (RAJA JALANAN).');
+        else if (state.cash < 250 * stars) hud.toast(`Sogok butuh $${250 * stars} — kamu punya $${Math.round(state.cash)}.`);
+        else {
+          state.cash -= 250 * stars;
+          state.heat = 0;
+          hud.toast(`Polisi disogok $${250 * stars} — heat bersih.`);
+          audio.pickup();
+        }
+      }
+      // Sleep (T) at the safehouse: usaha income lands, next day, heal.
+      if (actions & ACT_SLEEP) {
+        const E = loc('eastSafehouse');
+        if (dist(player.x, player.z, E.x, E.z) < 9) {
+          const slept = usaha.sleep();
+          player.health = 100;
+          if (player.car) { player.car.health = 100; player.car.fuel = 100; }
+          saveGame(snapshot());
+          hud.toast(slept.collected > 0
+            ? `TIDUR — akumulasi +$${slept.collected.toLocaleString('en-US')} · hari ${slept.day}.`
+            : `TIDUR — hari ${slept.day}. Belum ada usaha yang setor.`, 5);
+        } else hud.toast('Tidur cuma bisa di Safehouse Timur.');
+      }
       if (actions & ACT_ENTER && player.onFoot) {
         const car = player.nearestCar([...traffic.cars, ...parked, missions.targetCar].filter(Boolean));
         if (car) player.enterCar(car);
       } else if (actions & ACT_ENTER && !player.onFoot) {
         player.exitCar();
       }
-      if (state.interactPressed) handleInteract();
+      if (state.interactPressed) {
+        // E closes an open shop panel; otherwise it interacts.
+        if (state.shopOpen) { hud.closeShop(); state.shopOpen = false; }
+        else handleInteract();
+      }
       state.time += dt;
-      if (!state.down) player.step(dt);
+      // The player freezes while a shop panel is open; the world does not.
+      if (!state.down && !state.shopOpen) player.step(dt);
       traffic.step(dt, player.car);
       peds.step(dt);
       police.step(dt, {
         px: player.x, pz: player.z, heading: player.heading,
         playerInCar: !player.onFoot, playerCar: player.car,
         heat: state.heat, t: state.time, damagePlayer, onCopShot: () => {},
+        onDispatch: (text) => hud.ticker(text),
       });
       missions.update(dt, {
         px: player.x, pz: player.z,
@@ -375,8 +661,39 @@ export function createGame(canvas, seed = 7) {
       });
       race.update(dt, { px: player.x, pz: player.z });
       collectibles.update(dt, state.time, player.x, player.z);
+      usaha.update(dt);
       checkNearMiss(dt);
       props.step(dt);
+      effects.update(dt, state.time);
+      // Drift trails + scrape sparks, from the real car state.
+      if (player.car && !player.onFoot) {
+        if (player.drifting) {
+          effects.skidPair(player.x, player.z, player.heading, dt);
+          effects.smoke(player.x - Math.sin(player.heading) * 1.6, player.z - Math.cos(player.heading) * 1.6);
+        }
+        if (player.car.scraped) effects.sparks(player.x, player.z);
+      }
+      // Walk over a drop to take it.
+      for (const d of effects.collectDrops(player.x, player.z)) {
+        if (d.kind === 'cash') {
+          state.cash += d.amount;
+          state.rep += 1;
+          hud.popups.pulse(d.amount);
+        } else if (d.kind === 'shells') { player.shells += d.amount; hud.toast(`Amunisi shotgun +${d.amount}.`); }
+        else if (d.kind === 'smg') { player.smgAmmo += d.amount; hud.toast(`Amunisi SMG +${d.amount}.`); }
+        else if (d.kind === 'bedil') { player.bedilAmmo += d.amount; hud.toast(`Amunisi bedil +${d.amount}.`); }
+        else if (d.kind === 'pelontar') { player.pelontarAmmo += d.amount; hud.toast(`Amunisi pelontar +${d.amount}.`); }
+      }
+      // Act grade: snap the lighting preset when the act changes, and
+      // switch the headlight cones on for Act 3 dusk.
+      const act = actForMission(missions.done ? 7 : missions.index);
+      if (act !== currentAct) {
+        currentAct = act;
+        if (view.golden) view.golden.applyAct(act);
+        const lightsOn = act === 3;
+        for (const c of [...traffic.cars, ...parked, ...police.cruisers]) c.setHeadlights(lightsOn);
+        if (police.roadblock) police.roadblock.setHeadlights(lightsOn);
+      }
       if (view.golden) view.golden.update(dt, state.time);
       // Heat decay: 11 s with no police line of sight drops one star.
       if (state.heat > 0) {
@@ -397,14 +714,14 @@ export function createGame(canvas, seed = 7) {
       }
       audio.step(dt, player.speedKmh, state.heat);
       hud.prompt(promptText());
-      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget }, dt);
+      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget, garage, usaha, effects, audio }, dt);
     } else {
       // Title / paused / over: the city idles behind the screen.
       traffic.step(dt, null);
       peds.step(dt);
       props.step(dt);
       if (view.golden) view.golden.update(dt, state.time);
-      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget }, dt);
+      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget, garage, usaha, effects, audio }, dt);
     }
   }
 
@@ -428,15 +745,18 @@ export function createGame(canvas, seed = 7) {
     return { ok: info.triangles < 150000, triangles: info.triangles, calls: info.calls };
   }
 
-  return {
+  const game = {
     state, city, view, player, traffic, peds, police, missions, bill, props,
-    collectibles, taxi, race,
+    collectibles, taxi, race, garage, usaha, effects,
     hud, audio, input: inputFacade, shotKeys, npcs, parked, rng,
     step, draw, audit, addHeat, damagePlayer, applySave, missionTarget, policeUnits,
     loadSave: loadGame,
     setMode(mode) { state.mode = mode; },
     setShotInput(keys) { Object.assign(shotKeys, keys); },
   };
+  garage.wire(game);
+  usaha.wire(game);
+  return game;
 }
 
 export { STEP };

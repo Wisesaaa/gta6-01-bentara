@@ -34,13 +34,21 @@ const TITLE_HTML = `
     di bawah matahari jam empat sore. Temui <span class="key">Pak Wira</span> di
     Marina, curi mobil, kabur dari polisi — dan jangan hancurkan terlalu banyak
     kios, tagihannya nyata.</p>
-    <p>Di sela misi: <span class="key">taksi</span> (angkut penumpang, dibayar
-    argo), <span class="key">24 koleksi</span> wayang emas &amp; kaset tersebar
+    <p>Di sela misi: <span class="key">Bengkel Roda Jaya</span> di Kawasan
+    Industri (beli 5 mobil, upgrade MESIN/BAN/TURBO, respray),
+    <span class="key">usaha</span> — Warung Sari, Kios Kaki Lima, Slip Marina
+    (pendapatan harian, cairkan dengan tidur di safehouse),
+    <span class="key">taksi</span> (angkut penumpang, dibayar argo),
+    <span class="key">24 koleksi</span> wayang emas &amp; kaset tersebar
     di kota, <span class="key">balapan 5 gate</span> di Plaza, dan
     <span class="key">Bang Ocid</span> di Radio Kemarau 92.4.</p>
+    <p>Naik REP untuk buka <span class="key">NITRO (REP 2)</span>,
+    <span class="key">sogok polisi $250/bintang (REP 3)</span> dan
+    <span class="key">diskon toko 20% (REP 4)</span>.</p>
     <p><span class="key">WASD</span> jalan / mengemudi &nbsp;·&nbsp; <span class="key">SPACE</span> rem tangan
-    &nbsp;·&nbsp; <span class="key">F</span> masuk / curi mobil &nbsp;·&nbsp; <span class="key">E</span> interaksi
-    &nbsp;·&nbsp; <span class="key">KLIK</span> tembak &nbsp;·&nbsp; <span class="key">1 / 2 / 3</span> senjata
+    &nbsp;·&nbsp; <span class="key">SHIFT</span> nitro &nbsp;·&nbsp; <span class="key">F</span> masuk / curi mobil &nbsp;·&nbsp; <span class="key">E</span> interaksi
+    &nbsp;·&nbsp; <span class="key">T</span> tidur di safehouse &nbsp;·&nbsp; <span class="key">Q</span> isi ulang &nbsp;·&nbsp; <span class="key">B</span> sogok
+    &nbsp;·&nbsp; <span class="key">KLIK</span> tembak &nbsp;·&nbsp; <span class="key">1–5</span> senjata
     &nbsp;·&nbsp; <span class="key">R</span> radio &nbsp;·&nbsp; <span class="key">P</span> jeda</p>
     <p id="titleSave"></p>
     <p><span class="key">KLIK atau tekan ENTER untuk mulai</span></p>
@@ -50,6 +58,7 @@ const PAUSED_HTML = `
   <div>
     <h1>JEDA</h1>
     <h2>BENTARA MENUNGGU</h2>
+    <p id="pauseStats"></p>
     <p>Progress tersimpan otomatis tiap 20 detik, dan di Safehouse Timur.</p>
     <p><span class="key">P atau ENTER</span> untuk lanjut &nbsp;·&nbsp; <span class="key">R</span> radio</p>
   </div>`;

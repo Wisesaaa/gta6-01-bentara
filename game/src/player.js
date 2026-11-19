@@ -25,9 +25,34 @@ export function createPlayer(ctx) {
     onFoot: true, car: null,
     health: PLAYER.health,
     weapon: 'pistol', shells: 12, hasShotgun: false,
+    // Magasin (mag) vs cadangan (reserve): Q mengisi mag dari reserve.
+    shellMag: 6, hasSmg: false, smgAmmo: 0, smgMag: 0,
+    hasBedil: false, bedilAmmo: 0, bedilMag: 0,
+    hasPelontar: false, pelontarAmmo: 0, pelontarMag: 0,
+    // Armor menyerap damage sebelum health (diisi ulang di bengkel).
+    armor: 0,
     speedKmh: 0, moving: false,
     shootCooldown: 0, driftTimer: 0, drifting: false,
   };
+
+  // Weapon -> magasin field. The reserve field lives in WEAPONS config.
+  const MAG_FIELD = { shotgun: 'shellMag', smg: 'smgMag', bedil: 'bedilMag', pelontar: 'pelontarMag' };
+  const HAS_FIELD = { shotgun: 'hasShotgun', smg: 'hasSmg', bedil: 'hasBedil', pelontar: 'hasPelontar' };
+
+  // Reload (Q): move rounds from reserve into the magazine.
+  function reload() {
+    const w = WEAPONS[p.weapon];
+    if (!w || w.magSize === Infinity) return false;
+    const magKey = MAG_FIELD[p.weapon];
+    const reserveKey = w.reserveField;
+    if (!magKey || !reserveKey) return false;
+    if (p[magKey] >= w.magSize || p[reserveKey] <= 0) return false;
+    const take = Math.min(w.magSize - p[magKey], p[reserveKey]);
+    p[magKey] += take;
+    p[reserveKey] -= take;
+    p.shootCooldown = Math.max(p.shootCooldown, 0.8);
+    return true;
+  }
 
   function nearestCar(cars, maxDist = 5) {
     let best = null;
@@ -101,6 +126,10 @@ export function createPlayer(ctx) {
     if (!car) return;
     const throttle = (input.up() ? 1 : 0) - (input.down() ? 0.7 : 0);
     const steer = (input.left() ? 1 : 0) - (input.right() ? 1 : 0);
+    // Nitro: Shift while a TURBO upgrade is fitted burns the boost meter
+    // (the REP 2 gate is enforced at purchase, not at the pedal).
+    car.boosting = input.run() && car.turboLevel > 0 && car.boost > 0;
+    if (car.brakeGlow) car.brakeGlow.material.opacity = input.brake() ? 0.95 : 0.5;
     if (car.health <= 0) car.speed = damp(car.speed, 0, 4, dt);
     else car.drive(dt, throttle, steer, input.brake());
     p.x = car.x;
@@ -132,9 +161,12 @@ export function createPlayer(ctx) {
   function shoot() {
     if (p.shootCooldown > 0) return;
     const w = WEAPONS[p.weapon];
-    if (p.weapon === 'shotgun') {
-      if (!p.hasShotgun || p.shells <= 0) return;
-      p.shells -= 1;
+    // One round per trigger pull, from the magazine — never from reserve.
+    if (w.magSize !== Infinity) {
+      const magKey = MAG_FIELD[p.weapon];
+      const hasKey = HAS_FIELD[p.weapon];
+      if (!p[hasKey] || p[magKey] <= 0) return;
+      p[magKey] -= 1;
     }
     p.shootCooldown = w.rate;
     // Aim: from the camera, through the crosshair, into the world.
@@ -190,8 +222,31 @@ export function createPlayer(ctx) {
     set weapon(v) { p.weapon = v; },
     get shells() { return p.shells; },
     set shells(v) { p.shells = v; },
+    get shellMag() { return p.shellMag; },
+    set shellMag(v) { p.shellMag = v; },
     get hasShotgun() { return p.hasShotgun; },
     set hasShotgun(v) { p.hasShotgun = v; },
+    get hasSmg() { return p.hasSmg; },
+    set hasSmg(v) { p.hasSmg = v; },
+    get smgAmmo() { return p.smgAmmo; },
+    set smgAmmo(v) { p.smgAmmo = v; },
+    get smgMag() { return p.smgMag; },
+    set smgMag(v) { p.smgMag = v; },
+    get hasBedil() { return p.hasBedil; },
+    set hasBedil(v) { p.hasBedil = v; },
+    get bedilAmmo() { return p.bedilAmmo; },
+    set bedilAmmo(v) { p.bedilAmmo = v; },
+    get bedilMag() { return p.bedilMag; },
+    set bedilMag(v) { p.bedilMag = v; },
+    get hasPelontar() { return p.hasPelontar; },
+    set hasPelontar(v) { p.hasPelontar = v; },
+    get pelontarAmmo() { return p.pelontarAmmo; },
+    set pelontarAmmo(v) { p.pelontarAmmo = v; },
+    get pelontarMag() { return p.pelontarMag; },
+    set pelontarMag(v) { p.pelontarMag = v; },
+    get armor() { return p.armor; },
+    set armor(v) { p.armor = v; },
+    reload,
     get speedKmh() { return p.speedKmh; },
     get moving() { return p.moving; },
     get drifting() { return p.drifting; },

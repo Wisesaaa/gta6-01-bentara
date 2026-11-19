@@ -1,33 +1,49 @@
-// HUD: every DOM panel, updated from the real game state — never by setting a
-// string directly from a shot script. The bill panel is throttled to 10 Hz.
-//
-// This pass rebuilds the two things the top-10 study called placeholders:
-// the minimap is now a dark circular radar (road graph, player arrow,
-// objective marker, police blips, search ring, N compass) and the speed bar
-// is a circular gauge (needle, gear, condition arc). A 3-slot weapon strip,
-// a collectible counter, a taxi meter line, score popups and a "DI PANDANG"
-// flash sit beside them.
-import { LOCATIONS } from './city.js';
-import { WEAPONS, SHOTGUN_SHELLS_PRICE, DJ_LINES, CHARACTERS } from './config.js';
-import { roadLines } from './city.js';
+// HUD rebuild (v3): four corner clusters + a centre band, no text walls.
+// TOP-CENTER: mission stinger (2 s full, then a mini-pill with the
+// objective + distance), segmented stage bar, NEXT chip, act pips.
+// LEFT-MID: police response list, max 5 rows + "+N unit lagi", status
+// pills (KEJAR / MENABRAK / IKAT JALAN / SOROT / MENCARI).
+// TOP-RIGHT: green cash, stars, day/time, one-line bill pill.
+// BOTTOM-LEFT: circular radar minimap + GPS route + region plate + REP
+// row + chip row (KOLEKSI / ASET / KEMAJUAN %).
+// BOTTOM-RIGHT: vehicle card (gauge, fuel, nitro, armor) + 5-slot weapon
+// rail with 2 LOCKED slots. CENTRE: tiered feedback + dispatch ticker.
+// RIGHT EDGE: progress rail (owned cars). The bill list collapses to one
+// pill and only expands on the pause screen. Everything reads from the
+// real game state — never a string set by a shot script.
+import { LOCATIONS, roadLines } from './city.js';
+import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS } from './config.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
+import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress } from './progress.js';
 
-const REP_TITLES = ['ANAK BARU', 'RUNNER', 'BENTARA', 'RAJA KEMARAU', 'LEGENDA', 'DEWA MARINA'];
-const REP_STEPS = [0, 400, 1000, 2000, 3500, 6000];
+export { repLevel, repTitle };
+
 const SONGS = [
   'Musim Kering — Senja Bentara',
+  'Senja di Aspal',
   'Debu Arteri — Kijang Liar',
+  'Debu Kota',
   'Angin Timur — Ruko Blues',
   'Plaza 16:00 — Matahari Retak',
 ];
 
-export function repLevel(rep) {
-  let level = 1;
-  for (let i = 0; i < REP_STEPS.length; i += 1) if (rep >= REP_STEPS[i]) level = i + 1;
-  return level;
-}
-export function repTitle(rep) { return REP_TITLES[repLevel(rep) - 1]; }
+// Status -> [pill text, css class].
+const STATUS_PILL = {
+  PURSUIT: ['KEJAR', 'pill-kejar'],
+  RAMMING: ['MENABRAK', 'pill-tabrak'],
+  ROADBLOCK: ['IKAT JALAN', 'pill-blokade'],
+  SPOTLIGHT: ['SOROT', 'pill-sorot'],
+  SEARCHING: ['MENCARI', 'pill-cari'],
+};
+
+// Where the three buyable properties stand, for the gold $ blips on the
+// minimap (only the owned ones show).
+const USAHA_SPOTS = {
+  warung: { x: 42, z: 96 },
+  kakiLima: { x: 0, z: 0 },
+  slip: { x: -6, z: -170 },
+};
 
 function districtName(x, z) {
   let best = null;
@@ -50,30 +66,44 @@ function districtName(x, z) {
 export function createHud() {
   const $ = (id) => document.getElementById(id);
   const els = {
-    missionTitle: $('missionTitle'), missionObj: $('missionObj'),
+    missionStinger: $('missionStinger'), stingerBig: $('stingerBig'), stingerMini: $('stingerMini'),
+    actChip: $('actChip'), actPips: $('actPips'),
     missionStageFill: $('missionStageFill'), missionNext: $('missionNext'),
-    repText: $('repText'), repFill: $('repFill'),
+    repText: $('repText'), repFill: $('repFill'), nextUnlock: $('nextUnlock'),
+    chipRow: $('chipRow'),
     cashText: $('cashText'), clockText: $('clockText'), starsBox: $('starsBox'),
-    seenFlash: $('seenFlash'),
-    policeBox: $('policeBox'), policeRows: $('policeRows'),
-    billBox: $('billBox'), billRows: $('billRows'), billTotal: $('billTotal'),
+    seenFlash: $('seenFlash'), billPill: $('billPill'),
+    policeBox: $('policeBox'), policeHead: $('policeHead'), policeRows: $('policeRows'),
     minimap: $('minimap'), locName: $('locName'),
     dialogue: $('dialogue'), dialogueLine: $('dialogueLine'), portraitCanvas: $('portraitCanvas'),
-    toast: $('toast'), prompt: $('prompt'), popups: $('popups'),
-    gauge: $('gauge'), vehicleName: $('vehicleName'),
-    radioLine: $('radioLine'), weaponBox: $('weaponBox'),
-    collectText: $('collectText'), taxiText: $('taxiText'),
+    dialogueName: $('dialogueName'), dialogueRole: $('dialogueRole'),
+    toast: $('toast'), prompt: $('prompt'), popups: $('popups'), centerFx: $('centerFx'),
+    ticker: $('ticker'),
+    gauge: $('gauge'), vehicleName: $('vehicleName'), vehiclePlate: $('vehiclePlate'),
+    fuelBar: $('fuelBar'), fuelFill: $('fuelFill'), nitroBar: $('nitroBar'), nitroFill: $('nitroFill'),
+    armorBar: $('armorBar'), armorFill: $('armorFill'),
+    radioLine: $('radioLine'), eqBars: $('eqBars'), weaponBox: $('weaponBox'),
+    progressRail: $('progressRail'),
+    ledgerCard: $('ledgerCard'),
+    garagePanel: $('garagePanel'), usahaPanel: $('usahaPanel'), shopPanel: $('shopPanel'),
     crosshair: $('crosshair'), screen: $('screen'), status: $('status'),
+    pauseStats: $('pauseStats'),
   };
   const mapCtx = els.minimap.getContext('2d');
   const gaugeCtx = els.gauge.getContext('2d');
-  const popups = createPopups(els.popups);
+  const popups = createPopups(els.popups, els.centerFx);
   let billTimer = 0;
   let toastTimer = 0;
   let dialogueTimer = 0;
   let songIndex = 0;
   let songTimer = 24;
   let djIndex = 0;
+  let stingerTimer = 0;
+  let stingerKey = '';
+  let ledgerTimer = 0;
+  let tickerTimer = 0;
+  let captureMode = null;
+  let shopKind = null;
 
   function starsHtml(heat) {
     const full = Math.floor(heat);
@@ -85,8 +115,8 @@ export function createHud() {
   }
 
   // Circular radar: dark disc, road graph, blocks, water, then the live
-  // layer — objective, police, collectibles, taxi, player arrow, search
-  // ring and the N compass on the rim.
+  // layer — objective, GPS route, police, collectibles, taxi, owned
+  // properties (gold $), player arrow, search ring and the N compass.
   function drawMinimap(G) {
     const W = 200;
     const R = 98;
@@ -120,9 +150,21 @@ export function createHud() {
     };
     dot(150, -60, '#2fbf71', 4); // safehouse
     dot(-70, -140, '#4a90d9', 4); // shop
+    dot(120, 74, '#c0392b', 4); // garage — Bengkel Roda Jaya
     // Collectibles: tiny gold dots, so the radar advertises the hunt.
     if (G.collectibles) {
       for (const item of G.collectibles.remaining()) dot(item.x, item.z, '#ffd75e', 1.8);
+    }
+    // Owned properties: gold $ blips.
+    if (G.usaha) {
+      for (const item of G.usaha.ownedList()) {
+        const spot = USAHA_SPOTS[item.id];
+        if (!spot) continue;
+        mapCtx.fillStyle = '#ffd75e';
+        mapCtx.font = 'bold 11px system-ui, sans-serif';
+        mapCtx.textAlign = 'center';
+        mapCtx.fillText('$', px(spot.x), py(spot.z) + 4);
+      }
     }
     // Taxi: teal dot at the waiting passenger, teal ring at the destination.
     if (G.taxi) {
@@ -142,6 +184,18 @@ export function createHud() {
       mapCtx.beginPath();
       mapCtx.arc(px(G.race.nextGate.x), py(G.race.nextGate.z), 6, 0, Math.PI * 2);
       mapCtx.stroke();
+    }
+    // GPS route: dashed gold line from the player to the objective.
+    if (!G.missions.done) {
+      const L = G.missionTarget();
+      mapCtx.strokeStyle = 'rgba(255, 215, 94, 0.75)';
+      mapCtx.lineWidth = 2;
+      mapCtx.setLineDash([5, 5]);
+      mapCtx.beginPath();
+      mapCtx.moveTo(px(G.player.x), py(G.player.z));
+      mapCtx.lineTo(px(L.x), py(L.z));
+      mapCtx.stroke();
+      mapCtx.setLineDash([]);
     }
     // Objective: pulsing gold diamond.
     if (!G.missions.done) {
@@ -250,22 +304,58 @@ export function createHud() {
     gaugeCtx.fillText(gear, cx, cy + 44);
   }
 
+  function missionDistance(G) {
+    if (G.missions.done) return 0;
+    const L = G.missionTarget();
+    return Math.round(Math.hypot(L.x - G.player.x, L.z - G.player.z));
+  }
+
   function update(G, dt) {
     const S = G.state;
     const P = G.player;
-    // Mission panel.
-    els.missionTitle.textContent = G.missions.done
-      ? 'SEMUA MISI SELESAI'
-      : `MISSION ${G.missions.index + 1}/8: ${G.missions.current().title}`;
-    els.missionObj.textContent = G.missions.objectiveText();
+    // --- TOP-CENTER stinger: full card for 2 s on a stage change, then
+    // a mini-pill with the live objective + distance.
+    const key = G.missions.done ? 'done' : `${G.missions.index}/${G.missions.stepIndex}`;
+    if (key !== stingerKey) {
+      stingerKey = key;
+      if (!G.missions.done) {
+        els.stingerBig.textContent = `MISI ${G.missions.index + 1}/8 — ${G.missions.current().title}`;
+        els.missionStinger.classList.remove('mini');
+        els.missionStinger.classList.add('show');
+        stingerTimer = 2;
+      } else {
+        els.stingerBig.textContent = 'SEMUA MISI SELESAI — BENTARA MILIKMU';
+        els.missionStinger.classList.remove('mini');
+        els.missionStinger.classList.add('show');
+        stingerTimer = 3;
+      }
+    }
+    if (stingerTimer > 0) {
+      stingerTimer -= dt;
+      if (stingerTimer <= 0) els.missionStinger.classList.add('mini');
+    }
+    els.stingerMini.textContent = G.missions.done
+      ? 'BENTARA MILIKMU'
+      : `${G.missions.objectiveText()} · ${missionDistance(G)} m`;
+    // Act chip + pips (top-left).
+    const act = actForMission(G.missions.done ? 7 : G.missions.index);
+    els.actChip.textContent = actNameForMission(G.missions.done ? 7 : G.missions.index);
+    els.actPips.innerHTML = [1, 2, 3].map((a) =>
+      `<span class="pip${a === act ? ' on' : ''}${a < act ? ' done' : ''}"></span>`).join('');
+    // Stage bar + NEXT chip.
     els.missionStageFill.style.width = `${Math.round(G.missions.stageFrac() * 100)}%`;
-    els.missionNext.textContent = G.missions.nextText();
-    const level = repLevel(S.rep);
-    const base = REP_STEPS[level - 1];
-    const next = REP_STEPS[level] ?? REP_STEPS[level - 1] + 1000;
-    els.repText.textContent = `REP ${level} · ${REP_TITLES[level - 1]} (${Math.round(S.rep - base)}/${next - base})`;
-    els.repFill.style.width = `${Math.round(((S.rep - base) / (next - base)) * 100)}%`;
-    // Cash, stars, clock, "DI PANDANG".
+    els.missionNext.textContent = G.missions.done ? 'NEXT: —' : `NEXT▸ ${G.missions.nextText().replace(/^NEXT:\s*/, '')}`;
+    // REP row + next unlock.
+    const rp = repProgress(S.rep);
+    els.repText.textContent = `REP ${rp.level} · ${rp.title} ${Math.round(rp.into)}/${rp.need || '—'}`;
+    els.repFill.style.width = `${Math.round(rp.frac * 100)}%`;
+    const nu = nextUnlock(S.rep);
+    els.nextUnlock.textContent = nu ? `BERIKUTNYA di REP ${nu.level}: ${nu.label}` : 'SEMUA UNLOCK TERBUKA';
+    // Chip row: collection, assets, completion.
+    const mp = missionProgress(G.missions);
+    const assets = G.usaha ? G.usaha.assetChip() : 'ASET 0/3';
+    els.chipRow.textContent = `KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24} · ${assets} · KEMAJUAN ${mp.pct}%`;
+    // Cash, stars, clock, "DI PANDANG", bill pill.
     els.cashText.textContent = `$${Math.round(S.cash).toLocaleString('en-US')}`;
     els.starsBox.innerHTML = starsHtml(S.heat);
     const mins = 16 * 60 + Math.floor(S.time * 0.5);
@@ -274,42 +364,49 @@ export function createHud() {
       const seen = S.heat >= 1 && G.police && G.police.anyoneSees(P.x, P.z);
       els.seenFlash.style.display = seen ? 'block' : 'none';
     }
-    // Collectibles + taxi lines.
-    if (els.collectText && G.collectibles) {
-      els.collectText.textContent = `KOLEKSI ${G.collectibles.collected}/${G.collectibles.total} · +$${G.collectibles.earned}`;
-    }
-    if (els.taxiText && G.taxi) {
-      if (G.taxi.state === 'waiting' && G.taxi.passenger) els.taxiText.textContent = `TAKSI: ${G.taxi.passenger.name} menunggu — jemput (E)`;
-      else if (G.taxi.state === 'riding' && G.taxi.destination) els.taxiText.textContent = `TAKSI: antar ke ${G.taxi.destination.label} — $${G.taxi.fare}`;
-      else if (G.race && G.race.active) els.taxiText.textContent = `BALAPAN: gate ${G.race.gateIndex + 1}/${G.race.gateCount} — ${Math.round(G.race.timer)} dtk`;
-      else els.taxiText.textContent = `TAKSI: ${G.taxi.trips} trip · +$${G.taxi.earned}`;
-    }
-    // Police response list.
-    const units = G.policeUnits();
-    if (S.heat >= 1 && units.length > 0) {
-      els.policeBox.style.display = 'block';
-      els.policeRows.innerHTML = units.map((u) =>
-        `<div class="unit"><b>${u.name}</b><span>${u.dist} m</span><span class="st">${u.status}</span></div>`).join('');
-    } else {
-      els.policeBox.style.display = 'none';
-    }
-    // Bill panel, throttled to 10 Hz.
     billTimer -= dt;
     if (billTimer <= 0) {
       billTimer = 0.1;
       const total = G.bill.total();
-      if (total > 0) {
-        els.billBox.style.display = 'block';
-        els.billRows.innerHTML = G.bill.lines.map((l) =>
-          `<div class="row"><span>${l.label}</span><span>$${l.amount}</span></div>`).join('');
-        els.billTotal.textContent = `$${total}`;
-      } else {
-        els.billBox.style.display = 'none';
-      }
+      els.billPill.style.display = total > 0 ? 'block' : 'none';
+      if (total > 0) els.billPill.textContent = `TAGIHAN −$${total}`;
     }
-    // Drive box: gauge + vehicle name + radio + weapon strip.
+    // Police response list: header + max 5 rows + "+N unit lagi".
+    const units = G.policeUnits();
+    if (S.heat >= 1 && units.length > 0) {
+      els.policeBox.style.display = 'block';
+      els.policeHead.textContent = `RESPON POLISI — ${units.length} UNIT · KODE ${Math.floor(S.heat)}`;
+      const shown = units.slice(0, 5);
+      let html = shown.map((u) => {
+        const pill = STATUS_PILL[u.status] || [u.status, 'pill-cari'];
+        return `<div class="unit"><b>${u.name}</b><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
+      }).join('');
+      if (units.length > 5) html += `<div class="more">+${units.length - 5} unit lagi</div>`;
+      els.policeRows.innerHTML = html;
+    } else {
+      els.policeBox.style.display = 'none';
+    }
+    // Drive box: gauge + vehicle card + fuel/nitro/armor + radio + rail.
     drawGauge(P);
     els.vehicleName.textContent = P.onFoot ? 'JALAN KAKI' : (P.car ? P.car.name.toUpperCase() : 'CEMPAKA GT');
+    els.vehiclePlate.textContent = P.onFoot ? '' : (P.car && P.car.plate ? `PLAT ${P.car.plate}` : 'PLAT B 4821 KLM');
+    if (P.car) {
+      els.fuelBar.style.display = 'block';
+      els.fuelFill.style.width = `${Math.round(P.car.fuel)}%`;
+      els.nitroBar.style.display = 'block';
+      els.nitroFill.style.width = `${Math.round((P.car.boost || 0) * 100)}%`;
+      els.nitroBar.classList.toggle('locked', !(P.car.turboLevel > 0));
+    } else {
+      els.fuelBar.style.display = 'none';
+      els.nitroBar.style.display = 'none';
+    }
+    if (P.armor > 0) {
+      els.armorBar.style.display = 'block';
+      els.armorFill.style.width = `${Math.round(P.armor)}%`;
+    } else {
+      els.armorBar.style.display = 'none';
+    }
+    // Radio: a song every 24 s, a DJ line in between, EQ bars pulsing.
     songTimer -= dt;
     if (songTimer <= 0) {
       songTimer = 24;
@@ -321,12 +418,32 @@ export function createHud() {
         els.radioLine.textContent = `RADIO KEMARAU 92.4 · ${SONGS[songIndex]}`;
       }
     }
-    const shotgun = P.hasShotgun
-      ? `<span class="slot">2 ${WEAPONS.shotgun.name} · ${P.shells}</span>`
-      : `<span class="slot locked">2 ${WEAPONS.shotgun.name} · LOCKED $${WEAPONS.shotgun.price}</span>`;
-    const smg = `<span class="slot locked">3 ${WEAPONS.smg.name} · LOCKED $${WEAPONS.smg.price}</span>`;
-    els.weaponBox.innerHTML = `<span class="slot${P.weapon === 'pistol' ? ' active' : ''}">1 ${WEAPONS.pistol.name} · ∞</span>${shotgun}${smg}`;
-    els.crosshair.style.display = P.onFoot ? 'block' : 'none';
+    // Weapon rail: 5 slots, mag/reserve counts, LOCKED pads for depth.
+    const slots = WEAPON_SLOTS.map((id, i) => {
+      const w = WEAPONS[id];
+      const hasKey = { shotgun: 'hasShotgun', smg: 'hasSmg', bedil: 'hasBedil', pelontar: 'hasPelontar' }[id];
+      const magKey = { shotgun: 'shellMag', smg: 'smgMag', bedil: 'bedilMag', pelontar: 'pelontarMag' }[id];
+      const resKey = w.reserveField;
+      const owned = id === 'pistol' || (hasKey && P[hasKey]);
+      const lockedByRep = w.repNeeded && repLevel(S.rep) < w.repNeeded;
+      if (!owned) {
+        const why = lockedByRep ? `REP ${w.repNeeded}` : `$${w.price}`;
+        return `<span class="slot locked">${i + 1} ${w.name} · 🔒 ${why}</span>`;
+      }
+      const ammo = id === 'pistol' ? '∞' : `${P[magKey] ?? 0}/${P[resKey] ?? 0}`;
+      return `<span class="slot${P.weapon === id ? ' active' : ''}">${i + 1} ${w.name} · ${ammo}</span>`;
+    }).join('');
+    els.weaponBox.innerHTML = slots;
+    // Progress rail (right edge): owned cars, current one highlighted.
+    if (G.garage) {
+      const owned = G.garage.ownedList();
+      const current = P.car ? P.car.name : null;
+      els.progressRail.innerHTML = `<div class="rail-title">GARASI</div>` + (owned.length === 0
+        ? `<div class="rail-car">CEMPAKA GT</div><div class="rail-note">Beli di Bengkel Roda Jaya</div>`
+        : owned.map((c) => `<div class="rail-car${current === c.name ? ' current' : ''}">${c.name}</div>`).join(''));
+    }
+    // Crosshair: on foot only, never in capture mode.
+    els.crosshair.style.display = (P.onFoot && !captureMode) ? 'block' : 'none';
     els.locName.textContent = districtName(P.x, P.z);
     drawMinimap(G);
     if (toastTimer > 0) {
@@ -337,6 +454,23 @@ export function createHud() {
       dialogueTimer -= dt;
       if (dialogueTimer <= 0) els.dialogue.style.display = 'none';
     }
+    if (ledgerTimer > 0) {
+      ledgerTimer -= dt;
+      if (ledgerTimer <= 0) els.ledgerCard.style.display = 'none';
+    }
+    if (tickerTimer > 0) {
+      tickerTimer -= dt;
+      if (tickerTimer <= 0) els.ticker.style.display = 'none';
+    }
+    // Pause screen stats (filled live while paused).
+    if (S.mode === 'paused' && els.pauseStats) {
+      const billLines = G.bill.lines.length > 0
+        ? G.bill.lines.map((l) => `${l.label} ×${l.count} — $${l.amount}`).join('<br>')
+        : 'Tidak ada tagihan.';
+      els.pauseStats.innerHTML = `KEMAJUAN ${mp.pct}% (${mp.done}/8 misi) · ${repTitle(S.rep)}<br>`
+        + `TAGIHAN:<br>${billLines}<br>`
+        + `${assets} · KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}`;
+    }
   }
 
   function toast(text, seconds = 4) {
@@ -344,8 +478,9 @@ export function createHud() {
     toastTimer = seconds;
   }
 
-  // who: display name line; portraitKey: a CHARACTERS key ('wira', 'sari',
-  // 'ijal', 'rahmat', 'ocid') or old-style initials for compatibility.
+  // who: "PAK ASKA · PENERIMA MARINA" — the name goes bold, the role
+  // becomes a teal chip, the line clamps to 2 lines and shrinks to fit
+  // inside the 24 px safe margins. No cut text, ever.
   function dialogue(who, line, portraitKey = 'wira', seconds = 6) {
     if (els.portraitCanvas && CHARACTERS[portraitKey]) {
       drawPortrait(els.portraitCanvas, portraitKey);
@@ -360,11 +495,17 @@ export function createHud() {
       g.textBaseline = 'middle';
       g.fillText(String(portraitKey).slice(0, 2), 32, 34);
     }
+    const parts = String(who).split('·');
+    els.dialogueName.textContent = (parts[0] || who).trim();
+    els.dialogueRole.textContent = parts[1] ? parts[1].trim() : '';
+    els.dialogueRole.style.display = parts[1] ? 'inline-block' : 'none';
     els.dialogueLine.textContent = line;
-    els.dialogue.querySelector('b').textContent = who;
+    // Auto-fit: a long line shrinks instead of overflowing the panel.
+    els.dialogueLine.style.fontSize = line.length > 110 ? '12px' : line.length > 80 ? '13px' : '14px';
     els.dialogue.style.display = 'flex';
     dialogueTimer = seconds;
   }
+
   function prompt(text) {
     els.prompt.style.display = text ? 'block' : 'none';
     if (text) els.prompt.textContent = text;
@@ -380,5 +521,176 @@ export function createHud() {
     els.screen.innerHTML = '';
   }
 
-  return { update, toast, dialogue, prompt, announce, showScreen, hideScreen, popups, els };
+  // Mission stinger on demand (a stage change already triggers it).
+  // `seconds` is the on-screen lifetime: live play uses 2 s; a shot
+  // stage may pass a longer one so the card survives the slow capture.
+  function stinger(text, sub, seconds = 2) {
+    els.stingerBig.textContent = text;
+    els.missionStinger.classList.remove('mini');
+    els.missionStinger.classList.add('show');
+    stingerTimer = seconds;
+  }
+
+  // One-way dispatch ticker above the centre feedback layer.
+  function ticker(text, seconds = 6) {
+    els.ticker.textContent = text;
+    els.ticker.style.display = 'block';
+    tickerTimer = seconds;
+  }
+
+  // End-of-mission ledger card: Hasil / Tagihan / BERSIH / REP.
+  function ledger(data, seconds = 6) {
+    els.ledgerCard.innerHTML = `<h3>${data.title} SELESAI</h3>`
+      + `<div class="row"><span>Hasil</span><span>+$${data.hasil.toLocaleString('en-US')}</span></div>`
+      + `<div class="row"><span>Tagihan</span><span>−$${data.tagihan.toLocaleString('en-US')}</span></div>`
+      + `<div class="row total"><span>BERSIH</span><span>$${data.bersih.toLocaleString('en-US')}</span></div>`
+      + `<div class="row"><span>REP</span><span>+${data.rep}</span></div>`;
+    els.ledgerCard.style.display = 'block';
+    ledgerTimer = seconds;
+  }
+
+  // Capture mode: 'cover' hides the dialogue box (the hero car must own
+  // the frame), 'story' hides only the crosshair. null restores all.
+  function setCaptureMode(mode) {
+    captureMode = mode;
+    els.dialogue.style.display = mode === 'cover' ? 'none' : els.dialogue.style.display;
+    els.crosshair.style.display = 'none';
+    if (mode === null) els.crosshair.style.display = 'block';
+  }
+
+  // Hide the dialogue box outright (a shot stage kills a mission intro
+  // that would otherwise sit over the frame for its 7 s lifetime).
+  function hideDialogue() {
+    els.dialogue.style.display = 'none';
+    dialogueTimer = 0;
+  }
+
+  // --- Shop panels (clickable; E or the ✕ button closes) -----------------
+  function closeShop() {
+    if (els.garagePanel) els.garagePanel.style.display = 'none';
+    if (els.usahaPanel) els.usahaPanel.style.display = 'none';
+    if (els.shopPanel) els.shopPanel.style.display = 'none';
+    const kind = shopKind;
+    shopKind = null;
+    return kind;
+  }
+  function isShopOpen() { return shopKind !== null; }
+
+  function showGarage(garage, state, onClose) {
+    const panel = els.garagePanel;
+    shopKind = 'garage';
+    const fmt = (n) => `$${n.toLocaleString('en-US')}`;
+    const rep = state.rep;
+    const rows = garage.catalog().map((c) => {
+      const owned = garage.isOwned(c.id);
+      return `<div class="shop-row"><div><b>${c.name}</b><span>${c.desc}</span></div>`
+        + (owned
+          ? `<button disabled>DIMILIKI</button>`
+          : `<button data-buy="${c.id}">${fmt(c.priceNow)}</button>`) + `</div>`;
+    }).join('');
+    const owned = garage.ownedList();
+    const upRows = owned.map((e) => {
+      const info = garage.upgradeInfo(e.id);
+      if (!info) return '';
+      const btns = ['mesin', 'ban', 'turbo'].map((part) => {
+        const inf = info[part];
+        const locked = part === 'turbo' && repLevel(rep) < 2;
+        if (inf.level >= 3) return `<button disabled>${part.toUpperCase()} MAX</button>`;
+        if (locked) return `<button disabled>TURBO 🔒 REP 2</button>`;
+        return `<button data-up="${e.id}:${part}">${part.toUpperCase()} ${inf.level}→${inf.level + 1} · ${fmt(inf.nextPrice)}</button>`;
+      }).join('');
+      const colors = ['Merah Bara|0xc0392b', 'Biru Marina|0x2f6b8a', 'Kuning Senja|0xd8a13a'].map((c) => {
+        const [name, hex] = c.split('|');
+        return `<button data-spray="${e.id}:${hex}">${name}</button>`;
+      }).join('');
+      return `<div class="shop-row"><div><b>${e.name}</b><span>${e.plate} · MESIN ${info.mesin.level} · BAN ${info.ban.level} · TURBO ${info.turbo.level}</span></div><div class="btns">${btns}${colors}</div></div>`;
+    }).join('');
+    panel.innerHTML = `<h3>BENGKEL RODA JAYA</h3><div class="shop-sub">Beli mobil · upgrade · respray $150 · diskon 20% di REP 4</div>`
+      + rows + (upRows ? `<div class="shop-sec">GARASIMU</div>${upRows}` : '')
+      + `<button class="shop-close" data-close="1">TUTUP [E]</button>`;
+    panel.style.display = 'block';
+    panel.onclick = (ev) => {
+      const b = ev.target.closest('button');
+      if (!b) return;
+      if (b.dataset.close) { closeShop(); if (onClose) onClose(); return; }
+      if (b.dataset.buy) {
+        const r = garage.buy(b.dataset.buy);
+        if (!r.ok) toast(r.reason, 4);
+        showGarage(garage, state, onClose);
+        return;
+      }
+      if (b.dataset.up) {
+        const [id, part] = b.dataset.up.split(':');
+        const r = garage.upgrade(id, part);
+        if (!r.ok) toast(r.reason, 4);
+        showGarage(garage, state, onClose);
+        return;
+      }
+      if (b.dataset.spray) {
+        const [id, hex] = b.dataset.spray.split(':');
+        const r = garage.respray(id, parseInt(hex, 16));
+        if (!r.ok) toast(r.reason, 4);
+        showGarage(garage, state, onClose);
+      }
+    };
+  }
+
+  function showUsaha(usaha, state, onClose) {
+    const panel = els.usahaPanel;
+    shopKind = 'usaha';
+    const fmt = (n) => `$${n.toLocaleString('en-US')}`;
+    const rows = usaha.catalog().map((c) => {
+      const owned = usaha.isOwned(c.id);
+      return `<div class="shop-row"><div><b>${c.name}</b><span>${c.desc} · +${fmt(c.incomePerDay)}/hari</span></div>`
+        + (owned
+          ? `<button disabled>DIMILIKI</button>`
+          : `<button data-buy="${c.id}">${fmt(c.priceNow)}</button>`) + `</div>`;
+    }).join('');
+    panel.innerHTML = `<h3>USAHA — PROPERTI</h3><div class="shop-sub">${usaha.assetChip()} · pemasukan +${fmt(usaha.dailyRate())}/hari · pot $${Math.round(usaha.pot).toLocaleString('en-US')} — cairkan dengan tidur di safehouse</div>`
+      + rows + `<button class="shop-close" data-close="1">TUTUP [E]</button>`;
+    panel.style.display = 'block';
+    panel.onclick = (ev) => {
+      const b = ev.target.closest('button');
+      if (!b) return;
+      if (b.dataset.close) { closeShop(); if (onClose) onClose(); return; }
+      if (b.dataset.buy) {
+        const r = usaha.buy(b.dataset.buy);
+        if (!r.ok) toast(r.reason, 4);
+        showUsaha(usaha, state, onClose);
+      }
+    };
+  }
+
+  function showWeaponShop(shop, state, onClose) {
+    const panel = els.shopPanel;
+    shopKind = 'weapon';
+    const fmt = (n) => `$${n.toLocaleString('en-US')}`;
+    const rows = shop.catalog().map((r) => {
+      const btn = r.owned
+        ? `<button disabled>DIMILIKI</button>`
+        : r.disabled
+          ? `<button disabled>🔒 ${r.disabledReason || ''}</button>`
+          : `<button data-buy="${r.id}">${fmt(r.price)}</button>`;
+      return `<div class="shop-row"><div><b>${r.name}</b><span>${r.sub}</span></div>${btn}</div>`;
+    }).join('');
+    panel.innerHTML = `<h3>${shop.title}</h3><div class="shop-sub">${shop.sub()}</div>`
+      + rows + `<button class="shop-close" data-close="1">TUTUP [E]</button>`;
+    panel.style.display = 'block';
+    panel.onclick = (ev) => {
+      const b = ev.target.closest('button');
+      if (!b) return;
+      if (b.dataset.close) { closeShop(); if (onClose) onClose(); return; }
+      if (b.dataset.buy) {
+        const r = shop.buy(b.dataset.buy);
+        if (!r.ok) toast(r.reason, 4);
+        showWeaponShop(shop, state, onClose);
+      }
+    };
+  }
+
+  return {
+    update, toast, dialogue, prompt, announce, showScreen, hideScreen,
+    popups, els, stinger, ticker, ledger, setCaptureMode, hideDialogue,
+    showGarage, showUsaha, showWeaponShop, closeShop, isShopOpen,
+  };
 }
