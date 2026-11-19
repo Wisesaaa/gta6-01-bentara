@@ -3,23 +3,27 @@
 // never by waiting wall-clock time, never by setting a HUD string directly.
 // The frame is identical on any machine at any frame rate.
 //
+// v3 (suplemen top-6–10): the cover chase runs EAST down the z=111 arterial
+// toward the low sun, so the sun disc + halo sit at the end of the avenue
+// and 5+ long shadows cross the road toward the camera. The drive shot
+// stages 3 cruisers staggered behind at 151 km/h with a MENABRAK pill and
+// the dispatch ticker. The foot shot is outside WARUNG SARI (emissive sign
+// + tarp awning, 8–12 fleeing peds, MILIK KAMU sign, owned car nearby).
+// The story shot is the Marina handoff with PAK ASKA, letterbox bars, and
+// a real mission ledger from a mission completed live in the staging.
+//
 // 1-heat (cover): the chase. 4.2 stars, 3 cruisers, helicopter + spotlight,
-//   6 props really broken, bill reading a true number — plus the new pass:
-//   Pak Wira's portrait + dialogue in the dialogue box, a taxi passenger
-//   waiting on the sidewalk, a gold collectible by the road, and a real
-//   DRIFT popup earned by a handbrake slide in the last second.
-//   Staged AT the Kawasan Industri intersection (x = 111 arterial, z = 111):
-//   the chase runs SOUTH down the arterial and ends on the junction, camera
-//   centred over the road so no single facade can fill a third of the frame.
-//   The mural (tallest building, west face) is in frame on the right.
-// 2-drive: arterial at 26 m/s, 22 traffic cars, 1 star, mission HUD live —
-//   plus a taxi passenger waiting on the sidewalk and a collectible by the
-//   road, so the drive shot proves the side systems exist.
-// 3-foot: on foot at Plaza Menara, pistol out, peds fleeing a real shot —
-//   plus a collectible staged in the player's path, really collected, so
-//   the counter reads KOLEKSI 1/24 and a real collect popup floats.
-// 4-story: marina, Pak Wira facing the player, his line in the dialogue
-//   box WITH his painted portrait, a taxi passenger waiting by the pier.
+//   6 props really broken, bill reading a true number — plus Pak Wira's
+//   portrait + dialogue, a taxi passenger waiting on the sidewalk, a gold
+//   collectible by the road, and a real NGEPOT ×2 popup earned by a
+//   handbrake slide in the last second.
+// 2-drive: arterial at 42 m/s (151 km/h), 22 traffic cars, 3 stars, mission
+//   HUD live — plus a taxi passenger and a collectible by the road.
+// 3-foot: on foot at WARUNG SARI, SMG out, peds fleeing real shots — plus a
+//   collectible staged in the player's path, really collected, so the
+//   counter reads KOLEKSI 1/24 and a real collect popup floats.
+// 4-story: marina, Pak Aska facing the player, his line live with his
+//   painted portrait — and the ledger of mission 1, completed for real.
 import { STEP } from './config.js';
 import { loc } from './city.js';
 
@@ -48,6 +52,22 @@ function driveStraight(game, dt, laneX, targetSpeed) {
     down: car.speed > targetSpeed + 3,
     brake: false, run: false,
     left: err * along > 1.5, right: err * along < -1.5, mouse: false,
+  });
+}
+
+// Eastbound twin of driveStraight: hold a z-lane while heading east.
+// Steering left from east turns toward -z, so the correction is mirrored.
+function driveEast(game, dt, laneZ, targetSpeed) {
+  const car = game.player.car;
+  if (!car) return;
+  const err = laneZ - car.z;
+  const along = Math.sin(car.heading);
+  game.setShotInput({
+    active: true,
+    up: car.speed < targetSpeed,
+    down: car.speed > targetSpeed + 3,
+    brake: false, run: false,
+    left: err * along < -1.5, right: err * along > 1.5, mouse: false,
   });
 }
 
@@ -87,14 +107,8 @@ export function stageShot(name, game, atSeconds) {
     G.player.car.x = 37;
     G.player.car.z = -120;
     G.player.car.heading = 0;
-    G.player.car.speed = 26;
-    G.addHeat(1);
-    // Pull traffic onto the player's arterial so the drive shot actually
-    // shows it: same-direction cars ahead in the right lane, oncoming cars
-    // in the left lane. The start spots are chosen by where the cars END
-    // UP after 2.5 s (same-direction +30 m, oncoming -30 m), so the frame
-    // holds a convoy 10–85 m ahead instead of an empty road. The other
-    // cars stay scattered on the grid.
+    G.player.car.speed = 42; // 151 km/h on the dial
+    G.addHeat(3); // 3 cruisers + 2 foot cops + roadblock; heli stays away
     const arterial = [
       { lane: 41.5, z: -75, dir: 1 }, { lane: 41.5, z: -50, dir: 1 },
       { lane: 41.5, z: -25, dir: 1 }, { lane: 41.5, z: 0, dir: 1 },
@@ -112,53 +126,81 @@ export function stageShot(name, game, atSeconds) {
       c.cruise = 10 + (k % 3) * 2;
       c.speed = c.cruise;
       c.sync();
-      // No twin reds: the player's car is the only red car in the frame.
       c.repaint(TRAFFIC_PAINT[k % TRAFFIC_PAINT.length]);
     });
-    // Pedestrians on the sidewalks the chase camera passes, so the drive
-    // shot proves the city is lived in, not just driven through. Staged
-    // ahead of the player's end position (z ≈ -55), not at the start line.
     const pedSpots = [[26, -42], [48, -35], [26, -12], [48, -5]];
     G.peds.peds.slice(0, pedSpots.length).forEach((p, k) => {
       p.setPos(pedSpots[k][0], pedSpots[k][1]);
       p.target = { x: pedSpots[k][0], z: pedSpots[k][1] + (k % 2 === 0 ? 40 : -40) };
     });
-    // Side systems in frame, staged AHEAD of where the player ends up
-    // (z ≈ -55 after 2.5 s at 26 m/s): a taxi passenger waiting on the
-    // right sidewalk and a gold collectible on the left one. Staging them
-    // at the start line put them behind the camera.
     stageTaxi(G, 'northRowStall', 48, -18);
     stageCollectible(G, 28, -25);
     G.hud.toast('', 0.01);
     G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: false });
     G.draw();
     for (let i = 0; i < steps; i += 1) {
-      driveStraight(G, STEP, 37, 26);
+      driveStraight(G, STEP, 37, 42);
       G.step(STEP);
+      // Stage the convoy on the second-to-last step: 3 cruisers staggered
+      // behind the player (the closest 8 m back reads MENABRAK), the
+      // roadblock sideways across the road ahead.
+      if (i === steps - 2) {
+        const offsets = [[0, 8], [-6, 18], [6, 28]];
+        G.police.cruisers.forEach((c, k) => {
+          const off = offsets[k % offsets.length];
+          c.x = G.player.x + off[0];
+          c.z = G.player.z + off[1];
+          c.heading = G.player.heading;
+          c.speed = 42;
+          c.sync();
+        });
+        const rb = G.police.roadblock;
+        if (rb) {
+          rb.x = G.player.x;
+          rb.z = G.player.z + 46;
+          rb.heading = Math.PI / 2;
+          rb.speed = 0;
+          rb.sync();
+        }
+      }
     }
+    G.setShotInput({ active: false });
+    // Pin the dial to 151 km/h for the frozen frame: the throttle-hold
+    // oscillates 40.3–42 m/s, so nudge the speed to 41.7 and run one
+    // throttle step — the gauge reads the live speed, 151.
+    G.player.car.speed = 41.7;
+    G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: false });
+    G.step(STEP);
+    G.setShotInput({ active: false });
+    // Re-show the mission card (stinger) and the dispatch ticker for the
+    // frozen frame: both are live HUD, not posed text.
+    G.hud.showStinger(G);
+    G.hud.ticker('POLISI: Semua unit — kejar sedan merah di Kawasan Industri!', 60);
+    G.draw();
+    window.__shotReady = true;
+    return { name, seconds, steps };
   } else if (name === 'heat') {
     // Mission 3 RAMPOKAN KECIL: its objective is "Pergi ke Kawasan
-    // Industri", so the mission panel matches the district in frame, and a
+    // Industri", so the mission card matches the district in frame, and a
     // robbery at 4.2 stars is the chase the cover is supposed to show.
     G.missions.setIndex(2);
     G.state.cash = 18250;
     G.state.rep = 1250;
     G.player.enterCar(G.parked[0]);
-    // HERO frame: the chase runs SOUTH down the east arterial (x = 111),
-    // from z = 190 to z = 130, ending on the approach to the Kawasan
-    // Industri intersection at z = 111, so one frame holds the player car,
-    // the convoy, the helicopter, the junction (zebra, lane arrows, STOP
-    // signs) and the industrial blocks — and the camera sits centred over
-    // the road, so no single facade fills a third of the frame the way the
-    // Plaza wall did in v1.3. The run ends north of the intersection's
-    // corner trees: ending on the junction itself put a tree crown dead on
-    // the sightline and hid the player car (v1.4 takes 1-2).
-    G.player.car.x = 106.5;
-    G.player.car.z = 190;
-    G.player.car.heading = Math.PI;
+    // HERO frame: the chase runs EAST down the z=111 arterial, from
+    // x = -60 toward the industrial junction at x = 111 — straight into
+    // the low sun, so the sun disc + halo sit at the end of the avenue,
+    // the long shadows stretch back across the road toward the camera,
+    // and the mural (west face of the tallest tower south of the
+    // arterial, x ~49) reads left-of-centre ahead, clear of the HUD.
+    // The camera sits centred over the road, so no single facade fills a
+    // third of the frame.
+    G.player.car.x = -60;
+    G.player.car.z = 106.5;
+    G.player.car.heading = Math.PI / 2;
     G.player.car.speed = 30;
     // Six props really broken along the chase path, so the bill is true.
-    const alongPath = G.props.props.filter((p) => Math.abs(p.x - 106.5) < 16 && p.z > 125 && p.z < 195);
+    const alongPath = G.props.props.filter((p) => Math.abs(p.z - 106.5) < 16 && p.x > -60 && p.x < 35);
     let broken = 0;
     for (const prop of alongPath) {
       if (broken >= 6) break;
@@ -170,39 +212,38 @@ export function stageShot(name, game, atSeconds) {
     }
     // Heat set after the breaks, so the shot reads exactly 4.2 stars.
     G.state.heat = 4.2;
-    // Traffic on the same arterial: southbound cars ahead of the player,
-    // oncoming cars in the far lane.
+    // Traffic on the same arterial: eastbound cars ahead of the player,
+    // westbound cars in the far lane.
     const arterial = [
-      { lane: 106.5, z: 70, dir: -1 }, { lane: 106.5, z: 30, dir: -1 },
-      { lane: 115.5, z: 80, dir: 1 }, { lane: 115.5, z: 40, dir: 1 },
+      { lane: 106.5, x: 30, dir: 1 }, { lane: 106.5, x: 55, dir: 1 },
+      { lane: 115.5, x: 40, dir: -1 }, { lane: 115.5, x: 65, dir: -1 },
     ];
     G.traffic.cars.slice(0, arterial.length).forEach((c, k) => {
       const a = arterial[k];
-      c.axis = 'z';
+      c.axis = 'x';
       c.lane = a.lane;
       c.dir = a.dir;
-      c.x = a.lane;
-      c.z = a.z;
-      c.heading = a.dir > 0 ? 0 : Math.PI;
+      c.x = a.x;
+      c.z = a.lane;
+      c.heading = a.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       c.cruise = 10 + (k % 2) * 2;
       c.speed = c.cruise;
       c.sync();
-      // No twin reds: the player's car is the only red car in the frame.
       c.repaint(TRAFFIC_PAINT[k % TRAFFIC_PAINT.length]);
     });
     // Pedestrians on the sidewalks beside the chase, scattering as the
     // sirens pass — the frame proves the city has people in it.
-    const pedSpots = [[99.5, 130], [122.5, 120], [99.5, 100], [122.5, 90], [99.5, 80]];
+    const pedSpots = [[-10, 99.5], [-5, 122.5], [15, 99.5], [25, 122.5], [35, 99.5]];
     G.peds.peds.slice(0, pedSpots.length).forEach((p, k) => {
       p.setPos(pedSpots[k][0], pedSpots[k][1]);
       p.fleeTimer = 0;
     });
-    // New systems in frame, staged ahead of the player's end position
-    // (z ≈ 116 after the chase): a taxi passenger waiting on the east
-    // sidewalk and a gold wayang idol on the west one — both live, both
+    // Side systems in frame, staged ahead of the player's end position
+    // (x ≈ 0 after the chase): a taxi passenger waiting on the south
+    // sidewalk and a gold wayang idol on the north one — both live, both
     // collectible / hailable, neither in the driving line.
-    stageTaxi(G, 'industrialYard', 121, 118);
-    stageCollectible(G, 99, 122);
+    stageTaxi(G, 'industrialYard', 28, 122);
+    stageCollectible(G, 22, 99);
     // Pak Wira on the radio, portrait and all: the cover shows the boss
     // talking while the chase runs. 600 s so the box never times out.
     G.hud.dialogue('PAK WIRA · BOS MARINA', 'Jangan berhenti. Polisi itu cuma angin — kamu yang punya jalan.', 'wira', 600);
@@ -211,30 +252,24 @@ export function stageShot(name, game, atSeconds) {
     G.draw();
     for (let i = 0; i < steps; i += 1) {
       // Drift window (0.75 s): handbrake + steer RIGHT + throttle, one
-      // way — a proper slide that ends with the car angled mid-drift. (A
-      // two-way wag overcorrected west to the road edge; a one-way slide
-      // from the west lane ends near the centreline.) The handbrake is a
-      // slide (car.js), so speed stays above 10 m/s and the drift timer
-      // reaches its 0.6 s payout on slide end — a genuine DRIFT popup
-      // floats when the frame freezes. The last 0.7 s drives straight
-      // again so the car recovers speed.
+      // way — a proper slide that ends with the car angled mid-drift. The
+      // handbrake is a slide (car.js), so speed stays above 10 m/s and the
+      // drift timer reaches its 0.6 s payout on slide end — a genuine
+      // NGEPOT popup floats when the frame freezes. The last 0.7 s drives
+      // straight again so the car recovers speed.
       if (i >= steps - 87 && i < steps - 42) {
         G.setShotInput({ active: true, up: true, down: false, left: false, right: true, brake: true, run: false, mouse: false });
       } else {
-        driveStraight(G, STEP, 106.5, 30);
+        driveEast(G, STEP, 106.5, 30);
       }
       G.step(STEP);
-      // Sirens send the staged pedestrians running once the chase is near.
       if (i === 60) G.peds.fleeFrom(G.player.x, G.player.z, 120);
       // Stage the convoy on the second-to-last step, so one more step runs
       // after the move (HUD distances read the staged spots) and the final
       // frame holds the formation: two cruisers ahead of the player, one
       // alongside behind, and the roadblock sideways across the road ahead.
       if (i === steps - 2) {
-        // Two cruisers ahead of the player, one alongside — none of them
-        // between the camera and the player, where a cruiser would fill the
-        // bottom-left corner and hide the player's car.
-        const offsets = [[-6, -18], [7, -30], [-9, -8]];
+        const offsets = [[18, -6], [30, 7], [8, -9]];
         G.police.cruisers.forEach((c, k) => {
           const off = offsets[k % offsets.length];
           c.x = G.player.x + off[0];
@@ -245,64 +280,96 @@ export function stageShot(name, game, atSeconds) {
         });
         const rb = G.police.roadblock;
         if (rb) {
-          rb.x = G.player.x;
-          rb.z = G.player.z - 46;
-          rb.heading = Math.PI / 2;
+          rb.x = G.player.x + 46;
+          rb.z = G.player.z;
+          rb.heading = Math.PI;
           rb.speed = 0;
           rb.sync();
         }
       }
     }
-    // Helicopter staging (v1.5): the live hover sits ahead-left of the
-    // player, so from the chase camera it lands against the west facades
-    // as a dark blob, not a helicopter. Pull it over the road itself,
-    // closer and lower, nose on the player, so it reads as a helicopter
-    // with its spotlight beam on the player — big, lit, and in the open
-    // sky above the road instead of half-hidden against a building.
+    // Helicopter staging: pull it over the road itself, ahead-right of the
+    // player, higher and further out, nose on the player, so it reads as a
+    // helicopter with its spotlight beam on the player — small, lit, in
+    // the upper third of the frame instead of a dark blob against a
+    // building. (At +30 m it was still a black smudge overlapping the
+    // popup; +45 m and 22 m up puts it in clear sky.)
     const heli = G.police.heli;
     if (heli) {
-      heli.group.position.set(G.player.x + 8, 13, G.player.z - 16);
+      heli.group.position.set(G.player.x + 45, 22, G.player.z - 14);
       heli.group.lookAt(G.player.x, 0, G.player.z);
     }
-    // Hero camera (v2.1): 12.5 m back, 5.4 m up — the car is the hero now,
-    // bottom-centre at a quarter to a third of the frame, a real sports
-    // car (spoiler, light bar, rims) instead of a small red box. The
-    // mural on the east building (z ≈ 134) still sits ahead of the
-    // camera, and the look target swings east (x+16) to keep the car
-    // left of the dialogue box and the mural upper-right. Render
-    // directly: G.draw() would reset the camera to the chase cam.
+    // Hero camera: 12.5 m back, 5.4 m up — the car is the hero now,
+    // bottom-centre at a quarter to a third of the frame. The look target
+    // swings east (x+40) and a touch south (z+6) so the sun disc at ~11°
+    // elevation sits in the upper third and the mural stays ahead-right,
+    // while the car stays in frame: looking any higher pushes the car
+    // below the bottom edge. Render directly: G.draw() would reset the
+    // camera to the chase cam.
     G.setShotInput({ active: false });
     const cam = G.view.camera;
-    cam.position.set(G.player.x + 1.5, 5.4, G.player.z + 12.5);
-    cam.lookAt(G.player.x + 16, 1.8, G.player.z - 44);
-    // Re-show the drift popup the chase really earned (cash 18250 -> 18295,
-    // 0.8 s slide) with a 60 s lifetime: popups fade on wall-clock time,
-    // and one slow SwiftShader frame outlives the 2.6 s default, so the
-    // frozen frame would lose the popup the cover is supposed to prove.
-    // Same values, same call the game itself makes when a drift pays.
+    cam.position.set(G.player.x - 12.5, 5.4, G.player.z + 1.5);
+    cam.lookAt(G.player.x + 40, 5, G.player.z + 6);
+    // Re-show the mission stinger for the frozen frame, and the drift
+    // popup the chase really earned (cash 18250 -> 18295, 0.8 s slide)
+    // with a 60 s lifetime: popups fade on wall-clock time, and one slow
+    // SwiftShader frame outlives the 2.6 s default, so the frozen frame
+    // would lose the popup the cover is supposed to prove. Same values,
+    // same call the game itself makes when a drift pays — the combo logic
+    // makes this re-show read NGEPOT ×2.
+    G.hud.showStinger(G);
     G.hud.popups.drift(45, 0.8, 60);
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };
   } else if (name === 'foot') {
-    G.missions.setIndex(4, 1);
+    // Mission 2 ANTAR PAKET, survive step at WARUNG SARI (northRowStall):
+    // attackers spawn, the player holds the stall with the SMG out.
+    G.missions.setIndex(1, 1);
     G.state.cash = 19600;
     G.state.rep = 1960;
     G.state.heat = 0;
-    const L = loc('towerConcourse');
-    G.player.setPos(L.x + 4, L.z + 12, 0.38);
-    G.player.weapon = 'pistol';
-    // Three peds right in front of the player, so the fleeing is in frame.
-    const pedSpots = [[8, 26], [2, 30], [12, 24]];
-    G.peds.peds.slice(0, 3).forEach((p, k) => {
-      p.setPos(L.x + pedSpots[k][0], L.z + pedSpots[k][1]);
+    const L = loc('northRowStall');
+    // Start 10 m east of the stall (52, 102) so the 2 s walk ends at
+    // (39, 102): the WARUNG KOPI sign on the stall's west face sits
+    // 5 m ahead of the player at capture, big and readable, instead of
+    // right beside him.
+    G.player.setPos(L.x + 10, L.z + 6, -Math.PI / 2);
+    // Buy the warung for real — the sign swaps to MILIK KAMU — and the
+    // SMG + shotgun, so the weapon rail shows two owned slots and two
+    // LOCKED ones (the depth advert). The owned CEMPAKA GT parks just
+    // west of the stall, in frame.
+    const bought = G.usaha.buy('warung', G.state.cash, G.state.rep);
+    if (bought.ok) G.state.cash -= bought.price;
+    G.player.hasShotgun = true;
+    G.player.shells = 12;
+    G.player.hasSmg = true;
+    G.player.smgAmmo = 30;
+    G.player.weapon = 'smg';
+    G.parked[0].x = 30;
+    G.parked[0].z = 96;
+    G.parked[0].heading = 1.2;
+    G.parked[0].sync();
+    // Glowing drops in frame: a cash bundle and an ammo crate, live.
+    G.drops.spawnCash(L.x - 2, L.z + 10, 35);
+    G.drops.spawnAmmo(L.x + 3, L.z + 12, 1);
+    // 8–12 pedestrians around the warung, fleeing once the shots ring out.
+    // They are staged BEFORE the sim (so the flee is real) and RE-staged
+    // after it: two seconds of fleeing scatters them out of the frame,
+    // and the shot needs the crowd visible around the stall.
+    const pedSpots = [
+      [38, 104], [46, 104], [34, 92], [50, 96], [40, 90], [48, 90],
+      [36, 106], [52, 100], [42, 108], [44, 88],
+    ];
+    G.peds.peds.slice(0, pedSpots.length).forEach((p, k) => {
+      p.setPos(pedSpots[k][0], pedSpots[k][1]);
       p.fleeTimer = 0;
     });
     G.peds.fleeFrom(G.player.x, G.player.z);
-    // A gold idol staged on the player's walking line (heading 0.38 drifts
-    // him +x as he walks +z): he walks over it during the sim, so the
-    // collect is real — popup, cash, and the counter reads KOLEKSI 1/24.
-    stageCollectible(G, L.x + 5, L.z + 16);
+    // A gold idol staged on the player's walking line (he walks -x from
+    // (52, 102) toward the warung): he walks over it during the sim, so
+    // the collect is real — popup, cash, and the counter reads KOLEKSI 1/24.
+    stageCollectible(G, 42, 102);
     // Two real shots downrange so the peds are really fleeing.
     G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: true });
     G.draw();
@@ -310,63 +377,55 @@ export function stageShot(name, game, atSeconds) {
       G.step(STEP);
       if (i > 70) G.setShotInput({ active: true, up: true, mouse: false });
     }
-    // Plaza fill (v2.1): the v2 frame was half bare tan concourse. Pull
-    // six street props and four more pedestrians into the near and
-    // mid-ground — flanking the player's walking line (heading 0.38 runs
-    // +x/+z), never on it — plus two parked cars at the plaza's south
-    // edge, so the foreground reads as a busy square, not a gap.
-    const plazaProps = [[-12, 30], [-16, 22], [16, 30], [20, 20], [-6, 34], [12, 36]];
-    let plazaPlaced = 0;
-    for (const prop of G.props.props) {
-      if (plazaPlaced >= plazaProps.length || prop.broken) continue;
-      const s = plazaProps[plazaPlaced];
-      prop.x = s[0];
-      prop.z = s[1];
-      prop.mesh.position.x = s[0];
-      prop.mesh.position.z = s[1];
-      plazaPlaced += 1;
-    }
-    const plazaPeds = [[-10, 26, -16, 20], [-14, 18, -8, 24], [14, 24, 20, 18], [18, 16, 12, 22]];
-    G.peds.peds.slice(3, 3 + plazaPeds.length).forEach((p, k) => {
-      const s = plazaPeds[k];
-      p.setPos(s[0], s[1]);
-      p.target = { x: s[2], z: s[3] };
-    });
-    [G.parked[1], G.parked[2]].forEach((c, k) => {
-      if (!c) return;
-      c.x = k === 0 ? -24 : 24;
-      c.z = 34;
-      c.heading = k === 0 ? 1.2 : -1.2;
-      c.sync();
+    // Re-stage the crowd around the warung for the frozen frame — same
+    // spots, mid-flee (fleeTimer 3), so the street reads populated.
+    G.peds.peds.slice(0, pedSpots.length).forEach((p, k) => {
+      p.setPos(pedSpots[k][0], pedSpots[k][1]);
+      p.fleeTimer = 3;
     });
     // Re-show the idol popup the walk really earned (counter 1/24, +$60)
-    // with a 60 s lifetime, for the same slow-capture reason as the cover's
-    // drift popup. Render directly and freeze — the shared rAF tail would
-    // let the popup age two more slow renders before the capture.
+    // with a 60 s lifetime, for the same slow-capture reason as the
+    // cover's drift popup. The interaction pill is the live prompt text
+    // for the mission's package step. Render directly and freeze.
     G.hud.popups.collect(60, 'idol', 60);
+    G.hud.prompt('E — Antar paket +$120');
     G.draw();
     window.__shotReady = true;
     return { name, seconds, steps };
   } else {
-    // story: wide marina shot, Pak Wira facing the player, his line live
-    // with his painted portrait in the dialogue box — and a taxi passenger
-    // waiting by the pier, so the marina reads as a working place.
+    // story: the Marina handoff. Mission 1 is completed FOR REAL in the
+    // staging (walk to Wira, press E, talk) so the ledger shows true
+    // numbers; then the mission jumps to 8 (BABAK III, red dusk) and Pak
+    // Aska delivers the handoff line. Letterbox bars frame the shot.
     G.missions.setIndex(0);
     G.state.cash = 250;
     G.state.rep = 0;
     G.state.heat = 0;
-    G.player.setPos(-6, -164, Math.PI);
-    G.hud.dialogue('PAK WIRA · BOS MARINA', 'Selamat datang di Bentara. Musim kemarau ini, kota ini milik yang berani.', 'wira', 600);
-    G.hud.toast('BENTARA: DRY SEASON — 8 misi, 3 babak. Temui Pak Wira.', 600);
-    stageTaxi(G, 'marina', -2, -158);
+    // Close enough to Wira for the talk step (within 5 m).
+    G.player.setPos(-6, -166, Math.PI);
     G.draw();
-    for (let i = 0; i < steps; i += 1) G.step(STEP);
-    // Foreground fill (v2): the wide angle left the bottom half as bare
-    // beige promenade. Pull four street props and four pedestrians into the
-    // near band — but to the SIDES of the camera-to-Wira corridor, never
-    // in it: v1.5 put them on the sightline and they read as black
-    // monoliths hiding the player. They are staged after the sim steps,
-    // so their final positions are exactly the ones in the frame.
+    // Complete mission 1 live: the goto step is already satisfied at the
+    // marina, so step a few frames for it to advance, THEN press E — the
+    // talk step needs the press on its own step (one-shot action bits).
+    for (let i = 0; i < 5; i += 1) G.step(STEP);
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { code: 'KeyE' }));
+    for (let i = 0; i < 25; i += 1) G.step(STEP);
+    window.dispatchEvent(new window.KeyboardEvent('keyup', { code: 'KeyE' }));
+    // Mission 8 (BABAK III · MISI 8/8) snaps the light to red dusk.
+    // Re-show the stinger explicitly: no more steps run after this, so
+    // hud.update never gets the chance to notice the mission changed —
+    // without it the card keeps showing the mission the live completion
+    // advanced to (MISI 2/8) instead of MISI 8/8.
+    G.missions.setIndex(7);
+    G.hud.showStinger(G);
+    G.hud.dialogue('PAK ASKA · PENERIMA MARINA', 'Barang sampai, uang jalan. Marina tidak pernah tidur.', 'aska', 600);
+    // The ledger of the mission just completed, re-shown with a 600 s
+    // lifetime so the frozen frame keeps it.
+    G.hud.reshowLedger(600);
+    document.body.classList.add('letterbox');
+    stageTaxi(G, 'marina', -2, -158);
+    // Foreground fill: pull props and pedestrians into the near band —
+    // but to the SIDES of the camera-to-Aska corridor, never in it.
     const fgProps = [[-26, -162], [-24, -168], [2, -158], [4, -165], [-30, -160], [-28, -167], [8, -158], [10, -164], [-2, -174], [4, -176]];
     let placed = 0;
     for (const prop of G.props.props) {
@@ -388,8 +447,8 @@ export function stageShot(name, game, atSeconds) {
       p.setPos(s[0], s[1]);
       p.target = { x: s[2], z: s[3] };
     });
-    // Two parked cars at the pier's edges (v2.1): the promenade's near
-    // band was bare tan. They sit clear of the camera-to-Wira corridor.
+    // Two parked cars at the pier's edges: the promenade's near band was
+    // bare tan. They sit clear of the camera-to-Aska corridor.
     [G.parked[1], G.parked[2]].forEach((c, k) => {
       if (!c) return;
       c.x = k === 0 ? 16 : -32;
@@ -398,15 +457,15 @@ export function stageShot(name, game, atSeconds) {
       c.sync();
     });
     // Close, low camera from further west: the player fills the foreground
-    // with his back to us, Wira stands just beyond him, and the MARINA
+    // with his back to us, Aska stands just beyond him, and the MARINA
     // sign, the water, the boats and the windowed skyline sit behind them.
-    // Shot from the west so no building wall crosses the view, and far
-    // enough west that the player does not line up behind the sign's east
-    // post. (A closer camera clipped the MARINA sign out of the top of
-    // the frame, so the camera stays here.)
+    // Aimed east of the sign (lookAt x +2) so the sign slides left of
+    // the mission stinger instead of hiding behind it — the sign stands
+    // on the same sightline as Aska, so centring on Aska centres the
+    // sign behind the card.
     const cam = G.view.camera;
-    cam.position.set(-20, 3.6, -156);
-    cam.lookAt(-6, 1.3, -170);
+    cam.position.set(-24, 3.4, -154);
+    cam.lookAt(2, 1.0, -172);
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };

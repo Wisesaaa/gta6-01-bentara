@@ -3,16 +3,24 @@
 // entering a car hides it and flags the car skipTraffic so traffic never
 // steps it.
 //
-// The chase camera sits low and close now — 6.2 m back, 2.1 m up — so the
-// car fills 25–35% of the frame, bottom-centre, instead of floating small
-// in a wide shot. Drifting (handbrake + steer at speed) is timed here and
-// reported to the game as a stunt event with its payout.
+// The chase camera sits low and close — 5.0 m back, 1.9 m up — so the car
+// fills a quarter to a third of the frame, bottom-centre. FOV kicks
+// 62 → 74 with speed and the camera rolls a touch in a drift, so speed
+// reads on screen, not just on the dial.
+//
+// Weapons run on mags + reserves (pistol ∞, shotgun 6, SMG 30, senapan 10,
+// pelontar 4): Q reloads from the reserve, empty mags auto-reload. Boost
+// (Shift = NOS) drains a meter that the TURBO upgrade fills; fuel drains
+// slowly and caps speed at half under 15% — never a dead stop. Armor
+// absorbs half of incoming damage until it breaks.
 import * as THREE from 'three';
 import { Human } from './actors/human.js';
-import { CAR, PLAYER, WEAPONS, STUNTS } from './config.js';
+import { CAR, PLAYER, WEAPONS, STUNTS, BOOST, FUEL } from './config.js';
 import { clamp, damp, dist, wrapAngle } from './mathx.js';
 import { hitsSolid, clampToCity } from './city.js';
 import { createCombat } from './combat.js';
+
+const MAG_SIZE = { pistol: Infinity, shotgun: 6, smg: 30, rifle: 10, launcher: 4 };
 
 export function createPlayer(ctx) {
   const { scene, city, view, input, rng } = ctx;
@@ -23,11 +31,51 @@ export function createPlayer(ctx) {
   const p = {
     x: -6, z: -164, heading: 0, camHeading: 0,
     onFoot: true, car: null,
-    health: PLAYER.health,
+    health: PLAYER.health, armor: 0,
     weapon: 'pistol', shells: 12, hasShotgun: false,
+    smgAmmo: 0, hasSmg: false,
+    rifleAmmo: 0, hasRifle: false,
+    launcherAmmo: 0, hasLauncher: false,
+    mag: { pistol: Infinity, shotgun: 6, smg: 30, rifle: 10, launcher: 4 },
+    reloadTimer: 0, reloading: false,
+    fuel: 100, boost: 1, boosting: false,
     speedKmh: 0, moving: false,
     shootCooldown: 0, driftTimer: 0, drifting: false,
+    steerVis: 0, prevCarHealth: 100, fov: 62,
   };
+
+  function reserveFor(weapon) {
+    if (weapon === 'shotgun') return p.shells;
+    if (weapon === 'smg') return p.smgAmmo;
+    if (weapon === 'rifle') return p.rifleAmmo;
+    if (weapon === 'launcher') return p.launcherAmmo;
+    return Infinity;
+  }
+  function setReserve(weapon, v) {
+    if (weapon === 'shotgun') p.shells = v;
+    else if (weapon === 'smg') p.smgAmmo = v;
+    else if (weapon === 'rifle') p.rifleAmmo = v;
+    else if (weapon === 'launcher') p.launcherAmmo = v;
+  }
+
+  function startReload() {
+    const w = WEAPONS[p.weapon];
+    if (!w || w.mag === Infinity || p.reloading) return false;
+    if (p.mag[p.weapon] >= w.mag) return false;
+    if (reserveFor(p.weapon) <= 0) return false;
+    p.reloading = true;
+    p.reloadTimer = w.reloadSeconds;
+    return true;
+  }
+
+  function finishReload() {
+    const w = WEAPONS[p.weapon];
+    p.reloading = false;
+    const need = w.mag - p.mag[p.weapon];
+    const take = Math.min(need, reserveFor(p.weapon));
+    p.mag[p.weapon] += take;
+    setReserve(p.weapon, reserveFor(p.weapon) - take);
+  }
 
   function nearestCar(cars, maxDist = 5) {
     let best = null;
@@ -45,6 +93,7 @@ export function createPlayer(ctx) {
     p.onFoot = false;
     car.skipTraffic = true;
     body.group.visible = false;
+    p.prevCarHealth = car.health;
     if (ctx.onEnterCar) ctx.onEnterCar(car);
   }
 
@@ -101,8 +150,28 @@ export function createPlayer(ctx) {
     if (!car) return;
     const throttle = (input.up() ? 1 : 0) - (input.down() ? 0.7 : 0);
     const steer = (input.left() ? 1 : 0) - (input.right() ? 1 : 0);
+    p.steerVis = steer;
+    // NOS: Shift while driving, only if the current car has a TURBO level.
+    const turboLevel = car.perf ? car.perf.turbo : 0;
+    p.boosting = false;
+    if (input.run() && turboLevel > 0 && p.boost > 0.05 && throttle > 0) {
+      p.boosting = true;
+      p.boost = Math.max(0, p.boost - BOOST.drainPerSecond * dt);
+      car.boostAccel = BOOST.accelBonus;
+    } else {
+      car.boostAccel = 0;
+      p.boost = Math.min(1, p.boost + BOOST.refillPerSecond * dt * (turboLevel > 0 ? turboLevel : 0.4));
+    }
+    // Fuel: drains while driving; under 15% the top speed halves.
+    if (Math.abs(car.speed) > 1) p.fuel = Math.max(0, p.fuel - FUEL.drainPerSecond * dt);
+    car.fuelFactor = p.fuel < FUEL.lowAt ? FUEL.lowSpeedFactor : 1;
     if (car.health <= 0) car.speed = damp(car.speed, 0, 4, dt);
     else car.drive(dt, throttle, steer, input.brake());
+    // Scrape sparks: health lost to a wall while moving fast throws sparks.
+    if (car.health < p.prevCarHealth && Math.abs(car.speed) > 5 && ctx.onScrape) {
+      ctx.onScrape(car);
+    }
+    p.prevCarHealth = car.health;
     p.x = car.x;
     p.z = car.z;
     p.heading = car.heading;
@@ -130,11 +199,18 @@ export function createPlayer(ctx) {
   }
 
   function shoot() {
-    if (p.shootCooldown > 0) return;
+    if (p.shootCooldown > 0 || p.reloading) return;
     const w = WEAPONS[p.weapon];
-    if (p.weapon === 'shotgun') {
-      if (!p.hasShotgun || p.shells <= 0) return;
-      p.shells -= 1;
+    if (p.weapon === 'shotgun' && !p.hasShotgun) return;
+    if (p.weapon === 'smg' && !p.hasSmg) return;
+    if (p.weapon === 'rifle' && !p.hasRifle) return;
+    if (p.weapon === 'launcher' && !p.hasLauncher) return;
+    if (w.mag !== Infinity) {
+      if (p.mag[p.weapon] <= 0) {
+        if (!startReload() && ctx.onDryFire) ctx.onDryFire(p.weapon);
+        return;
+      }
+      p.mag[p.weapon] -= 1;
     }
     p.shootCooldown = w.rate;
     // Aim: from the camera, through the crosshair, into the world.
@@ -152,6 +228,10 @@ export function createPlayer(ctx) {
 
   function step(dt) {
     p.shootCooldown = Math.max(0, p.shootCooldown - dt);
+    if (p.reloading) {
+      p.reloadTimer -= dt;
+      if (p.reloadTimer <= 0) finishReload();
+    }
     if (p.onFoot) stepFoot(dt);
     else stepCar(dt);
     if (p.onFoot && (input.mouseDown() || input.takeClick())) shoot();
@@ -165,19 +245,28 @@ export function createPlayer(ctx) {
       const bz = p.z - Math.cos(p.camHeading) * behind - Math.sin(p.camHeading) * 0.8;
       view.camera.position.set(bx, 2.4, bz);
       view.camera.lookAt(p.x + Math.sin(p.heading) * 6, 1.4, p.z + Math.cos(p.heading) * 6);
+      view.camera.fov = 62;
+      view.camera.updateProjectionMatrix();
     } else {
       // Low and close: 5.0 m back, 1.9 m up. The car is the hero of the
       // frame — bottom-centre, a quarter to a third of the width — and the
-      // street ahead still reads over its roof. (v2.1: pulled in from
-      // 6.2 m / 2.1 m, where the car read as a small red box.)
+      // street ahead still reads over its roof.
       view.placeCamera(p.x, p.z, p.heading, 5.0, 1.9, 10);
+      // FOV kick with speed: 62 at rest, 74 flat out. Roll into a drift.
+      const targetFov = 62 + Math.min(1, p.speedKmh / 180) * 12;
+      if (Math.abs(targetFov - p.fov) > 0.5) {
+        p.fov = targetFov;
+        view.camera.fov = targetFov;
+        view.camera.updateProjectionMatrix();
+      }
+      if (p.drifting) view.camera.rotateZ(-p.steerVis * 0.045);
     }
   }
 
   // Live getters: the state object `p` mutates every step, so the outside
   // world must read through these, never through a stale spread copy.
   return {
-    body, combat,
+    body, combat, startReload,
     get x() { return p.x; },
     get z() { return p.z; },
     get heading() { return p.heading; },
@@ -186,15 +275,37 @@ export function createPlayer(ctx) {
     get car() { return p.car; },
     get health() { return p.health; },
     set health(v) { p.health = v; },
+    get armor() { return p.armor; },
+    set armor(v) { p.armor = v; },
     get weapon() { return p.weapon; },
     set weapon(v) { p.weapon = v; },
     get shells() { return p.shells; },
     set shells(v) { p.shells = v; },
     get hasShotgun() { return p.hasShotgun; },
     set hasShotgun(v) { p.hasShotgun = v; },
+    get smgAmmo() { return p.smgAmmo; },
+    set smgAmmo(v) { p.smgAmmo = v; },
+    get hasSmg() { return p.hasSmg; },
+    set hasSmg(v) { p.hasSmg = v; },
+    get rifleAmmo() { return p.rifleAmmo; },
+    set rifleAmmo(v) { p.rifleAmmo = v; },
+    get hasRifle() { return p.hasRifle; },
+    set hasRifle(v) { p.hasRifle = v; },
+    get launcherAmmo() { return p.launcherAmmo; },
+    set launcherAmmo(v) { p.launcherAmmo = v; },
+    get hasLauncher() { return p.hasLauncher; },
+    set hasLauncher(v) { p.hasLauncher = v; },
+    get mag() { return p.mag; },
+    get reloading() { return p.reloading; },
+    get fuel() { return p.fuel; },
+    set fuel(v) { p.fuel = v; },
+    get boost() { return p.boost; },
+    set boost(v) { p.boost = v; },
+    get boosting() { return p.boosting; },
     get speedKmh() { return p.speedKmh; },
     get moving() { return p.moving; },
     get drifting() { return p.drifting; },
+    reserveFor,
     nearestCar, enterCar, exitCar, step, placeCamera,
     setPos(x, z, heading = 0) {
       p.x = x; p.z = z; p.heading = heading; p.camHeading = heading;

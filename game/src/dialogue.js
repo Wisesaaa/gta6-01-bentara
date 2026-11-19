@@ -12,8 +12,8 @@ export const MISSION_INTROS = [
   { who: 'sari', line: 'Mobil itu sudah lama mengganggu kawasan industri. Hilangkan. Saya yang bayar.' },
   { who: 'sari', line: 'Paket ruko sudah siap. Ambil di Deret Ruko, antar ke Plaza Menara.' },
   { who: 'ijal', line: 'Plaza butuh orang yang bisa dipegang. Tahan di sana sampai saya bilang aman.' },
-  { who: 'wira', line: 'Jemputan darurat di Rumah Sakit. Mereka yang menyerang tidak sabar menunggu.' },
-  { who: 'ijal', line: 'Ada CEMPAKA GT curian di Kawasan Industri. Bawa pulang ke Marina — mulus.' },
+  { who: 'ijal', line: 'Jemputan darurat di Rumah Sakit. Mereka yang menyerang tidak sabar menunggu.' },
+  { who: 'dedi', line: 'Ada CEMPAKA GT curian di Kawasan Industri. Bawa pulang ke Marina — mulus.' },
   { who: 'rahmat', line: 'Ini Letkol Rahmat. Seluruh Bentara sudah tahu namamu. Panas terakhir, nak.' },
 ];
 
@@ -31,6 +31,16 @@ export const SARI_BANTER = [
 export const IJAL_BANTER = [
   'Bang Ijal: Mesin bunyi begitu, remuk dikit. Bawa ke bengkel, saya yang urus.',
   'Bang Ijal: Mobil kamu itu nyawanya sembilan. Jangan boros-boros amat.',
+];
+
+export const ASKA_BANTER = [
+  'Pak Aska: Barang sampai, uang jalan. Marina tidak pernah tidur.',
+  'Pak Aska: Kamu yang bawa paket itu? Cepat. Saya suka orang cepat.',
+];
+
+export const RINI_BANTER = [
+  'Mbak Rini: Warung ini bisa jadi milikmu. Dua ribu lima ratus, untung tiap hari.',
+  'Mbak Rini: Kopi tetap saya yang seduh. Untungnya yang jadi milikmu.',
 ];
 
 function hexCss(hex) {

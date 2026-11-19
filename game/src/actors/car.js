@@ -38,6 +38,23 @@ function smokeTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+let sharedGlowTex = null;
+function glowTextureShared() {
+  if (sharedGlowTex) return sharedGlowTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+  grad.addColorStop(0.4, 'rgba(255,255,255,0.35)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  sharedGlowTex = new THREE.CanvasTexture(c);
+  return sharedGlowTex;
+}
+
 function polisiTexture() {
   const c = document.createElement('canvas');
   c.width = 256;
@@ -69,6 +86,8 @@ const TRIM = 0x17171a;
 const RIM = 0xb8b8b0;
 
 export class Car {
+  static glowTexture() { return glowTextureShared(); }
+
   constructor(scene, rng, opts = {}) {
     this.id = carCounter;
     carCounter += 1;
@@ -84,6 +103,13 @@ export class Car {
     this.z = opts.z ?? 0;
     this.steerVis = 0;
     this._smokeT = 0;
+    // Garage performance: per-car multipliers set by the garage (engine /
+    // grip upgrades). boostAccel is set by the player while NOS is held;
+    // fuelFactor halves the top speed under 15% fuel.
+    this.perf = { topSpeed: 1, grip: 1, turbo: 0 };
+    this.boostAccel = 0;
+    this.fuelFactor = 1;
+    this.garageId = opts.garageId || null;
 
     const shape = KIND_SHAPE[this.kind] || KIND_SHAPE.sedan;
     const len = CAR.length * shape.len;
@@ -107,6 +133,13 @@ export class Car {
     scene.add(group);
     this.group = group;
     this.scene = scene;
+    // Register headlight cones in the scene rig so the lighting preset can
+    // toggle them per act (on in Act 3 red dusk).
+    if (this.headlightCones && this.headlightCones.length) {
+      const rig = scene.userData.lightRig;
+      if (rig) rig.headlightCones = (rig.headlightCones || []).concat(this.headlightCones);
+      else scene.userData.pendingHeadlightCones = (scene.userData.pendingHeadlightCones || []).concat(this.headlightCones);
+    }
   }
 
   // Pass 1 — the low body: a slab, a lower narrower hood up front and a
@@ -216,6 +249,28 @@ export class Car {
     const grille = new THREE.Mesh(new THREE.BoxGeometry(w - 0.7, 0.2, 0.06), trimMat);
     grille.position.set(0, 0.42, len / 2 + 0.02);
     group.add(headStrip, tailStrip, grille);
+    // Fake bloom: a small additive glow sprite over the tail strip, so the
+    // brake light blooms at golden hour without a composer pass.
+    const tailGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: Car.glowTexture(), color: 0xff2a1e, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    tailGlow.position.set(0, 0.62, -len / 2 - 0.15);
+    tailGlow.scale.set(2.4, 1.2, 1);
+    group.add(tailGlow);
+    this.tailGlow = tailGlow;
+    // Headlight cones: additive cones aimed forward, OFF except in Act 3
+    // (red dusk), when the world lights up. Registered in the scene rig so
+    // the lighting preset can toggle them per act.
+    this.headlightCones = [];
+    for (const sx of [-0.6, 0.6]) {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(1.1, 7, 12, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      cone.rotation.x = Math.PI / 2 - 0.06;
+      cone.position.set(sx, 0.5, len / 2 + 3.5);
+      cone.visible = false;
+      group.add(cone);
+      this.headlightCones.push(cone);
+    }
     for (const sx of [-0.45, 0.45]) {
       const pipe = new THREE.Mesh(
         new THREE.CylinderGeometry(0.09, 0.09, 0.22, 8),
@@ -259,6 +314,17 @@ export class Car {
     group.add(red, blue);
     this.lightBarRed = red;
     this.lightBarBlue = blue;
+    // Alternating glow sprites over each half of the bar: the fake-bloom
+    // flash. ~5 Hz (6 frames on, 6 off at 60 fps), driven by sync().
+    const redGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: Car.glowTexture(), color: 0xff2a2a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    redGlow.position.set(-0.23, 1.55, -0.2);
+    redGlow.scale.set(1.8, 1.8, 1);
+    const blueGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: Car.glowTexture(), color: 0x2a6bff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    blueGlow.position.set(0.23, 1.55, -0.2);
+    blueGlow.scale.set(1.8, 1.8, 1);
+    group.add(redGlow, blueGlow);
+    this.lightBarGlowRed = redGlow;
+    this.lightBarGlowBlue = blueGlow;
   }
 
   buildAngkotKit(group, len) {
@@ -330,11 +396,16 @@ export class Car {
     this.group.position.set(this.x, 0, this.z);
     this.group.rotation.y = this.heading;
     if (this.lightBarRed) {
-      // Blink on a frame counter, not wall-clock time, so shots stay deterministic.
+      // Blink on a frame counter, not wall-clock time, so shots stay
+      // deterministic. 12-frame cycle: 6 red, 6 blue — ~5 Hz per colour.
       this._blink = (this._blink || 0) + 1;
-      const redOn = this._blink % 20 < 10;
+      const redOn = this._blink % 12 < 6;
       this.lightBarRed.material.color.setHex(redOn ? 0xff2a2a : 0x5a0f0f);
       this.lightBarBlue.material.color.setHex(redOn ? 0x0f2a5a : 0x2a6bff);
+      if (this.lightBarGlowRed) {
+        this.lightBarGlowRed.material.opacity = redOn ? 0.9 : 0.12;
+        this.lightBarGlowBlue.material.opacity = redOn ? 0.12 : 0.9;
+      }
     }
     if (this.smoke) {
       // Damage smoke: thickens as health falls, pulsing on the frame counter.
@@ -348,20 +419,25 @@ export class Car {
   }
 
   // Arcade step: throttle -1..1, steer -1..1, handbrake bool. Returns distance moved.
+  // Garage performance applies here: engine upgrades lift the top speed,
+  // grip upgrades bite harder in a turn, NOS adds acceleration while the
+  // player holds Shift, and low fuel halves the top speed.
   drive(dt, throttle, steer, handbrake) {
     const forward = throttle > 0 ? 1 : -1;
     const accel = throttle !== 0 ? CAR.accel * Math.abs(throttle) : 0;
     this.speed += forward * accel * dt;
+    if (this.boostAccel) this.speed += this.boostAccel * dt;
     if (throttle === 0) this.speed = damp(this.speed, 0, 2.5, dt);
     // Handbrake is a slide, not a stop: it bleeds speed slowly (rate 1.0)
     // so the car keeps sliding at 10+ m/s while held and the drift timer
     // can reach its 0.8 s payout. At rate 6 the car dropped under 10 m/s
     // in 0.2 s and a drift could never pay out.
     if (handbrake) this.speed = damp(this.speed, 0, 1.0, dt);
-    const max = this.speed >= 0 ? CAR.maxSpeed : CAR.maxReverse;
-    this.speed = clamp(this.speed, -CAR.maxReverse, CAR.maxSpeed);
+    const perfTop = CAR.maxSpeed * (this.perf ? this.perf.topSpeed : 1) * (this.fuelFactor || 1);
+    const perfRev = CAR.maxReverse * (this.perf ? this.perf.topSpeed : 1);
+    this.speed = clamp(this.speed, -perfRev, perfTop);
     if (Math.abs(this.speed) > 0.3) {
-      const grip = handbrake ? 0.5 : 1;
+      const grip = (handbrake ? 0.5 : 1) * (this.perf ? this.perf.grip : 1);
       this.heading += steer * CAR.steer * grip * dt * clamp(Math.abs(this.speed) / 8, 0.25, 1) * (this.speed >= 0 ? 1 : -1);
     }
     const dx = Math.sin(this.heading) * this.speed * dt;

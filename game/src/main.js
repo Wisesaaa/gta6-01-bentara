@@ -36,8 +36,11 @@ const TITLE_HTML = `
     kios, tagihannya nyata.</p>
     <p>Di sela misi: <span class="key">taksi</span> (angkut penumpang, dibayar
     argo), <span class="key">24 koleksi</span> wayang emas &amp; kaset tersebar
-    di kota, <span class="key">balapan 5 gate</span> di Plaza, dan
-    <span class="key">Bang Ocid</span> di Radio Kemarau 92.4.</p>
+    di kota, <span class="key">balapan 5 gate</span> di Plaza,
+    <span class="key">Bengkel Roda Jaya</span> (beli 5 mobil + upgrade +
+    NITRO), <span class="key">3 usaha</span> (warung, kos, slip marina —
+    untung tiap hari), dan <span class="key">Bang Ocid</span> di
+    Radio Kemarau 92.4.</p>
     <p><span class="key">WASD</span> jalan / mengemudi &nbsp;·&nbsp; <span class="key">SPACE</span> rem tangan
     &nbsp;·&nbsp; <span class="key">F</span> masuk / curi mobil &nbsp;·&nbsp; <span class="key">E</span> interaksi
     &nbsp;·&nbsp; <span class="key">KLIK</span> tembak &nbsp;·&nbsp; <span class="key">1 / 2 / 3</span> senjata
@@ -51,6 +54,8 @@ const PAUSED_HTML = `
     <h1>JEDA</h1>
     <h2>BENTARA MENUNGGU</h2>
     <p>Progress tersimpan otomatis tiap 20 detik, dan di Safehouse Timur.</p>
+    <p id="pauseKema"></p>
+    <p id="pauseBill"></p>
     <p><span class="key">P atau ENTER</span> untuk lanjut &nbsp;·&nbsp; <span class="key">R</span> radio</p>
   </div>`;
 
@@ -61,7 +66,7 @@ function startGame() {
   hud.announce('Bermain. Temui Pak Wira di Marina Bentara.');
   hud.toast('Misi 1/8: Temui Pak Wira di Marina Bentara.', 5);
   // Bang Ocid greets the player on the radio line as the game starts.
-  hud.els.radioLine.textContent = `RADIO KEMARAU 92.4 · ${randomDjLine(game.rng)}`;
+  if (hud.els.radioText) hud.els.radioText.textContent = `RADIO KEMARAU 92.4 · ${randomDjLine(game.rng)}`;
 }
 
 if (shot) {
@@ -97,8 +102,9 @@ if (shot) {
         hud.hideScreen();
       }
       game.draw();
-    } else if (mode === 'play') {
-      // game.step consumes the actions itself (pause included).
+    } else if (mode === 'play' || mode === 'garage') {
+      // game.step consumes the actions itself (pause included); in garage
+      // mode the step idles the city and Esc closes the menu.
       while (acc >= 1 / 60) { game.step(1 / 60); acc -= 1 / 60; }
       if (game.state.mode === 'paused') hud.showScreen(PAUSED_HTML);
       else game.draw();

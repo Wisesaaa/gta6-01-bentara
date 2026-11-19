@@ -5,78 +5,174 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BENTARA: DRY SEASON</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #e8a06a; font-family: system-ui, "Segoe UI", sans-serif; }
+  /* HUD v3 (suplemen top-6–10): four corner clusters + one center band.
+     No text wall. One display font + one mono numerals; three sizes:
+     28 / 18 / 13. Everything Bahasa; dry-season amber #ffc247. */
+  :root {
+    --font-display: "Arial Narrow", "Helvetica Neue Condensed", "Barlow Condensed", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+    --amber: #ffc247;
+    --green: #8ee08a;
+    --red: #ff5a4a;
+    --teal: #2fd8c8;
+    --panel: rgba(20, 10, 8, 0.8);
+    --panel-border: rgba(255, 194, 71, 0.2);
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e8a06a; font-family: var(--font-display); }
   #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
-  .panel { background: rgba(20,18,12,.58); border-radius: 8px; padding: 8px 12px; }
-  /* Mission panel, top-left, in the format the top entries use. */
-  #missionBox { position: absolute; top: 12px; left: 12px; width: 340px; font-size: 14px; }
-  #missionBox b { display: block; font-size: 15px; letter-spacing: 1px; color: #ffd75e; }
-  #missionObj { display: block; margin-top: 2px; }
-  #missionStage { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 6px 0 3px; overflow: hidden; }
-  #missionStageFill { height: 100%; width: 0%; background: #ffd75e; }
-  #missionNext { font-size: 12px; opacity: .9; }
-  #repRow { margin-top: 6px; font-size: 12px; }
-  #repBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 3px; overflow: hidden; }
-  #repFill { height: 100%; width: 0%; background: #7dd87d; }
-  #collectText, #taxiText { display: block; margin-top: 5px; font-size: 12px; color: #ffd75e; }
-  /* Cash + stars, top-right. */
-  #cashBox { position: absolute; top: 12px; right: 12px; font-size: 22px; font-weight: 700; text-align: right; }
-  #cashBox small { display: block; font-size: 12px; font-weight: 400; opacity: .85; }
-  #starsBox { font-size: 24px; letter-spacing: 4px; color: #ffd75e; }
+  .panel { background: var(--panel); border: 2px solid var(--panel-border); border-radius: 10px; padding: 8px 12px; box-sizing: border-box; }
+  .num { font-family: var(--font-mono); }
+
+  /* CSS vignette: the grade's last layer, warm and dark at the corners. */
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse at center, transparent 58%, rgba(26, 10, 4, 0.42) 100%); }
+  /* Red damage vignette: flashes when the player takes a hit. */
+  #damageVignette { position: fixed; inset: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity .25s;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 30, 20, 0.55) 100%); }
+
+  /* TOP-CENTER: mission stinger (big, 2 s) then a mini-pill. */
+  #missionStinger { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); text-align: center; display: none; min-width: 340px; max-width: 560px; }
+  #stingerAct { font-size: 13px; letter-spacing: 3px; color: var(--amber); font-weight: 700; }
+  #stingerTitle { font-size: 28px; letter-spacing: 2px; font-weight: 700; line-height: 1.1; }
+  #stingerObj { font-size: 18px; opacity: .95; }
+  #stingerPips { font-size: 18px; letter-spacing: 4px; color: var(--amber); margin-top: 2px; }
+  #stingerNext { font-size: 13px; opacity: .85; margin-top: 2px; }
+  #missionPill { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; font-size: 18px; padding: 6px 14px; white-space: nowrap; }
+  #missionPill .pill-title { color: var(--amber); font-weight: 700; letter-spacing: 1px; }
+  #missionPill .pill-dist { font-family: var(--font-mono); font-size: 13px; }
+  #pillBar { width: 60px; height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; overflow: hidden; }
+  #pillFill { height: 100%; width: 0%; background: var(--amber); }
+
+  /* TOP-RIGHT: green $, stars, HARI/time, TAGIHAN pill, income line. */
+  #cashBox { position: absolute; top: 12px; right: 12px; text-align: right; font-size: 18px; min-width: 200px; }
+  #cashText { font-size: 28px; font-weight: 700; color: var(--green); font-family: var(--font-mono); }
+  #starsBox { font-size: 18px; letter-spacing: 4px; color: var(--amber); }
   #starsBox .off { color: rgba(255,255,255,.35); }
+  #clockText { display: block; font-size: 13px; opacity: .9; }
+  #billPill { display: inline-block; font-size: 13px; color: var(--red); font-family: var(--font-mono); margin-top: 2px; }
+  #incomeLine { display: block; font-size: 13px; color: var(--green); margin-top: 2px; }
   #seenFlash { font-size: 13px; letter-spacing: 2px; color: #ff6a5a; font-weight: 700; display: none; animation: blink 0.7s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0.25; } }
-  /* Police response list, left edge under the mission panel. */
-  #policeBox { position: absolute; top: 230px; left: 12px; width: 250px; font-size: 12px; display: none; }
-  #policeBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
-  #policeBox .unit { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
-  #policeBox .unit b { color: #ffd75e; }
-  #policeBox .unit .st { color: #ff9d5c; font-weight: 700; }
-  /* Damage bill, right edge under cash. */
-  #billBox { position: absolute; top: 108px; right: 12px; font-size: 13px; min-width: 200px; display: none; }
-  #billBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ffb14d; }
-  #billBox .row { display: flex; justify-content: space-between; gap: 12px; }
-  #billBox .total { border-top: 1px solid rgba(255,255,255,.4); margin-top: 4px; padding-top: 4px; font-weight: 700; }
-  /* Circular radar minimap + location name, bottom-left. */
+
+  /* LEFT-MID: police panel, max ~180px tall, max 5 rows + overflow line. */
+  #policeBox { position: absolute; top: 180px; left: 12px; width: 260px; font-size: 13px; display: none; }
+  #policeBox h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: 1px; color: #ff9d5c; white-space: nowrap; }
+  #policeBox .unit { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; align-items: center; }
+  #policeBox .unit b { color: #ffd75e; font-size: 13px; }
+  #policeBox .unit .dist { font-family: var(--font-mono); font-size: 13px; opacity: .85; }
+  #policeBox .pill { font-size: 13px; font-weight: 700; padding: 1px 7px; border-radius: 9px; letter-spacing: 1px; white-space: nowrap; }
+  #policeBox .pill-KEJAR { background: #ffd75e; color: #1d2a3a; }
+  #policeBox .pill-MENABRAK { background: #ff2a1e; color: #fff; }
+  #policeBox .pill-IKAT { background: #8a5cf6; color: #fff; }
+  #policeBox .pill-SOROT { background: #2fd8c8; color: #10201e; }
+  #policeBox .pill-MENCARI { background: #8a8a80; color: #fff; }
+  #policeMore { font-size: 13px; opacity: .8; }
+
+  /* BOTTOM-LEFT: minimap + region plate + REP row + chip row. */
   #mapWrap { position: absolute; bottom: 34px; left: 12px; text-align: center; }
   #minimap { border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: #10161d; display: block; box-shadow: 0 0 0 4px rgba(16,22,29,.55); }
   #locName { font-size: 13px; letter-spacing: 2px; margin-top: 4px; }
-  /* Character portrait + dialogue, bottom-centre — raised clear of the
-     controls hint at the very bottom. v2.1: widened 460 -> 600 px and
-     border-box, so a long line wraps INSIDE the panel instead of bleeding
-     past its right edge (the Marina line was clipped mid-word); the text
-     column also gets min-width: 0 so the flex row can shrink it. */
-  #dialogue { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); width: 600px; box-sizing: border-box; display: none; align-items: center; gap: 10px; }
+  #repRow { margin-top: 4px; font-size: 13px; text-align: left; width: 200px; margin-left: auto; margin-right: auto; }
+  #repBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 3px; overflow: hidden; }
+  #repFill { height: 100%; width: 0%; background: #7dd87d; }
+  #chipRow { margin-top: 4px; font-size: 13px; text-align: left; width: 200px; margin-left: auto; margin-right: auto; color: #ffd75e; }
+  #chipRow span { display: block; margin-top: 2px; }
+
+  /* RIGHT EDGE: owned-vehicle rail — a vertical stack, proof of depth. */
+  #carRail { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: none; flex-direction: column; gap: 6px; width: 150px; }
+  #carRail .rail-title { font-size: 13px; letter-spacing: 2px; color: #ff9d5c; text-align: right; }
+  #carRail .rail-car { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 5px 8px; font-size: 13px; text-align: right; }
+  #carRail .rail-car b { display: block; color: #ffd75e; letter-spacing: 1px; }
+  #carRail .rail-car .pips { color: var(--amber); letter-spacing: 2px; }
+
+  /* CENTER band (~35% height): 3-tier feedback + dispatch ticker above it. */
+  #centerFeed { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); width: 560px; text-align: center; pointer-events: none; }
+  #ticker { font-size: 13px; letter-spacing: 1px; color: #ffd75e; background: rgba(20,10,8,.7); border-radius: 6px; padding: 3px 10px; display: none; margin-bottom: 8px; }
+  .feed-big { font-size: 28px; font-weight: 700; letter-spacing: 2px; color: var(--amber); transform: rotate(-8deg) scale(1.2); transition: transform .7s, opacity .7s; }
+  .feed-mid { font-size: 18px; font-weight: 700; letter-spacing: 1px; color: var(--amber); transform: rotate(-8deg) scale(1.2); transition: transform .7s, opacity .7s; }
+  .feed-small { font-size: 13px; color: #fff; }
+  .feed-out { opacity: 0; transform: rotate(-8deg) scale(1); }
+  .feed-red { color: var(--red); }
+
+  /* Mission ledger: end-of-mission center card. */
+  #ledger { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; text-align: center; min-width: 340px; }
+  #ledgerTitle { font-size: 28px; font-weight: 700; letter-spacing: 2px; color: var(--amber); }
+  #ledger .row { display: flex; justify-content: space-between; gap: 20px; font-size: 18px; margin-top: 4px; }
+  #ledger .row span:last-child { font-family: var(--font-mono); }
+  #ledgerNet { font-size: 18px; font-weight: 700; color: var(--green); }
+
+  /* Dialogue, bottom-centre: avatar + name + teal role chip, max 2 lines,
+     24px safe margins on every side — the Marina cut-off is fixed by
+     construction: width caps at the viewport minus 48px, text wraps. */
+  #dialogue { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); width: 560px; max-width: calc(100vw - 48px); box-sizing: border-box; display: none; align-items: center; gap: 10px; }
   #portraitCanvas { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #ffd75e; flex: none; background: #7a5c2e; }
   #dialogueText { min-width: 0; }
   #dialogueText b { display: block; font-size: 13px; color: #ffd75e; letter-spacing: 1px; }
-  #dialogueText span { font-size: 14px; font-style: italic; overflow-wrap: break-word; }
-  #toast { position: absolute; bottom: 168px; left: 50%; transform: translateX(-50%); font-size: 17px; font-style: italic; width: max-content; max-width: 920px; padding: 0 12px; box-sizing: border-box; text-align: center; }
-  /* Score popups, centre-right above the gauge. */
-  #popups { position: absolute; right: 190px; bottom: 190px; width: 260px; text-align: right; }
-  .popup { margin-bottom: 6px; transition: opacity .4s, transform .4s; }
-  .popup b { display: block; font-size: 22px; letter-spacing: 1px; color: #ffd75e; }
-  .popup span { font-size: 13px; opacity: .9; }
-  .popup-collect b { color: #7dd87d; }
-  .popup-fare b { color: #2fd8c8; }
-  .popup-race b { color: #ff9d5c; }
-  .popup-out { opacity: 0; transform: translateY(-14px); }
-  /* Speed gauge + named vehicle + radio + weapon strip, bottom-right. */
+  #dialogueText .role { display: inline-block; font-size: 13px; background: rgba(47,216,200,.25); color: var(--teal); border-radius: 8px; padding: 0 6px; margin-left: 6px; letter-spacing: 1px; }
+  #dialogueLine { font-size: 18px; font-style: italic; overflow-wrap: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #toast { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%); font-size: 18px; font-style: italic; width: max-content; max-width: 600px; padding: 0 12px; box-sizing: border-box; text-align: center; }
+
+  /* Speed gauge + vehicle card + weapon rail + radio, bottom-right. */
   #driveBox { position: absolute; bottom: 34px; right: 12px; text-align: right; min-width: 230px; }
   #gauge { display: block; margin-left: auto; }
-  #vehicleName { font-size: 13px; letter-spacing: 1px; color: #ffd75e; }
-  #radioLine { font-size: 12px; opacity: .95; max-width: 260px; margin-left: auto; }
-  #weaponBox { font-size: 13px; margin-top: 4px; }
-  #weaponBox .slot { display: inline-block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 5px; padding: 2px 7px; margin-left: 4px; }
+  #vehicleName { font-size: 18px; letter-spacing: 1px; color: #ffd75e; font-weight: 700; }
+  .meter { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 3px 0 3px auto; overflow: hidden; width: 180px; }
+  .meter > div { height: 100%; }
+  #fuelFill { background: #ffd75e; width: 100%; }
+  #nitroFill { background: var(--teal); width: 100%; }
+  #condFill { background: #7dd87d; width: 100%; }
+  .meter-label { font-size: 13px; opacity: .9; }
+  #radioLine { font-size: 13px; opacity: .95; max-width: 260px; margin-left: auto; margin-top: 4px; }
+  #radioEq { display: inline-block; vertical-align: middle; margin-right: 6px; }
+  #radioEq i { display: inline-block; width: 3px; margin-right: 2px; background: var(--amber); height: 8px; animation: eq 0.5s ease-in-out infinite alternate; }
+  #radioEq i:nth-child(2) { animation-delay: .12s; }
+  #radioEq i:nth-child(3) { animation-delay: .24s; }
+  #radioEq i:nth-child(4) { animation-delay: .36s; }
+  @keyframes eq { from { height: 4px; } to { height: 12px; } }
+  #weaponBox { font-size: 13px; margin-top: 6px; max-width: 260px; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  #weaponBox .slot { display: inline-block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 5px; padding: 2px 7px; }
   #weaponBox .slot.active { border-color: #ffd75e; color: #ffd75e; }
-  #weaponBox .locked { opacity: .45; }
-  #prompt { position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); font-size: 15px; background: rgba(20,18,12,.65); padding: 6px 14px; border-radius: 20px; display: none; }
-  #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 12px; opacity: .85; white-space: nowrap; }
+  #weaponBox .locked { opacity: .55; }
+  #weaponBox .slot .ammo { font-family: var(--font-mono); }
+  #armorRow { font-size: 13px; margin-top: 4px; }
+  #armorFill { background: #7dd8ff; width: 0%; }
+
+  #prompt { position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); font-size: 18px; background: rgba(20,18,12,.65); padding: 6px 14px; border-radius: 20px; display: none; white-space: nowrap; }
+  #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 13px; opacity: .85; white-space: nowrap; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; display: none; }
   #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
   #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
   #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; }
+
+  /* Garage overlay: pointer-events on, HUD off while open. */
+  #garageOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(20,10,8,.82); color: #fff; z-index: 6; pointer-events: auto; }
+  #garageOverlay .garage-inner { width: 640px; max-width: calc(100vw - 48px); max-height: calc(100vh - 48px); overflow-y: auto; background: #241a12; border: 2px solid var(--amber); border-radius: 12px; padding: 16px 20px; }
+  #garageOverlay h2 { margin: 0 0 4px; font-size: 28px; letter-spacing: 2px; color: var(--amber); }
+  #garageOverlay .sub { font-size: 13px; opacity: .85; margin-bottom: 10px; }
+  #garageOverlay .car-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; border-top: 1px solid rgba(255,255,255,.15); padding: 8px 0; font-size: 18px; }
+  #garageOverlay .car-row b { color: #ffd75e; letter-spacing: 1px; }
+  #garageOverlay .car-row .desc { font-size: 13px; opacity: .8; display: block; }
+  #garageOverlay button { font-family: var(--font-display); font-size: 18px; background: var(--amber); color: #1d2a3a; border: none; border-radius: 8px; padding: 4px 12px; cursor: pointer; margin-left: 6px; }
+  #garageOverlay button:disabled { opacity: .4; cursor: default; }
+  #garageOverlay .upgrades { font-size: 13px; margin-top: 10px; }
+  #garageOverlay .upgrades button { font-size: 13px; }
+
+  /* Letterbox bars for the story shot. */
+  #lbTop, #lbBottom { position: fixed; left: 0; right: 0; height: 54px; background: #000; display: none; z-index: 4; }
+  #lbTop { top: 0; }
+  #lbBottom { bottom: 0; }
+  body.letterbox #lbTop, body.letterbox #lbBottom { display: block; }
+  /* With letterbox bars, the top-center mission card drops below the bar. */
+  body.letterbox #missionStinger, body.letterbox #missionPill { top: 66px; }
+  body.letterbox #cashBox { top: 66px; }
+  body.letterbox #driveBox { bottom: 66px; }
+  body.letterbox #mapWrap { bottom: 66px; }
+  body.letterbox #controlsHint { display: none; }
+  /* Photo mode: hide every HUD panel for a clean capture. */
+  body.photo #hud { display: none; }
+  body.photo #vignette { display: none; }
+
   #screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(30,24,14,.78); color: #fff; text-align: center; pointer-events: auto; z-index: 5; }
   #screen h1 { margin: 0; font-size: 52px; letter-spacing: 6px; color: #ffd75e; }
   #screen h2 { margin: 4px 0 18px; font-size: 17px; letter-spacing: 4px; font-weight: 400; color: #f3e6c8; }
@@ -91,33 +187,51 @@
 </head>
 <body>
 <canvas id="view" aria-label="BENTARA: DRY SEASON — open-world crime game"></canvas>
+<div id="vignette"></div>
+<div id="damageVignette"></div>
+<div id="lbTop"></div>
+<div id="lbBottom"></div>
 <div id="hud">
-  <div id="missionBox" class="panel">
-    <b id="missionTitle">MISSION 1/8: JUMPA DI MARINA</b>
-    <span id="missionObj">Temui Pak Wira di Marina Bentara.</span>
-    <div id="missionStage"><div id="missionStageFill"></div></div>
-    <span id="missionNext">NEXT: Antar paket ke Kios Baris Utara</span>
-    <div id="repRow"><span id="repText">REP 1 · ANAK BARU (0/400)</span><div id="repBar"><div id="repFill"></div></div></div>
-    <span id="collectText">KOLEKSI 0/24</span>
-    <span id="taxiText">TAKSI: 0 trip</span>
+  <div id="missionStinger" class="panel">
+    <div id="stingerAct">BABAK I · MISI 1/8</div>
+    <div id="stingerTitle">JUMPA DI MARINA</div>
+    <div id="stingerObj">Temui Pak Wira di Marina Bentara.</div>
+    <div id="stingerPips">●●○</div>
+    <div id="stingerNext">NEXT: Antar paket ke Kios Baris Utara</div>
   </div>
-  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small></div>
-  <div id="policeBox" class="panel"><h3>RESPON POLISI</h3><div id="policeRows"></div></div>
-  <div id="billBox" class="panel"><h3>TAGIHAN KERUSAKAN</h3><div id="billRows"></div><div class="row total"><span>TOTAL</span><span id="billTotal">$0</span></div></div>
-  <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div></div>
-  <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="64" height="64"></canvas><div id="dialogueText"><b>PAK WIRA · BOS MARINA</b><span id="dialogueLine"></span></div></div>
+  <div id="missionPill" class="panel"><span class="pill-title">MISI 1/8</span><span id="pillObj">Kabur</span><span class="pill-dist" id="pillDist">· 240 m</span><div id="pillBar"><div id="pillFill"></div></div></div>
+  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small><span id="billPill"></span><span id="incomeLine"></span></div>
+  <div id="policeBox" class="panel"><h3 id="policeHeader">RESPON POLISI</h3><div id="policeRows"></div><div id="policeMore"></div></div>
+  <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div>
+    <div id="repRow"><span id="repText">REP 1 · KUTIL (0/400)</span><div id="repBar"><div id="repFill"></div></div></div>
+    <div id="chipRow"><span id="chipKoleksi">KOLEKSI 0/24</span><span id="chipAset">ASET 0/3</span><span id="chipNext">BERIKUTNYA di REP 2: NITRO</span></div>
+  </div>
+  <div id="carRail"><div class="rail-title">GARASI · BENGKEL RODA JAYA</div><div id="carRailRows"></div></div>
+  <div id="centerFeed"><div id="ticker"></div><div id="feedRows"></div></div>
+  <div id="ledger" class="panel">
+    <div id="ledgerTitle">MISI SELESAI</div>
+    <div class="row"><span>Hasil</span><span id="ledgerGross">+$0</span></div>
+    <div class="row"><span>Tagihan</span><span id="ledgerBill">−$0</span></div>
+    <div class="row"><span>REP</span><span id="ledgerRep">+0</span></div>
+    <div class="row" id="ledgerNetRow"><span>BERSIH</span><span id="ledgerNet">+$0</span></div>
+  </div>
+  <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="64" height="64"></canvas><div id="dialogueText"><b><span id="dialogueName">PAK WIRA</span><span class="role" id="dialogueRole">BOS MARINA</span></b><span id="dialogueLine"></span></div></div>
   <div id="toast"></div>
-  <div id="popups"></div>
   <div id="prompt"></div>
   <div id="driveBox" class="panel">
     <canvas id="gauge" width="150" height="150"></canvas>
     <div id="vehicleName">CEMPAKA GT</div>
-    <div id="radioLine">RADIO KEMARAU 92.4 · Musim Kering — Senja Bentara</div>
+    <div class="meter-label">BENSIN</div><div class="meter"><div id="fuelFill"></div></div>
+    <div class="meter-label">NITRO · Shift</div><div class="meter"><div id="nitroFill"></div></div>
+    <div class="meter-label">KONDISI</div><div class="meter"><div id="condFill"></div></div>
+    <div id="radioLine"><span id="radioEq"><i></i><i></i><i></i><i></i></span><span id="radioText">RADIO KEMARAU 92.4 · Senja di Aspal</span></div>
     <div id="weaponBox"></div>
+    <div id="armorRow">ARMOR <span class="meter" style="display:inline-block;width:120px;vertical-align:middle"><span id="armorFill"></span></span></div>
   </div>
   <div id="crosshair"></div>
-  <div id="controlsHint">WASD jalan/mengemudi · SPACE rem tangan · F masuk/curi mobil · E interaksi · KLIK tembak · 1/2/3 senjata · R radio · P jeda</div>
+  <div id="controlsHint">WASD jalan/mengemudi · SPACE rem tangan · SHIFT NOS · F masuk/curi mobil · E interaksi · Q isi ulang · B pelepas $250/bintang · H foto · KLIK tembak · 1–5 senjata · R radio · P jeda</div>
 </div>
+<div id="garageOverlay"><div class="garage-inner" id="garageBody"></div></div>
 <div id="screen"></div>
 <p id="status" role="status" aria-live="polite"></p>
 <script type="module" src="./src/main.js"></script>

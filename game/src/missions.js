@@ -116,6 +116,26 @@ export function createMissions(scene, city, rng, hooks) {
     if (done) return 'Tamat — kelilingi kota sesukamu.';
     return `NEXT: ${current().next}`;
   }
+  // Chaptered story (presentation only — the 8-mission logic is untouched):
+  // the 8 missions are 3 named acts. The HUD stinger shows
+  // "BABAK II · MISI 5/8 — RAMPOKAN BESAR" with segmented stage pips.
+  const CHAPTERS = [
+    { act: 1, name: 'BABAK I', title: 'KENALAN', from: 0, to: 2 },
+    { act: 2, name: 'BABAK II', title: 'NAIK DAUN', from: 3, to: 5 },
+    { act: 3, name: 'BABAK III', title: 'MUSIM KERING', from: 6, to: 7 },
+  ];
+  function chapter() {
+    const c = CHAPTERS.find((ch) => index >= ch.from && index <= ch.to) || CHAPTERS[0];
+    return { ...c, missionNumber: index + 1, missionTotal: MISSIONS.length, title: current().title };
+  }
+  function stagePips() {
+    const total = current().steps.length;
+    return { filled: Math.min(total, stepIndex + 1), total };
+  }
+  function surviveTimer() {
+    if (step().type !== 'survive') return null;
+    return Math.max(0, Math.ceil(stepState?.timer ?? step().t ?? 0));
+  }
 
   function clearStepObjects() {
     for (const a of attackers) a.dispose(scene);
@@ -276,6 +296,7 @@ export function createMissions(scene, city, rng, hooks) {
   start();
   return {
     current, step, objectiveText, stageText, stageFrac, nextText,
+    chapter, stagePips, surviveTimer,
     update, nearTalkTarget, start, setIndex,
     get index() { return index; },
     get stepIndex() { return stepIndex; },

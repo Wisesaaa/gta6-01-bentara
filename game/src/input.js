@@ -16,6 +16,11 @@ export const ACT_WEAPON1 = 16;
 export const ACT_WEAPON2 = 32;
 export const ACT_WEAPON3 = 64;
 export const ACT_CONFIRM = 128;
+export const ACT_RELOAD = 256;
+export const ACT_PHOTO = 512;
+export const ACT_BRIBE = 1024;
+export const ACT_WEAPON4 = 2048;
+export const ACT_WEAPON5 = 4096;
 
 const KEY_ACTIONS = {
   KeyF: ACT_ENTER,
@@ -28,6 +33,11 @@ const KEY_ACTIONS = {
   Digit1: ACT_WEAPON1,
   Digit2: ACT_WEAPON2,
   Digit3: ACT_WEAPON3,
+  Digit4: ACT_WEAPON4,
+  Digit5: ACT_WEAPON5,
+  KeyQ: ACT_RELOAD,
+  KeyH: ACT_PHOTO,
+  KeyB: ACT_BRIBE,
 };
 const HELD_KEYS = {
   KeyW: 'up', ArrowUp: 'up',

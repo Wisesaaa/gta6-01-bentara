@@ -1,33 +1,27 @@
-// HUD: every DOM panel, updated from the real game state — never by setting a
-// string directly from a shot script. The bill panel is throttled to 10 Hz.
-//
-// This pass rebuilds the two things the top-10 study called placeholders:
-// the minimap is now a dark circular radar (road graph, player arrow,
-// objective marker, police blips, search ring, N compass) and the speed bar
-// is a circular gauge (needle, gear, condition arc). A 3-slot weapon strip,
-// a collectible counter, a taxi meter line, score popups and a "DI PANDANG"
-// flash sit beside them.
-import { LOCATIONS } from './city.js';
-import { WEAPONS, SHOTGUN_SHELLS_PRICE, DJ_LINES, CHARACTERS } from './config.js';
-import { roadLines } from './city.js';
+// HUD v3 — four corner clusters + one center band (suplemen top-6–10).
+// TOP-CENTER mission stinger (big, 2 s) that shrinks to a mini-pill with a
+// live distance; TOP-RIGHT green $ / stars / HARI / TAGIHAN pill / income;
+// LEFT-MID police panel (≤5 rows + overflow, Bahasa status pills);
+// BOTTOM-LEFT minimap + GPS route + REP row + chips; BOTTOM-RIGHT vehicle
+// card + weapon rail + armor; CENTER feedback + dispatch ticker + mission
+// ledger. No text wall anywhere: the permanent debug lists are gone, the
+// TAGIHAN list collapses to one pill (itemised only in pause).
+import { LOCATIONS, roadLines } from './city.js';
+import { WEAPONS, DJ_LINES, CHARACTERS } from './config.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
+import { rankFor, nextUnlock } from './progress.js';
 
-const REP_TITLES = ['ANAK BARU', 'RUNNER', 'BENTARA', 'RAJA KEMARAU', 'LEGENDA', 'DEWA MARINA'];
-const REP_STEPS = [0, 400, 1000, 2000, 3500, 6000];
 const SONGS = [
-  'Musim Kering — Senja Bentara',
-  'Debu Arteri — Kijang Liar',
+  'Senja di Aspal',
+  'Debu Kota',
   'Angin Timur — Ruko Blues',
   'Plaza 16:00 — Matahari Retak',
+  'Kijang Liar — Debu Arteri',
 ];
 
-export function repLevel(rep) {
-  let level = 1;
-  for (let i = 0; i < REP_STEPS.length; i += 1) if (rep >= REP_STEPS[i]) level = i + 1;
-  return level;
-}
-export function repTitle(rep) { return REP_TITLES[repLevel(rep) - 1]; }
+export function repLevel(rep) { return rankFor(rep).level; }
+export function repTitle(rep) { return rankFor(rep).title; }
 
 function districtName(x, z) {
   let best = null;
@@ -50,30 +44,43 @@ function districtName(x, z) {
 export function createHud() {
   const $ = (id) => document.getElementById(id);
   const els = {
-    missionTitle: $('missionTitle'), missionObj: $('missionObj'),
-    missionStageFill: $('missionStageFill'), missionNext: $('missionNext'),
-    repText: $('repText'), repFill: $('repFill'),
+    missionStinger: $('missionStinger'), stingerAct: $('stingerAct'), stingerTitle: $('stingerTitle'),
+    stingerObj: $('stingerObj'), stingerPips: $('stingerPips'), stingerNext: $('stingerNext'),
+    missionPill: $('missionPill'), pillObj: $('pillObj'), pillDist: $('pillDist'), pillFill: $('pillFill'),
     cashText: $('cashText'), clockText: $('clockText'), starsBox: $('starsBox'),
-    seenFlash: $('seenFlash'),
-    policeBox: $('policeBox'), policeRows: $('policeRows'),
-    billBox: $('billBox'), billRows: $('billRows'), billTotal: $('billTotal'),
+    seenFlash: $('seenFlash'), billPill: $('billPill'), incomeLine: $('incomeLine'),
+    policeBox: $('policeBox'), policeHeader: $('policeHeader'), policeRows: $('policeRows'), policeMore: $('policeMore'),
     minimap: $('minimap'), locName: $('locName'),
-    dialogue: $('dialogue'), dialogueLine: $('dialogueLine'), portraitCanvas: $('portraitCanvas'),
-    toast: $('toast'), prompt: $('prompt'), popups: $('popups'),
+    repText: $('repText'), repFill: $('repFill'),
+    chipKoleksi: $('chipKoleksi'), chipAset: $('chipAset'), chipNext: $('chipNext'),
+    carRail: $('carRail'), carRailRows: $('carRailRows'),
+    ticker: $('ticker'), feedRows: $('feedRows'),
+    ledger: $('ledger'), ledgerTitle: $('ledgerTitle'), ledgerGross: $('ledgerGross'),
+    ledgerBill: $('ledgerBill'), ledgerRep: $('ledgerRep'), ledgerNet: $('ledgerNet'),
+    dialogue: $('dialogue'), dialogueName: $('dialogueName'), dialogueRole: $('dialogueRole'),
+    dialogueLine: $('dialogueLine'), portraitCanvas: $('portraitCanvas'),
+    toast: $('toast'), prompt: $('prompt'),
     gauge: $('gauge'), vehicleName: $('vehicleName'),
-    radioLine: $('radioLine'), weaponBox: $('weaponBox'),
-    collectText: $('collectText'), taxiText: $('taxiText'),
+    fuelFill: $('fuelFill'), nitroFill: $('nitroFill'), condFill: $('condFill'),
+    radioText: $('radioText'), weaponBox: $('weaponBox'),
+    armorFill: $('armorFill'),
     crosshair: $('crosshair'), screen: $('screen'), status: $('status'),
+    damageVignette: $('damageVignette'),
   };
   const mapCtx = els.minimap.getContext('2d');
   const gaugeCtx = els.gauge.getContext('2d');
-  const popups = createPopups(els.popups);
-  let billTimer = 0;
+  const popups = createPopups(els.feedRows);
   let toastTimer = 0;
   let dialogueTimer = 0;
   let songIndex = 0;
   let songTimer = 24;
   let djIndex = 0;
+  let stingerTimer = 0;
+  let tickerTimer = 0;
+  let ledgerTimer = 0;
+  let lastLedger = null;
+  let lastMissionKey = '';
+  let lastStepKey = '';
 
   function starsHtml(heat) {
     const full = Math.floor(heat);
@@ -84,9 +91,16 @@ export function createHud() {
     return html;
   }
 
+  function pipsHtml(filled, total) {
+    let s = '';
+    for (let i = 0; i < total; i += 1) s += i < filled ? '●' : '○';
+    return s;
+  }
+
   // Circular radar: dark disc, road graph, blocks, water, then the live
-  // layer — objective, police, collectibles, taxi, player arrow, search
-  // ring and the N compass on the rim.
+  // layer — GPS route (dashed red polyline to the objective), objective,
+  // police, collectibles, owned-property gold $ blips, taxi, player arrow,
+  // search ring and the N compass on the rim.
   function drawMinimap(G) {
     const W = 200;
     const R = 98;
@@ -100,10 +114,8 @@ export function createHud() {
     mapCtx.clip();
     mapCtx.fillStyle = '#10161d';
     mapCtx.fillRect(0, 0, W, W);
-    // Marina water along the south edge.
     mapCtx.fillStyle = '#14424a';
     mapCtx.fillRect(0, py(-194), W, W - py(-194));
-    // Road graph: light lines on the dark disc.
     mapCtx.strokeStyle = '#5a6a78';
     mapCtx.lineWidth = 5;
     for (const c of roadLines()) {
@@ -120,11 +132,9 @@ export function createHud() {
     };
     dot(150, -60, '#2fbf71', 4); // safehouse
     dot(-70, -140, '#4a90d9', 4); // shop
-    // Collectibles: tiny gold dots, so the radar advertises the hunt.
     if (G.collectibles) {
       for (const item of G.collectibles.remaining()) dot(item.x, item.z, '#ffd75e', 1.8);
     }
-    // Taxi: teal dot at the waiting passenger, teal ring at the destination.
     if (G.taxi) {
       if (G.taxi.state === 'waiting' && G.taxi.passenger) dot(G.taxi.passenger.x, G.taxi.passenger.z, '#2fd8c8', 4);
       if (G.taxi.state === 'riding' && G.taxi.destination) {
@@ -135,7 +145,6 @@ export function createHud() {
         mapCtx.stroke();
       }
     }
-    // Race gate, when a race is running.
     if (G.race && G.race.active && G.race.nextGate) {
       mapCtx.strokeStyle = '#ffd75e';
       mapCtx.lineWidth = 2;
@@ -143,9 +152,18 @@ export function createHud() {
       mapCtx.arc(px(G.race.nextGate.x), py(G.race.nextGate.z), 6, 0, Math.PI * 2);
       mapCtx.stroke();
     }
-    // Objective: pulsing gold diamond.
+    // GPS route: dashed red L along the road grid, player → objective.
     if (!G.missions.done) {
       const L = G.missionTarget();
+      mapCtx.strokeStyle = '#ff3b2e';
+      mapCtx.lineWidth = 2.5;
+      mapCtx.setLineDash([7, 5]);
+      mapCtx.beginPath();
+      mapCtx.moveTo(px(G.player.x), py(G.player.z));
+      mapCtx.lineTo(px(L.x), py(G.player.z));
+      mapCtx.lineTo(px(L.x), py(L.z));
+      mapCtx.stroke();
+      mapCtx.setLineDash([]);
       const pulse = 4 + Math.sin(performance.now() / 300) * 1.5;
       mapCtx.fillStyle = '#ffd75e';
       mapCtx.save();
@@ -154,14 +172,21 @@ export function createHud() {
       mapCtx.fillRect(-pulse / 2, -pulse / 2, pulse, pulse);
       mapCtx.restore();
     }
-    // Police blips: red in pursuit, orange when searching.
     for (const u of G.policeUnits()) {
-      dot(u.x, u.z, u.status === 'SEARCHING' ? '#ff9d5c' : '#ff3b2e', 3.5);
+      dot(u.x, u.z, u.status === 'MENCARI' ? '#ff9d5c' : '#ff3b2e', 3.5);
     }
-    // Traffic: faint grey dots, so the radar shows the city is busy.
     for (const c of G.traffic.cars) dot(c.x, c.z, '#7a8a98', 1.6);
-    // Search ring: a dashed red circle around the player while wanted.
-    if (G.state.heat >= 1) {
+    // Search ring: the police's last-known area, dashed red, on the radar.
+    const ring = G.police && G.police.searchRing ? G.police.searchRing : null;
+    if (ring) {
+      mapCtx.strokeStyle = 'rgba(255, 59, 46, 0.9)';
+      mapCtx.lineWidth = 2;
+      mapCtx.setLineDash([6, 5]);
+      mapCtx.beginPath();
+      mapCtx.arc(px(ring.x), py(ring.z), ring.r * s, 0, Math.PI * 2);
+      mapCtx.stroke();
+      mapCtx.setLineDash([]);
+    } else if (G.state.heat >= 1) {
       mapCtx.strokeStyle = 'rgba(255, 59, 46, 0.8)';
       mapCtx.lineWidth = 2;
       mapCtx.setLineDash([6, 5]);
@@ -170,7 +195,6 @@ export function createHud() {
       mapCtx.stroke();
       mapCtx.setLineDash([]);
     }
-    // Player arrow, rotated by heading.
     mapCtx.save();
     mapCtx.translate(px(G.player.x), py(G.player.z));
     mapCtx.rotate(-G.player.heading);
@@ -186,7 +210,6 @@ export function createHud() {
     mapCtx.stroke();
     mapCtx.restore();
     mapCtx.restore();
-    // Rim: dark ring + N compass at the top.
     mapCtx.strokeStyle = 'rgba(255,255,255,0.5)';
     mapCtx.lineWidth = 2;
     mapCtx.beginPath();
@@ -198,8 +221,8 @@ export function createHud() {
     mapCtx.fillText('N', 100, 16);
   }
 
-  // Circular speed gauge: a 240° dial, needle, km/h readout, gear letter
-  // and a condition arc that turns red as the car breaks down.
+  // Circular speed gauge: 240° dial, needle, km/h readout, gear letter
+  // and a condition arc. Max 200 km/h — the drive shot's 151 reads here.
   function drawGauge(P) {
     const W = 150;
     const H = 150;
@@ -208,27 +231,23 @@ export function createHud() {
     gaugeCtx.clearRect(0, 0, W, H);
     const startAngle = Math.PI * 0.75;
     const sweep = Math.PI * 1.5;
-    const maxKmh = 160;
+    const maxKmh = 200;
     const frac = P.onFoot ? 0 : Math.min(1, P.speedKmh / maxKmh);
-    // Dial track.
     gaugeCtx.strokeStyle = 'rgba(255,255,255,0.25)';
     gaugeCtx.lineWidth = 9;
     gaugeCtx.beginPath();
     gaugeCtx.arc(cx, cy, 58, startAngle, startAngle + sweep);
     gaugeCtx.stroke();
-    // Speed arc.
     gaugeCtx.strokeStyle = '#ffd75e';
     gaugeCtx.beginPath();
     gaugeCtx.arc(cx, cy, 58, startAngle, startAngle + sweep * frac);
     gaugeCtx.stroke();
-    // Condition arc (inner): green to red.
     const cond = P.onFoot ? P.health / 100 : (P.car ? P.car.health / 100 : 1);
     gaugeCtx.strokeStyle = cond > 0.5 ? '#7dd87d' : cond > 0.25 ? '#ffb14d' : '#ff3b2e';
     gaugeCtx.lineWidth = 5;
     gaugeCtx.beginPath();
     gaugeCtx.arc(cx, cy, 46, startAngle, startAngle + sweep * cond);
     gaugeCtx.stroke();
-    // Needle.
     const needleAngle = startAngle + sweep * frac;
     gaugeCtx.strokeStyle = '#ffffff';
     gaugeCtx.lineWidth = 3;
@@ -236,7 +255,6 @@ export function createHud() {
     gaugeCtx.moveTo(cx, cy);
     gaugeCtx.lineTo(cx + Math.cos(needleAngle) * 50, cy + Math.sin(needleAngle) * 50);
     gaugeCtx.stroke();
-    // Readout.
     gaugeCtx.fillStyle = '#ffffff';
     gaugeCtx.font = 'bold 26px system-ui, sans-serif';
     gaugeCtx.textAlign = 'center';
@@ -250,82 +268,145 @@ export function createHud() {
     gaugeCtx.fillText(gear, cx, cy + 44);
   }
 
+  function showStinger(G) {
+    const ch = G.missions.chapter();
+    const pips = G.missions.stagePips();
+    els.stingerAct.textContent = `${ch.name} · MISI ${ch.missionNumber}/${ch.missionTotal}`;
+    els.stingerTitle.textContent = ch.title;
+    els.stingerObj.textContent = G.missions.objectiveText();
+    els.stingerPips.textContent = pipsHtml(pips.filled, pips.total);
+    els.stingerNext.textContent = G.missions.nextText();
+    els.missionStinger.style.display = 'block';
+    els.missionPill.style.display = 'none';
+    stingerTimer = 2;
+  }
+
   function update(G, dt) {
     const S = G.state;
     const P = G.player;
-    // Mission panel.
-    els.missionTitle.textContent = G.missions.done
-      ? 'SEMUA MISI SELESAI'
-      : `MISSION ${G.missions.index + 1}/8: ${G.missions.current().title}`;
-    els.missionObj.textContent = G.missions.objectiveText();
-    els.missionStageFill.style.width = `${Math.round(G.missions.stageFrac() * 100)}%`;
-    els.missionNext.textContent = G.missions.nextText();
-    const level = repLevel(S.rep);
-    const base = REP_STEPS[level - 1];
-    const next = REP_STEPS[level] ?? REP_STEPS[level - 1] + 1000;
-    els.repText.textContent = `REP ${level} · ${REP_TITLES[level - 1]} (${Math.round(S.rep - base)}/${next - base})`;
+    // Mission stinger on mission/step change, then the mini-pill.
+    const missionKey = `${G.missions.index}`;
+    const stepKey = `${G.missions.index}:${G.missions.stepIndex ?? 0}`;
+    if (missionKey !== lastMissionKey || stepKey !== lastStepKey) {
+      lastMissionKey = missionKey;
+      lastStepKey = stepKey;
+      if (!G.missions.done) showStinger(G);
+    }
+    if (stingerTimer > 0) {
+      stingerTimer -= dt;
+      if (stingerTimer <= 0) {
+        els.missionStinger.style.display = 'none';
+        els.missionPill.style.display = 'flex';
+      }
+    }
+    if (els.missionPill.style.display !== 'none' && stingerTimer <= 0 && !G.missions.done) {
+      const L = G.missionTarget();
+      const d = Math.round(Math.hypot(L.x - P.x, L.z - P.z));
+      const timer = G.missions.surviveTimer();
+      els.pillObj.textContent = G.missions.objectiveText().slice(0, 30);
+      els.pillDist.textContent = timer !== null ? `· ${timer} dtk` : `· ${d} m`;
+      els.pillFill.style.width = `${Math.round(G.missions.stageFrac() * 100)}%`;
+      const ch = G.missions.chapter();
+      els.missionPill.querySelector('.pill-title').textContent = `MISI ${ch.missionNumber}/${ch.missionTotal}`;
+    }
+    // REP row + chips.
+    const rank = rankFor(S.rep);
+    const base = [0, 400, 1000, 2000][rank.level - 1];
+    const next = rank.nextAt ?? base + 1000;
+    els.repText.textContent = `REP ${rank.level} · ${rank.title} (${Math.round(S.rep - base)}/${next - base})`;
     els.repFill.style.width = `${Math.round(((S.rep - base) / (next - base)) * 100)}%`;
-    // Cash, stars, clock, "DI PANDANG".
+    const unlock = nextUnlock(S.rep);
+    els.chipNext.textContent = unlock ? `BERIKUTNYA di REP ${unlock.rep}: ${unlock.label}` : 'SEMUA UNLOCK TERBUKA';
+    if (els.chipKoleksi && G.collectibles) {
+      els.chipKoleksi.textContent = `KOLEKSI ${G.collectibles.collected}/${G.collectibles.total}`;
+    }
+    if (els.chipAset && G.usaha) {
+      els.chipAset.textContent = `ASET ${G.usaha.count}/${G.usaha.total}`;
+    }
+    // Cash, stars, clock, TAGIHAN pill, income line, "DI PANDANG".
     els.cashText.textContent = `$${Math.round(S.cash).toLocaleString('en-US')}`;
     els.starsBox.innerHTML = starsHtml(S.heat);
     const mins = 16 * 60 + Math.floor(S.time * 0.5);
     els.clockText.textContent = `HARI ${S.day} · ${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')} · MUSIM KEMARAU`;
+    const billTotal = G.bill ? G.bill.total() : 0;
+    els.billPill.textContent = billTotal > 0 ? `TAGIHAN −$${billTotal}` : '';
+    els.incomeLine.textContent = G.usaha && G.usaha.incomePerDay() > 0
+      ? `+$${G.usaha.incomePerDay()}/hari · ASET ${G.usaha.count}/${G.usaha.total}`
+      : '';
     if (els.seenFlash) {
       const seen = S.heat >= 1 && G.police && G.police.anyoneSees(P.x, P.z);
       els.seenFlash.style.display = seen ? 'block' : 'none';
     }
-    // Collectibles + taxi lines.
-    if (els.collectText && G.collectibles) {
-      els.collectText.textContent = `KOLEKSI ${G.collectibles.collected}/${G.collectibles.total} · +$${G.collectibles.earned}`;
-    }
-    if (els.taxiText && G.taxi) {
-      if (G.taxi.state === 'waiting' && G.taxi.passenger) els.taxiText.textContent = `TAKSI: ${G.taxi.passenger.name} menunggu — jemput (E)`;
-      else if (G.taxi.state === 'riding' && G.taxi.destination) els.taxiText.textContent = `TAKSI: antar ke ${G.taxi.destination.label} — $${G.taxi.fare}`;
-      else if (G.race && G.race.active) els.taxiText.textContent = `BALAPAN: gate ${G.race.gateIndex + 1}/${G.race.gateCount} — ${Math.round(G.race.timer)} dtk`;
-      else els.taxiText.textContent = `TAKSI: ${G.taxi.trips} trip · +$${G.taxi.earned}`;
-    }
-    // Police response list.
+    // Police panel: only while wanted, ≤5 rows + overflow line.
     const units = G.policeUnits();
     if (S.heat >= 1 && units.length > 0) {
       els.policeBox.style.display = 'block';
-      els.policeRows.innerHTML = units.map((u) =>
-        `<div class="unit"><b>${u.name}</b><span>${u.dist} m</span><span class="st">${u.status}</span></div>`).join('');
+      els.policeHeader.textContent = `RESPON POLISI — ${units.length} UNIT · KODE ${Math.ceil(S.heat)}`;
+      const shown = units.slice(0, 5);
+      els.policeRows.innerHTML = shown.map((u) => {
+        const pillClass = u.status === 'MENABRAK' ? 'pill-MENABRAK'
+          : u.status === 'IKAT JALAN' ? 'pill-IKAT'
+            : u.status === 'SOROT' ? 'pill-SOROT'
+              : u.status === 'MENCARI' ? 'pill-MENCARI' : 'pill-KEJAR';
+        return `<div class="unit"><b>${u.name}</b><span class="dist">${u.dist} m</span><span class="pill ${pillClass}">${u.status}</span></div>`;
+      }).join('');
+      els.policeMore.textContent = units.length > 5 ? `+${units.length - 5} unit lagi` : '';
     } else {
       els.policeBox.style.display = 'none';
     }
-    // Bill panel, throttled to 10 Hz.
-    billTimer -= dt;
-    if (billTimer <= 0) {
-      billTimer = 0.1;
-      const total = G.bill.total();
-      if (total > 0) {
-        els.billBox.style.display = 'block';
-        els.billRows.innerHTML = G.bill.lines.map((l) =>
-          `<div class="row"><span>${l.label}</span><span>$${l.amount}</span></div>`).join('');
-        els.billTotal.textContent = `$${total}`;
+    // Right-edge vehicle rail: the owned garage, stacked.
+    if (G.garage) {
+      const owned = G.garage.ownedList();
+      if (owned.length > 1) {
+        els.carRail.style.display = 'flex';
+        els.carRailRows.innerHTML = owned.map((d) => {
+          const u = G.garage.upgrades[d.id] || { engine: 0, grip: 0, turbo: 0 };
+          const pips = '●'.repeat(u.engine + u.grip + u.turbo) + '○'.repeat(Math.max(0, 9 - (u.engine + u.grip + u.turbo)));
+          return `<div class="rail-car"><b>${d.name}</b><span class="pips">${pips}</span></div>`;
+        }).join('');
       } else {
-        els.billBox.style.display = 'none';
+        els.carRail.style.display = 'none';
       }
     }
-    // Drive box: gauge + vehicle name + radio + weapon strip.
+    // Drive box: gauge + meters + radio + weapon rail + armor.
     drawGauge(P);
     els.vehicleName.textContent = P.onFoot ? 'JALAN KAKI' : (P.car ? P.car.name.toUpperCase() : 'CEMPAKA GT');
+    if (els.fuelFill) els.fuelFill.style.width = `${Math.round(P.fuel)}%`;
+    if (els.nitroFill) els.nitroFill.style.width = `${Math.round(P.boost * 100)}%`;
+    if (els.condFill) {
+      const cond = P.onFoot ? P.health : (P.car ? P.car.health : 100);
+      els.condFill.style.width = `${Math.round(cond)}%`;
+    }
+    if (els.armorFill) els.armorFill.style.width = `${Math.round(P.armor || 0)}%`;
     songTimer -= dt;
     if (songTimer <= 0) {
       songTimer = 24;
       songIndex = (songIndex + 1) % SONGS.length;
       if (songIndex % 2 === 1) {
         djIndex = (djIndex + 1) % DJ_LINES.length;
-        els.radioLine.textContent = `RADIO KEMARAU 92.4 · ${DJ_LINES[djIndex]}`;
+        els.radioText.textContent = `RADIO KEMARAU 92.4 · ${DJ_LINES[djIndex]}`;
       } else {
-        els.radioLine.textContent = `RADIO KEMARAU 92.4 · ${SONGS[songIndex]}`;
+        els.radioText.textContent = `RADIO KEMARAU 92.4 · ${SONGS[songIndex]}`;
       }
     }
-    const shotgun = P.hasShotgun
-      ? `<span class="slot">2 ${WEAPONS.shotgun.name} · ${P.shells}</span>`
-      : `<span class="slot locked">2 ${WEAPONS.shotgun.name} · LOCKED $${WEAPONS.shotgun.price}</span>`;
-    const smg = `<span class="slot locked">3 ${WEAPONS.smg.name} · LOCKED $${WEAPONS.smg.price}</span>`;
-    els.weaponBox.innerHTML = `<span class="slot${P.weapon === 'pistol' ? ' active' : ''}">1 ${WEAPONS.pistol.name} · ∞</span>${shotgun}${smg}`;
+    // Weapon rail: 5 slots, ammo counts, 2 LOCKED with a padlock — the
+    // depth advert. Never hide an unowned weapon behind a fake label.
+    const slot = (n, name, owned, ammoText, active) => {
+      if (!owned) return `<span class="slot locked">${n} 🔒 ${name}</span>`;
+      return `<span class="slot${active ? ' active' : ''}">${n} ${name} · <span class="ammo">${ammoText}</span></span>`;
+    };
+    const magText = (w) => {
+      if (w === 'pistol') return '∞';
+      const mag = P.mag[w];
+      if (P.reloading && P.weapon === w) return 'ISI ULANG…';
+      return `${mag === Infinity ? '∞' : mag}/${w === 'shotgun' ? P.shells : w === 'smg' ? P.smgAmmo : w === 'rifle' ? P.rifleAmmo : P.launcherAmmo}`;
+    };
+    els.weaponBox.innerHTML =
+      slot(1, WEAPONS.pistol.name, true, magText('pistol'), P.weapon === 'pistol')
+      + slot(2, WEAPONS.shotgun.name, P.hasShotgun, magText('shotgun'), P.weapon === 'shotgun')
+      + slot(3, WEAPONS.smg.name, P.hasSmg, magText('smg'), P.weapon === 'smg')
+      + slot(4, WEAPONS.rifle.name, P.hasRifle, magText('rifle'), P.weapon === 'rifle')
+      + slot(5, WEAPONS.launcher.name, P.hasLauncher, magText('launcher'), P.weapon === 'launcher');
     els.crosshair.style.display = P.onFoot ? 'block' : 'none';
     els.locName.textContent = districtName(P.x, P.z);
     drawMinimap(G);
@@ -337,6 +418,28 @@ export function createHud() {
       dialogueTimer -= dt;
       if (dialogueTimer <= 0) els.dialogue.style.display = 'none';
     }
+    if (tickerTimer > 0) {
+      tickerTimer -= dt;
+      if (tickerTimer <= 0) els.ticker.style.display = 'none';
+    }
+    if (ledgerTimer > 0) {
+      ledgerTimer -= dt;
+      if (ledgerTimer <= 0) els.ledger.style.display = 'none';
+    }
+    // Pause screen: itemised bill + KEMAJUAN, only here (the HUD shows
+    // one pill and one chip row).
+    const pauseBill = document.getElementById('pauseBill');
+    if (pauseBill && G.bill && !els.screen.classList.contains('hidden')) {
+      const lines = G.bill.lines || [];
+      pauseBill.innerHTML = lines.length
+        ? `<div style="margin-top:10px;font-size:13px">TAGIHAN: ${lines.map((l) => `${l.label} −$${l.amount}`).join(' · ')} — total −$${G.bill.total()}</div>`
+        : '';
+    }
+    const pauseKema = document.getElementById('pauseKema');
+    if (pauseKema && G.progress && !els.screen.classList.contains('hidden')) {
+      const rk = rankFor(S.rep);
+      pauseKema.innerHTML = `KEMAJUAN <b>${G.progress.percent}%</b> · ${rk.title} · Misi ${G.missions.done ? 8 : G.missions.index}/8 · Koleksi ${G.collectibles ? G.collectibles.collected : 0}/24 · Aset ${G.usaha ? G.usaha.count : 0}/3`;
+    }
   }
 
   function toast(text, seconds = 4) {
@@ -344,8 +447,41 @@ export function createHud() {
     toastTimer = seconds;
   }
 
-  // who: display name line; portraitKey: a CHARACTERS key ('wira', 'sari',
-  // 'ijal', 'rahmat', 'ocid') or old-style initials for compatibility.
+  // Dispatch ticker: one-way police radio lines at the top of the center
+  // band, e.g. "POLISI: Semua unit — kejar sedan merah di Kawasan Industri!"
+  function ticker(text, seconds = 5) {
+    els.ticker.textContent = text;
+    els.ticker.style.display = 'block';
+    tickerTimer = seconds;
+  }
+
+  // Mission ledger: the end-of-mission settlement card.
+  function showLedger(data, seconds = 6) {
+    lastLedger = data;
+    els.ledgerTitle.textContent = `${data.title} SELESAI`;
+    els.ledgerGross.textContent = `+$${data.gross.toLocaleString('en-US')}`;
+    els.ledgerBill.textContent = `−$${data.bill.toLocaleString('en-US')}`;
+    els.ledgerRep.textContent = `+${data.rep}`;
+    els.ledgerNet.textContent = `+$${data.net.toLocaleString('en-US')}`;
+    els.ledger.style.display = 'block';
+    ledgerTimer = seconds;
+  }
+  function reshowLedger(seconds = 600) {
+    if (lastLedger) showLedger(lastLedger, seconds);
+  }
+
+  function damageFlash() {
+    if (!els.damageVignette) return;
+    els.damageVignette.style.opacity = '1';
+    setTimeout(() => { els.damageVignette.style.opacity = '0'; }, 260);
+  }
+
+  function setPhotoMode(on) {
+    document.body.classList.toggle('photo', !!on);
+  }
+
+  // who: display name; portraitKey: a CHARACTERS key ('wira', 'aska', ...).
+  // The role chip is teal; the line clamps to 2, inside 24px safe margins.
   function dialogue(who, line, portraitKey = 'wira', seconds = 6) {
     if (els.portraitCanvas && CHARACTERS[portraitKey]) {
       drawPortrait(els.portraitCanvas, portraitKey);
@@ -360,8 +496,11 @@ export function createHud() {
       g.textBaseline = 'middle';
       g.fillText(String(portraitKey).slice(0, 2), 32, 34);
     }
+    const role = CHARACTERS[portraitKey] ? CHARACTERS[portraitKey].role : '';
+    els.dialogueName.textContent = who;
+    els.dialogueRole.textContent = role;
+    els.dialogueRole.style.display = role ? 'inline-block' : 'none';
     els.dialogueLine.textContent = line;
-    els.dialogue.querySelector('b').textContent = who;
     els.dialogue.style.display = 'flex';
     dialogueTimer = seconds;
   }
@@ -380,5 +519,8 @@ export function createHud() {
     els.screen.innerHTML = '';
   }
 
-  return { update, toast, dialogue, prompt, announce, showScreen, hideScreen, popups, els };
+  return {
+    update, toast, ticker, dialogue, prompt, announce, showScreen, hideScreen,
+    popups, els, showLedger, reshowLedger, damageFlash, setPhotoMode, showStinger,
+  };
 }

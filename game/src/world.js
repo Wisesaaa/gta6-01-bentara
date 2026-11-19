@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { CITY, PALETTE, SUN, SUN_COLOR, SUN_INTENSITY } from './config.js';
 import { roadLines } from './city.js';
-import { createGoldenHour, applyGoldenHour } from './lighting.js';
+import { createGoldenHour, applyGoldenHour, attachGlow } from './lighting.js';
 
 // One hash for all deterministic placement: the same seed grows the same street.
 function hash2(x, z) {
@@ -53,49 +53,53 @@ function textSign(text, w, h, bg, fg) {
 // The cover mural: a big painted wall on the arterial — a golden sun,
 // a wayang silhouette and the words BENTARA / MUSIM KEMARAU. It breaks the
 // right-third tan facade the old cover suffered from, and it is the one
-// visual anchor no rival has.
+// visual anchor no rival has. SQUARE canvas, vertical composition
+// (title / sun / subtitle): the chase reads it from ~70 m at an angle,
+// and a tall panel puts the title at ~18 px on screen — a landscape
+// 2:1 panel at the same distance shrinks the title below legibility.
 function muralTexture() {
   const c = document.createElement('canvas');
   c.width = 512;
-  c.height = 256;
+  c.height = 512;
   const g = c.getContext('2d');
   g.fillStyle = '#a83226';
-  g.fillRect(0, 0, 512, 256);
-  // Golden sun.
+  g.fillRect(0, 0, 512, 512);
+  // Title, big enough to read from the arterial.
   g.fillStyle = '#ffd75e';
+  g.font = 'bold 88px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.fillText('BENTARA', 256, 100);
+  // Golden sun.
   g.beginPath();
-  g.arc(256, 108, 62, 0, Math.PI * 2);
+  g.arc(256, 265, 88, 0, Math.PI * 2);
   g.fill();
   g.strokeStyle = '#ffd75e';
-  g.lineWidth = 6;
+  g.lineWidth = 8;
   for (let k = 0; k < 12; k += 1) {
     const a = (k / 12) * Math.PI * 2;
     g.beginPath();
-    g.moveTo(256 + Math.cos(a) * 74, 108 + Math.sin(a) * 74);
-    g.lineTo(256 + Math.cos(a) * 92, 108 + Math.sin(a) * 92);
+    g.moveTo(256 + Math.cos(a) * 104, 265 + Math.sin(a) * 104);
+    g.lineTo(256 + Math.cos(a) * 128, 265 + Math.sin(a) * 128);
     g.stroke();
   }
   // Wayang silhouette under the sun.
   g.fillStyle = '#1d2a3a';
   g.beginPath();
-  g.moveTo(180, 200);
-  g.lineTo(200, 150);
-  g.lineTo(216, 200);
+  g.moveTo(150, 420);
+  g.lineTo(180, 350);
+  g.lineTo(210, 420);
   g.closePath();
   g.fill();
   g.beginPath();
-  g.moveTo(300, 200);
-  g.lineTo(316, 140);
-  g.lineTo(336, 200);
+  g.moveTo(300, 420);
+  g.lineTo(330, 340);
+  g.lineTo(360, 420);
   g.closePath();
   g.fill();
-  g.fillRect(120, 198, 272, 6);
+  g.fillRect(90, 418, 332, 8);
   g.fillStyle = '#ffd75e';
-  g.font = 'bold 44px system-ui, sans-serif';
-  g.textAlign = 'center';
-  g.fillText('BENTARA', 256, 52);
-  g.font = 'bold 24px system-ui, sans-serif';
-  g.fillText('MUSIM KEMARAU', 256, 238);
+  g.font = 'bold 46px system-ui, sans-serif';
+  g.fillText('MUSIM KEMARAU', 256, 478);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -275,6 +279,11 @@ function buildStreetGrammar(scene) {
     lampMesh.setMatrixAt(i, m4);
   });
   scene.add(poleMesh, armMesh, lampMesh);
+  // Fake bloom on every lamp head: one small additive glow sprite each,
+  // so the street lights bloom at golden hour without a composer pass.
+  for (const s of lightSpots) {
+    attachGlow(scene, s.x + s.sx * 1.8, 5.85, s.z + s.sz * 1.8, 2.6, 0xffe9a8, 0.4);
+  }
 
   // Road signs: STOP and one-way signs on posts at the arterial junctions.
   function signTexture(kind) {
@@ -429,7 +438,7 @@ function buildBuildings(scene, city) {
   city.buildings.forEach((b, i) => {
     m4.compose(new THREE.Vector3(b.x, 0.6, b.z), new THREE.Quaternion(), new THREE.Vector3(b.w + 0.3, 1.2, b.d + 0.3));
     plinthMesh.setMatrixAt(i, m4);
-    plinthMesh.setColorAt(i, col.setHex(b.trim));
+    plinthMesh.setColorAt(i, col.setHex(b.trim).multiplyScalar(0.55)); // darkened plinth strip at the base (suplemen)
   });
   plinthMesh.receiveShadow = true;
   scene.add(plinthMesh);
@@ -528,7 +537,7 @@ function buildFacades(scene, city) {
         for (const y of rows) {
           const r = hash2(b.x + fi * 31 + ci * 7, b.z + y * 3 + fi * 13);
           if (r < 0.16) continue; // blank bay: variation, not a wall of glass
-          const lit = r > 0.8;
+          const lit = r > 0.85; // ~15% of windows emissive #ffb96b (suplemen)
           const tone = lit ? PALETTE.glassLit : PALETTE.glassAlt[Math.floor(hash2(b.x + ci, b.z + y + fi) * PALETTE.glassAlt.length)];
           const px = f.along === 'x' ? b.x + along : f.fixed;
           const pz = f.along === 'x' ? f.fixed : b.z + along;
@@ -581,6 +590,9 @@ function buildFacades(scene, city) {
       litMesh.setMatrixAt(i, m4);
     });
     scene.add(litMesh);
+    // Register in the light rig so the per-act preset can brighten the
+    // lit windows in Act 3 (red dusk) and dim them in Act 1 (morning).
+    if (scene.userData.lightRig) scene.userData.lightRig.litMesh = litMesh;
   }
   const acMesh = new THREE.InstancedMesh(
     new THREE.BoxGeometry(1, 1, 1),
@@ -614,12 +626,15 @@ function buildSigns(scene) {
   const signBentara = textSign('BENTARA', 14, 3.2, '#c0392b', '#ffd75e');
   signBentara.position.set(0, 46, 9.6);
   scene.add(signBentara);
+  // The red BENTARA sign must GLOW: a big additive sprite in front of it.
+  attachGlow(scene, 0, 46, 10.6, 20, 0xff2a1e, 0.45);
   const signRuko = textSign('RUKO', 10, 2.4, '#3f5a78', '#ffffff');
   signRuko.position.set(-70, 12, -128);
   scene.add(signRuko);
   const signMarina = textSign('MARINA', 12, 2.6, '#2f3e46', '#ffffff');
   signMarina.position.set(-6, 9, -178);
   scene.add(signMarina);
+  attachGlow(scene, -6, 9, -177, 14, 0xffe9a8, 0.35);
   // Two posts under the MARINA sign, down to the promenade: the sign used
   // to float with nothing holding it up.
   const postMat = new THREE.MeshLambertMaterial({ color: 0x3a3a38 });
@@ -635,6 +650,7 @@ function buildSigns(scene) {
   signPlaza.position.set(12, 2.4, 32);
   signPlaza.rotation.y = Math.PI;
   scene.add(signPlaza);
+  attachGlow(scene, 12, 2.4, 31, 11, 0xff2a1e, 0.4);
   // More legible street signage, all facing the road so a driver reads them.
   const signPasar = textSign('PASAR PAGI', 9, 2.2, '#1f6b74', '#ffffff');
   signPasar.position.set(42, 6, 102);
@@ -648,11 +664,36 @@ function buildSigns(scene) {
   signApotek.position.set(-37, 6, -100);
   signApotek.rotation.y = Math.PI;
   scene.add(signApotek);
-  // Warung banner strung across the north-row market street.
-  const signWarung = textSign('WARUNG KOPI', 8, 2, '#1f6b74', '#ffd75e');
-  signWarung.position.set(37, 5.5, 96);
-  signWarung.rotation.y = Math.PI;
+  // Warung banner on the stall's WEST face, so the foot shot — whose
+  // camera looks west down the market street — reads it head-on. It
+  // faces EAST (+PI/2, normal +x): the foot camera stands east of the
+  // stall looking west, and a plane is culled from its back side — the
+  // first west-facing try (-PI/2) was invisible from the foot camera
+  // for exactly that reason (it only read from the cover chase, which
+  // approaches from the west). At y 2.5 it hangs like a menu board
+  // between the poles, below the tarp, clear of the top HUD band; set
+  // at the stall's south-west corner (31, 101) so the whole name clears
+  // the driveBox panel on the right.
+  const signWarung = textSign('WARUNG KOPI', 5, 2, '#1f6b74', '#ffd75e');
+  signWarung.position.set(31, 2.5, 101);
+  signWarung.rotation.y = Math.PI / 2;
   scene.add(signWarung);
+  attachGlow(scene, 31.9, 2.5, 101, 10, 0xffc27a, 0.4);
+  // Tarp awning over the warung stall: a sloped canvas on four poles, the
+  // market-stall read the foot shot wants.
+  const tarpMat = new THREE.MeshLambertMaterial({ color: 0xd8a13a, side: THREE.DoubleSide });
+  const tarp = new THREE.Mesh(new THREE.PlaneGeometry(7, 5), tarpMat);
+  tarp.position.set(37, 3.6, 99);
+  tarp.rotation.x = -Math.PI / 2 + 0.22;
+  tarp.rotation.z = 0.1;
+  tarp.castShadow = true;
+  scene.add(tarp);
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x3a3a38 });
+  for (const [px, pz] of [[33.8, 97], [40.2, 97], [33.8, 101], [40.2, 101]]) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.4, 6), poleMat);
+    pole.position.set(px, 1.7, pz);
+    scene.add(pole);
+  }
 }
 
 function buildSkyline(scene) {
@@ -810,48 +851,64 @@ function buildPlaza(scene) {
 }
 
 function buildMural(scene, city) {
-  // The mural goes on the tallest building along the east arterial just
-  // ahead of where the cover chase ends (z 120–148 — the band the close
-  // cover camera looks at), on its west face, so the cover camera reads
-  // it on the right third of the frame instead of blank tan concrete.
-  // Fallbacks, in order: the tallest in the block band south of the
-  // junction (z 46–102, plane at the north end of its face), then the
-  // tallest in z 90–185 (plane at the south end). Earlier picks failed
-  // measurably: the tallest in z 60–120 was a 9 m building 93 m from the
-  // camera, and the tallest in z 90–185 sat behind the camera.
+  // The mural goes on the face of the tallest building the v3 cover
+  // chase can actually READ. The chase runs east along the arterial at
+  // z 111, so the face must look back down the road at the approaching
+  // camera: the WEST face of the tallest in x 9–65, z 46–102 (the block
+  // south of the road). A north-facing mural on that block reads
+  // edge-on from the east chase (13 m of width compressed to a 24 px
+  // sliver), and the west face of the tallest in x 100–140 is occluded
+  // by the nearer buildings of block (37,148). Fallbacks: the south
+  // face of the tallest in x 100–140, z 120–148, then the north face of
+  // the tallest in x 100–140, z 46–102. (The band x 9–65, z 120–148
+  // holds NO buildings at all — it is open yard.) Scoring is height
+  // first, then the face closest to the road / most central in frame:
+  // two 32 m towers tie on height, and the one fronting the arterial
+  // (z 88) reads while the one behind it (z 60) is occluded by the
+  // (14,88) tower in front of it. A plane rotated around Y reads
+  // correctly from the side its normal faces, so no mirror fix is needed.
+  const picks = [
+    { x0: 9, x1: 65, z0: 46, z1: 102, face: 'west', score: (b) => b.h * 1000 + b.x * 10 + b.z },
+    { x0: 100, x1: 140, z0: 120, z1: 148, face: 'south', score: (b) => b.h * 1000 - b.z },
+    { x0: 100, x1: 140, z0: 46, z1: 102, face: 'north', score: (b) => b.h * 1000 + b.z },
+  ];
   let best = null;
-  for (const b of city.buildings) {
-    if (b.x < 100 || b.x > 140 || b.z < 120 || b.z > 148) continue;
-    if (!best || b.h > best.h) best = b;
-  }
-  let mz;
-  if (best) {
-    mz = best.z;
-  } else {
+  let face = 'west';
+  let bestScore = -Infinity;
+  for (const pick of picks) {
     for (const b of city.buildings) {
-      if (b.x < 100 || b.x > 140 || b.z < 46 || b.z > 102) continue;
-      if (!best || b.h > best.h) best = b;
+      if (b.x < pick.x0 || b.x > pick.x1 || b.z < pick.z0 || b.z > pick.z1) continue;
+      const score = pick.score(b);
+      if (score > bestScore) { best = b; face = pick.face; bestScore = score; }
     }
-    if (best) {
-      mz = best.z + Math.max(0, best.d / 2 - 6.5);
-    } else {
-      for (const b of city.buildings) {
-        if (b.x < 100 || b.x > 140 || b.z < 90 || b.z > 185) continue;
-        if (!best || b.h > best.h) best = b;
-      }
-      if (!best) return null;
-      const half = Math.min(6.5, Math.max(0, best.d / 2 - 0.5));
-      mz = best.z - Math.max(0, best.d / 2 - half);
-    }
+    if (best) break;
   }
+  if (!best) return null;
+  const my = Math.min(best.h - 4, 12);
+  // West face: 10×10 m, centred on the visible band (z best.z+4). The
+  // (14,88) tower west of it occludes the face north of z ~87 from the
+  // arterial, so a full-width 18 m panel shows only its southern half
+  // ("ARA" / "EMARAU") — the 10 m panel sits wholly in the clear band
+  // and the whole BENTARA / MUSIM KEMARAU text reads. The texture is
+  // square, so every face uses the same 10×10 panel.
+  const mw = 10;
+  const mh = 10;
   const mural = new THREE.Mesh(
-    new THREE.PlaneGeometry(13, 6.5),
+    new THREE.PlaneGeometry(mw, mh),
     new THREE.MeshBasicMaterial({ map: muralTexture() }),
   );
-  mural.position.set(best.x - best.w / 2 - 0.12, Math.min(best.h - 4, 12), mz);
-  mural.rotation.y = -Math.PI / 2;
+  if (face === 'west') {
+    mural.position.set(best.x - best.w / 2 - 0.12, my, best.z + 4);
+    mural.rotation.y = -Math.PI / 2;
+  } else if (face === 'south') {
+    mural.position.set(best.x, my, best.z - best.d / 2 - 0.12);
+    mural.rotation.y = Math.PI;
+  } else {
+    mural.position.set(best.x, my, best.z + best.d / 2 + 0.12);
+    mural.rotation.y = 0;
+  }
   scene.add(mural);
-  return { building: best, mesh: mural };
+  return { building: best, mesh: mural, face };
 }
 
 export function createView(canvas, city) {
@@ -866,8 +923,11 @@ export function createView(canvas, city) {
   const camera = new THREE.PerspectiveCamera(62, 1280 / 720, 0.1, 2000);
 
   // Golden-hour light rig: a low warm sun with long shadows, and a warm
-  // hemisphere so the shadow side is amber, not dead grey.
-  const hemi = new THREE.HemisphereLight(0xffc98a, 0x8a6a4a, 0.95);
+  // hemisphere so the shadow side is amber, not dead grey. Suplemen spec:
+  // sun #ffb367 ~11°, hemisphere #ffd2a1/#5a2a1a. The rig is stored on the
+  // scene so the per-act presets (lighting.js setAct) can reach the sun,
+  // the hemisphere, the lit-window mesh and the headlight cones.
+  const hemi = new THREE.HemisphereLight(0xffd2a1, 0x5a2a1a, 0.95);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(SUN_COLOR, SUN_INTENSITY);
   sun.position.set(SUN.x, SUN.y, SUN.z);
@@ -880,6 +940,7 @@ export function createView(canvas, city) {
   sun.shadow.camera.far = 700;
   scene.add(sun);
   scene.add(sun.target);
+  scene.userData.lightRig = { sun, hemi, litMesh: null, headlightCones: scene.userData.pendingHeadlightCones || [] };
 
   const rng = city.rng || Math.random;
   const golden = createGoldenHour(scene, city, rng);
@@ -893,6 +954,14 @@ export function createView(canvas, city) {
   buildTrees(scene, city);
   buildPlaza(scene);
   const mural = buildMural(scene, city);
+  // The mural glows too — a warm sprite just off its face toward the
+  // road, so the cover chase catches the wall as a lit surface, not a
+  // flat poster.
+  if (mural && mural.mesh) {
+    const gx = mural.mesh.position.x + (mural.face === 'west' ? -0.9 : 0);
+    const gz = mural.mesh.position.z + (mural.face === 'north' ? 0.9 : mural.face === 'south' ? -0.9 : 0);
+    attachGlow(scene, gx, mural.mesh.position.y, gz, 17, 0xffd75e, 0.35);
+  }
 
   function resize(width, height) {
     renderer.setSize(width, height, false);

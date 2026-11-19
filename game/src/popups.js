@@ -1,59 +1,86 @@
-// Score popups: floating DRIFT / NEAR MISS / pickup / fare payouts over
-// the road, and the "DI PANDANG" flash when police have eyes on the player.
-// DOM elements, animated with CSS, spawned from real game events — never
-// set by a shot script directly (shots trigger the real events instead).
-export function createPopups(container) {
-  const live = [];
+// Center-screen feedback — the v3 juice layer, at ~35% height, 3 tiers:
+// BIG "MISI SELESAI +$2.400" stamps, MID "NGEPOT ×3" / "NYARIS! +$250" /
+// "IKAT JALAN DITEMBUS +$300", SMALL aggregated "+$" pulses. Amber
+// #ffc247, tilted 8°, scale 1.2 → 1, fade 700 ms. Drift combos run
+// ×2 → ×5, white → amber → red. The damage bill gets its own red
+// "TAGIHAN +$40" popup, so the billing system is visible in play.
+import { STUNTS } from './config.js';
 
-  function spawn(text, sub, kind = 'stunt', seconds = 2.6) {
+const COMBO_WINDOW_MS = 3000;
+
+export function createPopups(root) {
+  let driftCombo = 0;
+  let driftComboUntil = 0;
+
+  function spawn(text, sub, kind = 'mid', seconds = 2.6) {
     const el = document.createElement('div');
-    el.className = `popup popup-${kind}`;
-    el.innerHTML = `<b>${text}</b>${sub ? `<span>${sub}</span>` : ''}`;
-    // Stack them slightly apart so two stunts in one second stay readable.
-    const offset = (live.length % 3) * 34;
-    el.style.marginTop = `${-offset}px`;
-    container.appendChild(el);
-    const item = { el, left: seconds };
-    live.push(item);
-    window.setTimeout(() => {
-      el.classList.add('popup-out');
-      window.setTimeout(() => {
-        el.remove();
-        const i = live.indexOf(item);
-        if (i >= 0) live.splice(i, 1);
-      }, 400);
-    }, seconds * 1000);
-    return item;
+    const tier = kind === 'big' ? 'feed-big' : kind === 'small' ? 'feed-small' : 'feed-mid';
+    el.className = tier;
+    if (kind === 'bill' || kind === 'red') el.classList.add('feed-red');
+    el.textContent = text;
+    if (sub) {
+      const s = document.createElement('div');
+      s.className = 'feed-small';
+      s.textContent = sub;
+      el.appendChild(s);
+    }
+    root.appendChild(el);
+    // Settle: 1.2 → 1 over the CSS transition, then fade out 700 ms
+    // before the lifetime ends.
+    requestAnimationFrame(() => {
+      el.style.transform = 'rotate(-8deg) scale(1)';
+    });
+    const fadeMs = Math.max(0, seconds * 1000 - 700);
+    setTimeout(() => { el.classList.add('feed-out'); }, fadeMs);
+    setTimeout(() => { el.remove(); }, seconds * 1000);
+    return el;
   }
 
-  // `seconds` is the on-screen lifetime: live play uses the 2.6 s default;
-  // a screenshot stage may pass a longer one so the popup survives the
-  // slow headless capture (a SwiftShader frame blocks the main thread
-  // longer than the default lifetime, so the popup would fade before the
-  // capture). The text and amount are always the real earned ones.
-  function drift(amount, secondsHeld, seconds = 2.6) {
-    return spawn(`DRIFT +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot`, 'stunt', seconds);
+  function drift(amount, secondsHeld, seconds = 2.2) {
+    const now = Date.now();
+    driftCombo = now <= driftComboUntil ? Math.min(5, driftCombo + 1) : 1;
+    driftComboUntil = now + COMBO_WINDOW_MS;
+    const label = driftCombo >= 2 ? `NGEPOT ×${driftCombo}` : 'NGEPOT';
+    const kind = driftCombo >= 5 ? 'red' : 'mid';
+    spawn(`${label} +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot`, kind, seconds);
   }
 
-  function nearMiss(amount) {
-    return spawn(`NEAR MISS +$${amount}`, 'Nyaris tabrakan di kecepatan penuh', 'stunt');
+  function nearMiss() {
+    spawn(`NYARIS! +$${STUNTS.nearMiss}`, 'nyaris tabrakan', 'mid', 2.2);
   }
 
-  function collect(amount, kind, seconds = 2.6) {
-    return spawn(kind === 'idol' ? 'IDOL +$' + amount : 'KASET +$' + amount, kind === 'idol' ? 'Wayang emas Bentara' : 'Radio Kemarau 92.4', 'collect', seconds);
+  function roadblockBreak() {
+    spawn('IKAT JALAN DITEMBUS +$300', 'blokade polisi dilewati', 'mid', 2.6);
   }
 
-  function fare(amount, name) {
-    return spawn(`TAKSI +$${amount}`, `Antar ${name} sampai tujuan`, 'fare');
+  function kill(amount) {
+    spawn(`+$${amount}`, 'musuh tumbang', 'small', 1.8);
   }
 
-  function raceGate(n, total) {
-    return spawn(`GATE ${n}/${total}`, 'Checkpoint dilewati', 'race', 1.8);
+  function collect(amount, label, seconds = 2.2) {
+    spawn(`+$${amount} ${label}`, '', 'small', seconds);
+  }
+
+  function fare(amount, seconds = 2.6) {
+    spawn(`ONGKOS +$${amount}`, 'penumpang sampai', 'small', seconds);
+  }
+
+  function raceGate(text, seconds = 2.0) {
+    spawn(text, '', 'mid', seconds);
+  }
+
+  function bill(amount) {
+    spawn(`TAGIHAN +$${amount}`, 'kerusakan dibayar nanti', 'bill', 2.2);
+  }
+
+  function big(text, sub) {
+    spawn(text, sub, 'big', 3.0);
   }
 
   function clear() {
-    for (const item of live.splice(0)) item.el.remove();
+    root.innerHTML = '';
+    driftCombo = 0;
   }
 
-  return { spawn, drift, nearMiss, collect, fare, raceGate, clear };
+  return { spawn, drift, nearMiss, roadblockBreak, kill, collect, fare, raceGate, bill, big, clear };
 }
