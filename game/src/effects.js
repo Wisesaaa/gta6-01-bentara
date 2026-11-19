@@ -42,7 +42,7 @@ export function makeGlowSprite(color, scale = 1, opacity = 0.7) {
 }
 
 let smokeTex = null;
-function smokeTexture() {
+export function smokeTexture() {
   if (smokeTex) return smokeTex;
   const c = document.createElement('canvas');
   c.width = 64;
@@ -125,7 +125,68 @@ export function createEffects(scene, rng) {
     return drop;
   }
 
+  // --- smoke wall: a line of big smoke sprites the wind pushes across
+  // the z=111 arterial in Act 3 (the land-fire smoke wall mission beat).
+  // It drifts south across the road and loops back north, so the wall is
+  // always somewhere on the tol — never a static backdrop.
+  const wallSprites = [];
+  for (let i = 0; i < 10; i += 1) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: smokeTexture(), transparent: true, opacity: 0, depthWrite: false,
+    }));
+    s.visible = false;
+    scene.add(s);
+    wallSprites.push({ sprite: s, x: -60 + i * 22, y: 4 + (i % 3) * 2.5, z: 140, seed: i * 1.7 });
+  }
+  let wallActive = false;
+  let wallZ = 140;
+
+  // --- game-feel feedback tiers (game-feel skill): one call per event,
+  // so the whole game stays proportional. Trauma is camera shake
+  // (trauma^2, applied by the view), hit-stop is a real-time freeze the
+  // game loop owns, particles are the pooled sparks/smoke above, and the
+  // number pop lives in popups.js. Tiers: small 0.1-0.2 / medium 0.3-0.5 /
+  // large 0.7-1.0. Never shake a body — only the camera offset moves.
+  const FEEDBACK_TIERS = {
+    small: { trauma: 0.15, hitStop: 0, sparks: 0, smoke: 0 },
+    medium: { trauma: 0.4, hitStop: 0.05, sparks: 6, smoke: 1 },
+    large: { trauma: 0.85, hitStop: 0.12, sparks: 20, smoke: 3 },
+  };
+
   return {
+    feedback(tier, x, z) {
+      const t = FEEDBACK_TIERS[tier] || FEEDBACK_TIERS.small;
+      for (let i = 0; i < t.sparks; i += 1) {
+        const slot = sparks[sparkCursor];
+        sparkCursor = (sparkCursor + 1) % MAX_SPARKS;
+        slot.mesh.position.set(x + rr(rng, -0.5, 0.5), 0.6, z + rr(rng, -0.5, 0.5));
+        slot.vx = rr(rng, -5, 5);
+        slot.vy = rr(rng, 2, 6);
+        slot.vz = rr(rng, -5, 5);
+        slot.life = 0.35;
+        slot.mesh.material.opacity = 1;
+        slot.mesh.visible = true;
+      }
+      for (let i = 0; i < t.smoke; i += 1) {
+        const slot = smokes[smokeCursor];
+        smokeCursor = (smokeCursor + 1) % MAX_SMOKE;
+        slot.sprite.position.set(x + rr(rng, -0.4, 0.4), 0.6, z + rr(rng, -0.4, 0.4));
+        slot.sprite.scale.set(1.6, 1.6, 1);
+        slot.sprite.material.opacity = 0.7;
+        slot.sprite.visible = true;
+        slot.life = 1.0;
+        slot.max = 1.0;
+        slot.vy = 1.2;
+      }
+      return { trauma: t.trauma, hitStop: t.hitStop };
+    },
+    // Turn the smoke wall on/off (Act 3 only). The wall keeps its drift
+    // position while off, so re-entering Act 3 never snaps it.
+    setSmokeWall(active) {
+      wallActive = !!active;
+      for (const w of wallSprites) w.sprite.visible = wallActive;
+    },
+    get smokeWallActive() { return wallActive; },
     // One skid mark under each rear wheel, throttled to every 0.05 s so a
     // long slide lays a trail instead of one black slab.
     skidPair(x, z, heading, dt) {
@@ -173,6 +234,18 @@ export function createEffects(scene, rng) {
         slot.mesh.visible = true;
       }
     },
+    // Hide every smoke puff at once: the mission-complete feedback fires
+    // three puffs exactly on the handoff point, and in the story frame
+    // they sit on the camera axis and bloom into a white blob that reads
+    // as an artefact. The feedback is real — it fired on completion —
+    // but the frozen frame keeps only the ledger and the dialogue, not
+    // the celebration smoke.
+    clearSmoke() {
+      for (const s of smokes) {
+        s.sprite.visible = false;
+        s.life = 0;
+      }
+    },
     dropCash(x, z, amount) {
       return spawnDrop(x, z, 'cash', amount);
     },
@@ -203,6 +276,17 @@ export function createEffects(scene, rng) {
         s.life -= dt;
         if (s.life <= 0) { s.mesh.visible = false; continue; }
         s.mesh.material.opacity = Math.min(0.55, s.life * 0.05);
+      }
+      // Smoke wall drift: south across the arterial at ~2 m/s, looping.
+      if (wallActive) {
+        wallZ -= dt * 2;
+        if (wallZ < 70) wallZ = 150;
+        for (const w of wallSprites) {
+          w.sprite.position.set(w.x + Math.sin(t * 0.4 + w.seed) * 4, w.y + Math.sin(t * 0.6 + w.seed) * 0.8, wallZ + Math.cos(t * 0.3 + w.seed) * 3);
+          const sc = 11 + Math.sin(t * 0.5 + w.seed) * 2;
+          w.sprite.scale.set(sc, sc * 0.8, 1);
+          w.sprite.material.opacity = 0.3 + Math.sin(t * 0.4 + w.seed) * 0.06;
+        }
       }
       for (const s of smokes) {
         if (!s.sprite.visible) continue;

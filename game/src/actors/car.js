@@ -324,11 +324,11 @@ export class Car {
       g.fillRect(0, 0, 64, 64);
       return new THREE.CanvasTexture(c);
     })();
-    const redGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff2a2a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
-    redGlow.scale.set(1.6, 1.6, 1);
+    const redGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff2a2a, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+    redGlow.scale.set(1.2, 1.2, 1);
     redGlow.position.set(-0.23, 1.5, -0.2);
-    const blueGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x2a6bff, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
-    blueGlow.scale.set(1.6, 1.6, 1);
+    const blueGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x2a6bff, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false }));
+    blueGlow.scale.set(1.2, 1.2, 1);
     blueGlow.position.set(0.23, 1.5, -0.2);
     group.add(redGlow, blueGlow);
     this.lightGlowRed = redGlow;
@@ -414,8 +414,8 @@ export class Car {
       const redOn = this._blink % 20 < 10;
       this.lightBarRed.material.color.setHex(redOn ? 0xff2a2a : 0x5a0f0f);
       this.lightBarBlue.material.color.setHex(redOn ? 0x0f2a5a : 0x2a6bff);
-      if (this.lightGlowRed) this.lightGlowRed.material.opacity = redOn ? 0.85 : 0.15;
-      if (this.lightGlowBlue) this.lightGlowBlue.material.opacity = redOn ? 0.15 : 0.85;
+      if (this.lightGlowRed) this.lightGlowRed.material.opacity = redOn ? 0.55 : 0.25;
+      if (this.lightGlowBlue) this.lightGlowBlue.material.opacity = redOn ? 0.25 : 0.55;
     }
     if (this.smoke) {
       // Damage smoke: thickens as health falls, pulsing on the frame counter.

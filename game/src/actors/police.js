@@ -66,6 +66,8 @@ export function createPolice(scene, city, rng) {
   let heliSearchPhase = 0;
   let heliPrevX = 0;
   let heliPrevZ = 0;
+  let searchingNow = false;
+  let searchTime = 0;
 
   // "ZONA PENCARIAN" — the ring on the ground where police last saw the
   // player. It only shows while the player is out of sight with heat on
@@ -158,7 +160,7 @@ export function createPolice(scene, city, rng) {
     // hover altitude, so the base lands exactly on the road.
     const spot = new THREE.Mesh(
       new THREE.ConeGeometry(2.4, 22, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false }),
     );
     spot.position.set(0, -11, 1.6);
     // A real light source inside the cone so the player and the road under
@@ -175,7 +177,7 @@ export function createPolice(scene, city, rng) {
     // The ground pool: a bright disc that follows the player under the beam.
     const pool = new THREE.Mesh(
       new THREE.CircleGeometry(5.5, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.5, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.32, depthWrite: false }),
     );
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.08;
@@ -284,11 +286,14 @@ export function createPolice(scene, city, rng) {
     // this one flag.
     const sees = heat > 0 && anyoneSees(px, pz);
     const searching = heat > 0 && !sees;
+    searchingNow = searching;
     if (sees) {
       lastSeen = { x: px, z: pz };
       step._searchTime = 0;
+      searchTime = 0;
     } else if (searching) {
       step._searchTime = (step._searchTime || 0) + dt;
+      searchTime = step._searchTime;
     }
     // Dispatch ticker: a line when the response escalates, then one
     // every ~25 s while the chase is live.
@@ -404,16 +409,24 @@ export function createPolice(scene, city, rng) {
     return false;
   }
 
+  // Per-unit condition from the cruiser's real health: SIAP / PENYOK / RUSAK.
+  function unitCond(c) {
+    if (c.health === undefined) return 'SIAP';
+    if (c.health >= 75) return 'SIAP';
+    if (c.health >= 40) return 'PENYOK';
+    return 'RUSAK';
+  }
+
   function units(px, pz) {
     const list = [];
-    for (const c of cruisers) list.push({ name: c.unitName, dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, x: c.x, z: c.z });
+    for (const c of cruisers) list.push({ name: c.unitName, dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, cond: unitCond(c), x: c.x, z: c.z });
     for (const c of cops) {
-      if (c.alive) list.push({ name: c.unitName, dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, x: c.x, z: c.z });
+      if (c.alive) list.push({ name: c.unitName, dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, cond: 'SIAP', x: c.x, z: c.z });
     }
-    if (heli) list.push({ name: heli.unitName, dist: Math.round(dist(heli.group.position.x, heli.group.position.z, px, pz)), status: heli.status, x: heli.group.position.x, z: heli.group.position.z });
-    if (roadblock) list.push({ name: 'BLOKADE', dist: Math.round(dist(roadblock.x, roadblock.z, px, pz)), status: 'ROADBLOCK', x: roadblock.x, z: roadblock.z });
+    if (heli) list.push({ name: heli.unitName, dist: Math.round(dist(heli.group.position.x, heli.group.position.z, px, pz)), status: heli.status, cond: 'SIAP', x: heli.group.position.x, z: heli.group.position.z });
+    if (roadblock) list.push({ name: 'BLOKADE', dist: Math.round(dist(roadblock.x, roadblock.z, px, pz)), status: 'ROADBLOCK', cond: 'SIAP', x: roadblock.x, z: roadblock.z });
     return list;
   }
 
-  return { step, anyoneSees, units, despawnAll, stealCruiser, cruisers, cops, get heli() { return heli; }, get roadblock() { return roadblock; } };
+  return { step, anyoneSees, units, despawnAll, stealCruiser, cruisers, cops, get heli() { return heli; }, get roadblock() { return roadblock; }, get lastSeen() { return lastSeen; }, get searching() { return searchingNow; }, get searchTime() { return searchTime; } };
 }

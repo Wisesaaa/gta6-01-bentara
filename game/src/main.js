@@ -107,8 +107,11 @@ if (shot) {
       }
       game.draw();
     } else if (mode === 'play') {
-      // game.step consumes the actions itself (pause included).
-      while (acc >= 1 / 60) { game.step(1 / 60); acc -= 1 / 60; }
+      // game.step consumes the actions itself (pause included). The step
+      // runs at game.timeScale() during a hit-stop (game-feel): the sim
+      // slows to 5% while the wall clock keeps the fixed-step budget, so
+      // the freeze always ends on real time.
+      while (acc >= 1 / 60) { game.step((1 / 60) * game.timeScale()); acc -= 1 / 60; }
       if (game.state.mode === 'paused') hud.showScreen(PAUSED_HTML);
       else game.draw();
     }

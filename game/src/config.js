@@ -20,11 +20,12 @@ export const CITY = {
 // warm edge. Far enough south (high z) that the disc clears the mission
 // stinger at the top of the cover frame.
 export const SUN = { x: 230, y: 100, z: 150 };
-export const SUN_COLOR = 0xffb066;
-export const SUN_INTENSITY = 3.4;
-export const SKY_TOP = 0x5f97c4;
-export const SKY_HORIZON = 0xff8a3d;
-export const HAZE_COLOR = 0xdd8f4e;
+export const SUN_COLOR = 0xffc890;
+export const SUN_INTENSITY = 3.0;
+// Pale 4pm sky: bleached horizon, pale blue-grey top — not a red sunset.
+export const SKY_TOP = 0x9ab0c4;
+export const SKY_HORIZON = 0xffe0b8;
+export const HAZE_COLOR = 0xe0c8a8;
 export const HAZE_NEAR = 190;
 export const HAZE_FAR = 470;
 
@@ -124,18 +125,20 @@ export const STUNTS = {
 };
 
 export const PALETTE = {
-  sky: 0xf08a3c,
-  haze: 0xdd8f4e,
-  ground: 0xd0b184,
+  sky: 0xffe0b8,
+  haze: 0xe0c8a8,
+  ground: 0xdcc9a4,
   road: 0x6e6a63,
   roadLine: 0xf5eeda,
-  sidewalk: 0xbd9c72,
-  // Warmer, more saturated facades — the old tans washed to pale
-  // cream at distance. Ochre, terracotta and brick, still kemarau.
-  building: [0xe3c78d, 0xcf9a55, 0xb87a48, 0xc98f5f, 0xbd7a4a, 0xa86a42],
+  sidewalk: 0xcbb28e,
+  // Bleached concrete + multi-hue facades: sand, rust, teal, cream —
+  // one hue per building, so the street reads as a real city, not Mars.
+  // The two darkest hues are kept light — a rust/brown facade on the
+  // shadow side read as a near-black monolith in the foot frame.
+  building: [0xd8c9a8, 0xc9b18a, 0xc88a58, 0x1f6b74, 0xe8e0cc, 0xb87a52],
   buildingTrim: [0x7a5a3f, 0x5f6b62, 0x8a6a4c, 0x6b4f3a],
   glass: 0x2f4a55,
-  glassAlt: [0x4a5a63, 0x42586a, 0x5d6d75],
+  glassAlt: [0x4a5a63, 0x3a6a6e, 0x7a6a4a, 0x5d6d75],
   glassLit: 0xffc46b,
   water: 0x1f6b74,
   car: [0xc0392b, 0x2f6b8a, 0xe8e4da, 0x3a3a38, 0x7a2f2f, 0x2f6b4f, 0xd8a13a, 0x4a7a3a],
@@ -143,7 +146,7 @@ export const PALETTE = {
   copWhite: 0xe8e4da,
   beacon: 0xffd75e,
   signRed: 0xc0392b,
-  skyline: 0x8d7a6a,
+  skyline: 0xa89a8a,
   treeTrunk: 0x6b4a2f,
   treeCrown: [0xa08c46, 0xb09855, 0x8a7c40],
   awning: [0xc0392b, 0x1f6b74, 0xd8a13a],

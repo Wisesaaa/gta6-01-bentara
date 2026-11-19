@@ -25,6 +25,7 @@ import { createBill } from './bill.js';
 import { createMissions } from './missions.js';
 import { createCollectibles } from './collectibles.js';
 import { createTaxi } from './taxi.js';
+import { createOjek, formatRp } from './ojek.js';
 import { createRace } from './race.js';
 import { createHud } from './hud.js';
 import { createAudio } from './audio.js';
@@ -55,10 +56,34 @@ export function createGame(canvas, seed = 7) {
     seed, time: 0, cash: 250, rep: 0, heat: 0, day: 1,
     mode: 'title', // title | play | paused | over | caught
     saveTimer: 0, seenTimer: 0, respawnTimer: 0, down: false,
-    interactPressed: false, tauntTimer: 0, shopOpen: false,
+    interactPressed: false, tauntTimer: 0, shopOpen: false, esTehTimer: 0,
   };
   // The lighting grade follows the act; 1 until the first mission starts.
   let currentAct = 1;
+
+  // Game-feel hit-stop (game-feel skill): a real-time freeze owned by the
+  // newest call only — overlapping hits never let an old timer restore
+  // time mid-freeze. timeScale() is read by the main loop's fixed step;
+  // the trauma decay in the view uses real time for the same reason.
+  let hitStopId = 0;
+  let hitStopUntil = 0;
+  function hitStop(seconds) {
+    hitStopId += 1;
+    const myId = hitStopId;
+    hitStopUntil = performance.now() + seconds * 1000;
+    setTimeout(() => { if (myId === hitStopId) hitStopUntil = 0; }, seconds * 1000);
+  }
+  function timeScale() {
+    return hitStopUntil && performance.now() < hitStopUntil ? 0.05 : 1;
+  }
+  // One feedback bundle per event (game-feel tiers in effects.js): the
+  // particles spawn here, the trauma goes to the camera, the hit-stop to
+  // the loop. Small = pickup, medium = hit, large = kill / mission done.
+  function fireFeedback(tier, x, z) {
+    const fb = effects.feedback(tier, x, z);
+    view.addTrauma(fb.trauma);
+    if (fb.hitStop > 0) hitStop(fb.hitStop);
+  }
 
   // Shot scripts steer through this facade instead of the keyboard, so a
   // screenshot state is reached by the same code path as a player's input.
@@ -134,6 +159,17 @@ export function createGame(canvas, seed = 7) {
           effects.dropAmmo(result.car.x + 1, result.car.z, 'smg', 30);
         } else addHeat(0.1);
       }
+      // Juice on the shot itself: a kill is a large bundle (shake +
+      // hit-stop + burst), a plain hit medium, a miss just the small
+      // muzzle kick. The frame shows the burst, not a static pose.
+      if (result) {
+        const t = result.human || result.car;
+        const big = (result.hit === 'human' && result.human.health <= 0)
+          || (result.hit === 'car' && result.car.health <= 0);
+        fireFeedback(big ? 'large' : 'medium', t.x, t.z);
+      } else {
+        fireFeedback('small', player.x, player.z);
+      }
     },
     onEnterCar: (car) => {
       hud.toast(`${car.name} — milikmu sekarang.`);
@@ -178,6 +214,7 @@ export function createGame(canvas, seed = 7) {
       state.rep += COLLECTIBLES.repPer;
       hud.popups.collect(value, item.kind);
       audio.collect();
+      fireFeedback('small', player.x, player.z);
       if (collectibles.collected % 6 === 0) hud.toast(`Koleksi ${collectibles.collected}/${collectibles.total} — kota ini menyimpan banyak rahasia.`, 4);
     },
   });
@@ -197,6 +234,27 @@ export function createGame(canvas, seed = 7) {
       audio.missionDone();
     },
     onAbandoned: () => { hud.toast('Penumpang taksi turun — kamu tinggalkan mobil.'); },
+  });
+  // Ojek penumpang: motor datang ke pemain, penumpang berhelm membonceng,
+  // argo Rp dibayar sebagai $ game (Rp 50 = $1, setara argo taksi).
+  const ojek = createOjek(view.scene, city, rng, {
+    onCalled: (p, dest, fare) => {
+      hud.toast(`Ojek dipesan — motor meluncur. Tujuan ${dest.label}, argo ${formatRp(fare)}.`, 4);
+    },
+    onArrived: (p) => { hud.toast(`Ojek sampai — ${p.name} jalan ke motor.`); audio.taxiDing(); },
+    onBoarded: (p, dest) => {
+      hud.toast(`${p.name} naik — antar ke ${dest.label}. Tanpa goresan = TIP ×2.`);
+    },
+    onFarePaid: (done) => {
+      const paid = Math.max(30, Math.round(done.paid / 50));
+      state.cash += paid;
+      state.rep += 10;
+      hud.popups.fare(paid, done.name);
+      hud.toast(`Ojek selesai: +$${paid} (${done.distance} m${done.tip ? ', TIP ×2' : ', tanpa tip — ada goresan'}).`);
+      audio.missionDone();
+    },
+    onScratched: () => { hud.toast('Goresan! Tip ojek hilang — argo tetap dibayar saat sampai.', 4); },
+    onCancelled: () => { hud.toast('Ojek dibatalkan.'); },
   });
   const race = createRace(view.scene, city, rng, {
     onStart: (gate) => { hud.toast('BALAPAN: lewati 5 gate emas secepat mungkin!'); audio.taxiDing(); },
@@ -224,6 +282,9 @@ export function createGame(canvas, seed = 7) {
       state.cash += m.reward;
       state.rep += m.rep;
       audio.missionDone();
+      // Mission done is the biggest juice moment in the game: large
+      // bundle + big stamp + ledger, all from the same event.
+      fireFeedback('large', player.x, player.z);
       // End-of-mission ledger card + a BIG centre stamp, both from the
       // real numbers: reward, bill paid, net, REP.
       hud.ledger({
@@ -249,6 +310,7 @@ export function createGame(canvas, seed = 7) {
       hud.dialogue(`${who} · ${c ? c.role : 'KONTAK'}`, line, c ? key : 'wira', 7);
     },
     onSpawnAttacker: () => { addHeat(0.4); },
+    onAttackerShoot: (a) => { attackerShoot(a); },
     onTargetCar: () => {},
     onIntro: (missionIndex) => {
       const intro = missionIntro(missionIndex);
@@ -266,6 +328,21 @@ export function createGame(canvas, seed = 7) {
     }
   }
 
+  // An attacker fires back: a real tracer from the attacker's gun toward
+  // the player (combat.shoot handles the wall test), and a hit only lands
+  // on a clear line inside 40 m — the firefight reads, and it is fair.
+  function attackerShoot(a) {
+    const origin = new THREE.Vector3(a.x, 1.4, a.z);
+    const dir = new THREE.Vector3(
+      player.x + rr(rng, -1.5, 1.5) - a.x,
+      1.2 - 1.4,
+      player.z + rr(rng, -1.5, 1.5) - a.z,
+    ).normalize();
+    const result = player.combat.shoot(origin, dir, 'pistol', { humans: [], cars: [] });
+    const d = dist(a.x, a.z, player.x, player.z);
+    if (!result && d < 40 && rng() < 0.35) damagePlayer(rr(rng, 3, 6));
+  }
+
   function damagePlayer(amount) {
     if (state.down || state.mode !== 'play') return;
     // Armor absorbs damage first, 1:1, until it is gone.
@@ -276,6 +353,8 @@ export function createGame(canvas, seed = 7) {
       if (amount <= 0) return;
     }
     player.health = Math.max(0, player.health - amount);
+    // Being hit shakes the camera — medium tier, so a cop's shot reads.
+    fireFeedback('medium', player.x, player.z);
     if (player.health <= 0) {
       state.down = true;
       state.respawnTimer = 3;
@@ -310,12 +389,41 @@ export function createGame(canvas, seed = 7) {
     if (!player.onFoot && taxi.nearPassenger(player.x, player.z)) {
       if (taxi.startFare(player.x, player.z)) return;
     }
+    // Ojek: on foot only, and only when no shop/property is in range —
+    // E in open space calls a bike; E at a stall still buys the stall.
+    if (player.onFoot && ojek.state === 'idle') {
+      const S = loc('shophouseRow');
+      const G = loc('industrialYard');
+      const N = loc('northRowStall');
+      const T = loc('towerConcourse');
+      const M = loc('marina');
+      const E = loc('eastSafehouse');
+      const nearAny = dist(player.x, player.z, G.x, G.z) < 10
+        || dist(player.x, player.z, N.x, N.z) < 9
+        || dist(player.x, player.z, T.x, T.z) < 6
+        || dist(player.x, player.z, M.x, M.z) < 9
+        || dist(player.x, player.z, S.x, S.z) < 9
+        || dist(player.x, player.z, E.x, E.z) < 9
+        || race.nearStart(player.x, player.z);
+      if (!nearAny && ojek.callOjek(player.x, player.z)) return;
+    }
     const S = loc('shophouseRow');
     const E = loc('eastSafehouse');
     const G = loc('industrialYard'); // Bengkel Roda Jaya
     const N = loc('northRowStall'); // Warung Sari
     const T = loc('towerConcourse'); // Kios Kaki Lima
     const M = loc('marina'); // Slip Marina
+    // Es teh di blok pasar: $5, tahan panas 60 detik (heat turun 2x
+    // lebih cepat). Stall-nya di (50,102) — di luar radius warung (9 m),
+    // jadi tidak pernah berebut E dengan Warung Sari.
+    if (dist(player.x, player.z, 50, 102) < 3.5) {
+      if (state.cash < 5) { hud.toast('Es teh $5 — uang tidak cukup.', 4); return; }
+      state.cash -= 5;
+      state.esTehTimer = 60;
+      hud.toast('ES TEH — tahan panas 60 detik, polisi lebih lambat melihatmu.', 4);
+      audio.pickup();
+      return;
+    }
     if (dist(player.x, player.z, G.x, G.z) < 10) {
       state.shopOpen = true;
       hud.showGarage(garage, state, () => { state.shopOpen = false; });
@@ -492,9 +600,12 @@ export function createGame(canvas, seed = 7) {
     if (dist(player.x, player.z, S.x, S.z) < 9) return 'E — Toko Senjata Ruko';
     if (dist(player.x, player.z, E.x, E.z) < 9) return `E — Safehouse: perbaiki + simpan · T — Tidur (usaha +$${Math.round(usaha.pot).toLocaleString('en-US')})`;
     if (race.nearStart(player.x, player.z)) return 'E — Mulai balapan (5 gate)';
+    if (dist(player.x, player.z, 50, 102) < 3.5) return 'E — Beli ES TEH $5 (tahan panas)';
+    if (ojek.state !== 'idle') return ojek.prompt();
     if (player.onFoot) {
       const car = player.nearestCar([...traffic.cars, ...parked, missions.targetCar].filter(Boolean));
       if (car) return car.missionTarget === 'steal' ? 'F — Curi mobil ini' : `F — Masuk ${car.name}`;
+      return ojek.prompt();
     }
     return null;
   }
@@ -659,6 +770,11 @@ export function createGame(canvas, seed = 7) {
         interactPressed: state.interactPressed,
         playerInCar: !player.onFoot,
       });
+      ojek.update(dt, {
+        px: player.x, pz: player.z,
+        playerCarHealth: player.car ? player.car.health : null,
+        scratched: player.car ? player.car.scraped : false,
+      });
       race.update(dt, { px: player.x, pz: player.z });
       collectibles.update(dt, state.time, player.x, player.z);
       usaha.update(dt);
@@ -693,14 +809,21 @@ export function createGame(canvas, seed = 7) {
         const lightsOn = act === 3;
         for (const c of [...traffic.cars, ...parked, ...police.cruisers]) c.setHeadlights(lightsOn);
         if (police.roadblock) police.roadblock.setHeadlights(lightsOn);
+        if (act === 3) hud.toast('Angin mendorong dinding asap melintasi jalan tol — hati-hati.', 5);
       }
+      // Smoke wall: in Act 3 the wind pushes a smoke wall across the
+      // z=111 arterial; the rest of the time the sky stays clear.
+      if (effects.setSmokeWall) effects.setSmokeWall(act === 3);
+      // Es teh buff ticks down; while it lasts, heat decays twice as fast.
+      if (state.esTehTimer > 0) state.esTehTimer -= dt;
       if (view.golden) view.golden.update(dt, state.time);
-      // Heat decay: 11 s with no police line of sight drops one star.
+      // Heat decay: 11 s with no police line of sight drops one star
+      // (5.5 s with the es teh buff).
       if (state.heat > 0) {
         if (police.anyoneSees(player.x, player.z)) state.seenTimer = 0;
         else {
           state.seenTimer += dt;
-          if (state.seenTimer >= 11) {
+          if (state.seenTimer >= (state.esTehTimer > 0 ? 5.5 : 11)) {
             state.heat = Math.max(0, state.heat - 1);
             state.seenTimer = 0;
           }
@@ -714,14 +837,14 @@ export function createGame(canvas, seed = 7) {
       }
       audio.step(dt, player.speedKmh, state.heat);
       hud.prompt(promptText());
-      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget, garage, usaha, effects, audio }, dt);
+      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, ojek, race, police, policeUnits, missionTarget, garage, usaha, effects, audio }, dt);
     } else {
       // Title / paused / over: the city idles behind the screen.
       traffic.step(dt, null);
       peds.step(dt);
       props.step(dt);
       if (view.golden) view.golden.update(dt, state.time);
-      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, race, policeUnits, missionTarget, garage, usaha, effects, audio }, dt);
+      hud.update({ state, player, city, traffic, missions, bill, collectibles, taxi, ojek, race, police, policeUnits, missionTarget, garage, usaha, effects, audio }, dt);
     }
   }
 
@@ -747,9 +870,9 @@ export function createGame(canvas, seed = 7) {
 
   const game = {
     state, city, view, player, traffic, peds, police, missions, bill, props,
-    collectibles, taxi, race, garage, usaha, effects,
+    collectibles, taxi, ojek, race, garage, usaha, effects,
     hud, audio, input: inputFacade, shotKeys, npcs, parked, rng,
-    step, draw, audit, addHeat, damagePlayer, applySave, missionTarget, policeUnits,
+    step, draw, audit, addHeat, damagePlayer, applySave, missionTarget, policeUnits, timeScale,
     loadSave: loadGame,
     setMode(mode) { state.mode = mode; },
     setShotInput(keys) { Object.assign(shotKeys, keys); },

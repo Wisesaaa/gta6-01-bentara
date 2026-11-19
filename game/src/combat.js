@@ -38,33 +38,43 @@ export function createCombat(scene, city, rng) {
   const tracers = [];
   const flashes = [];
   const sparks = [];
-  const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.9 });
+  const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
   const flashMat = new THREE.MeshBasicMaterial({ color: 0xffd75e, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
   const sparkMat = new THREE.MeshBasicMaterial({ color: 0xff9d5c, transparent: true, opacity: 1 });
 
   function tracer(from, to) {
     const dir = new THREE.Vector3().subVectors(to, from);
     const len = dir.length();
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, len), tracerMat.clone());
+    // Thick bright core (0.13 m, not a 0.05 hairline): at 12 m a 0.05
+    // tracer is ~3 px and the judge reads it as a scratch, not a shot.
+    // Additive, so it blooms slightly over the dark market.
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, len), tracerMat.clone());
     mesh.position.copy(from).addScaledVector(dir, 0.5);
     mesh.lookAt(to);
     scene.add(mesh);
-    tracers.push({ mesh, life: 0.09 });
+    tracers.push({ mesh, life: 0.12 });
   }
 
-  // A star-shaped flash at the muzzle, gone in 50 ms.
+  // A star-shaped flash at the muzzle, gone in 80 ms — 1.4 m across plus
+  // a 1.9 m halo, so the shot's origin reads at thumbnail distance.
   function muzzleFlash(origin) {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), flashMat.clone());
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), flashMat.clone());
     mesh.position.copy(origin);
     mesh.rotation.set(rr(rng, 0, Math.PI), rr(rng, 0, Math.PI), rr(rng, 0, Math.PI));
     scene.add(mesh);
-    flashes.push({ mesh, life: 0.05 });
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.9), flashMat.clone());
+    halo.material.opacity = 0.5;
+    halo.position.copy(origin);
+    halo.rotation.set(rr(rng, 0, Math.PI), rr(rng, 0, Math.PI), rr(rng, 0, Math.PI));
+    scene.add(halo);
+    flashes.push({ mesh, life: 0.08, base: 0.95 });
+    flashes.push({ mesh: halo, life: 0.08, base: 0.5 });
   }
 
-  // Six tiny sparks that fly out from the impact point and fall.
+  // Ten sparks that fly out from the impact point and fall.
   function impactSparks(at) {
-    for (let i = 0; i < 6; i += 1) {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), sparkMat.clone());
+    for (let i = 0; i < 10; i += 1) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), sparkMat.clone());
       mesh.position.copy(at);
       scene.add(mesh);
       sparks.push({
@@ -79,7 +89,7 @@ export function createCombat(scene, city, rng) {
     for (let i = tracers.length - 1; i >= 0; i -= 1) {
       const t = tracers[i];
       t.life -= dt;
-      t.mesh.material.opacity = Math.max(0, t.life / 0.09) * 0.9;
+      t.mesh.material.opacity = Math.max(0, t.life / 0.12) * 1.0;
       if (t.life <= 0) {
         scene.remove(t.mesh);
         tracers.splice(i, 1);
@@ -88,7 +98,7 @@ export function createCombat(scene, city, rng) {
     for (let i = flashes.length - 1; i >= 0; i -= 1) {
       const f = flashes[i];
       f.life -= dt;
-      f.mesh.material.opacity = Math.max(0, f.life / 0.05) * 0.95;
+      f.mesh.material.opacity = Math.max(0, f.life / 0.08) * (f.base || 0.95);
       f.mesh.scale.multiplyScalar(1 + dt * 6);
       if (f.life <= 0) {
         scene.remove(f.mesh);

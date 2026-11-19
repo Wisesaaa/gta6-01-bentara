@@ -15,7 +15,7 @@
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
   .panel { background: var(--panel); border: 2px solid var(--panel-line); border-radius: 10px; padding: 8px 12px; }
   /* Cinematic vignette + letterbox (story shot). */
-  #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 58%, rgba(20,8,4,0.38) 100%); }
+  #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 60%, rgba(24,10,4,0.4) 100%); }
   #letterboxTop, #letterboxBottom { position: absolute; left: 0; right: 0; height: 8%; background: #000; display: none; }
   #letterboxTop { top: 0; } #letterboxBottom { bottom: 0; }
   body.letterbox #letterboxTop, body.letterbox #letterboxBottom { display: block; }
@@ -36,12 +36,13 @@
   #actPips .pip.on { background: var(--gold); border-color: var(--gold); }
   #actPips .pip.done { background: rgba(255,215,94,.5); border-color: var(--gold); }
   /* TOP-RIGHT cash + stars + bill pill. */
-  #cashBox { position: absolute; top: 12px; right: 12px; font-size: 22px; font-weight: 700; text-align: right; }
+  #cashBox { position: absolute; top: 12px; right: 12px; font-size: 26px; font-weight: 700; text-align: right; }
   #cashBox small { display: block; font-size: 12px; font-weight: 400; opacity: .85; }
   #cashText { color: var(--green); }
   #starsBox { font-size: 24px; letter-spacing: 4px; color: var(--gold); }
   #starsBox .off { color: rgba(255,255,255,.35); }
-  #seenFlash { font-size: 13px; letter-spacing: 2px; color: #ff6a5a; font-weight: 700; display: none; animation: blink 0.7s steps(2) infinite; }
+  #seenFlash { font-size: 12px; letter-spacing: 1px; color: #ff6a5a; font-weight: 700; display: none; animation: blink 0.7s steps(2) infinite; }
+  #seenFlash.lost { color: #ffb14d; animation: none; }
   @keyframes blink { 50% { opacity: 0.25; } }
   #billPill { display: none; font-size: var(--fs-small); font-weight: 700; color: #ff9d5c; margin-top: 4px; }
   /* LEFT-MID police response list, max ~180px tall. */
@@ -49,6 +50,7 @@
   #policeBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
   #policeBox .unit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
   #policeBox .unit b { color: var(--gold); }
+  #policeBox .cond { font-size: 10px; opacity: .75; }
   #policeBox .pill { font-size: 10px; font-weight: 800; letter-spacing: 1px; padding: 1px 7px; border-radius: 10px; color: #140a08; }
   .pill-kejar { background: #ffd75e; } .pill-tabrak { background: #ff3b2e; color: #fff; }
   .pill-blokade { background: #b06bff; color: #fff; } .pill-sorot { background: #2fd8c8; }
@@ -71,6 +73,9 @@
   #gauge { display: block; margin-left: auto; width: 104px; height: 104px; }
   #vehicleName { font-size: 13px; letter-spacing: 1px; color: var(--gold); }
   #vehiclePlate { font-size: 11px; letter-spacing: 1px; opacity: .85; }
+  #vehicleCond { font-size: 12px; letter-spacing: 1px; font-weight: 700; color: #7dd87d; }
+  #vehicleCond.hurt { color: #ffb14d; } #vehicleCond.bad { color: #ff3b2e; }
+  #ojekMeter { display: none; font-size: 12px; font-weight: 700; color: #37d67a; margin-top: 4px; }
   .meter { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 0 auto; width: 130px; overflow: hidden; }
   .meter i { display: block; height: 100%; }
   #fuelFill { background: #2fd8c8; }
@@ -118,6 +123,13 @@
   #ledgerCard h3 { margin: 0 0 6px; font-size: 15px; letter-spacing: 2px; color: var(--gold); }
   #ledgerCard .row { display: flex; justify-content: space-between; padding: 2px 0; }
   #ledgerCard .total { border-top: 1px solid rgba(255,255,255,.4); margin-top: 4px; padding-top: 4px; font-weight: 700; }
+  /* Cover shot: the portrait card shrinks to a compact strip docked
+     TOP-LEFT, below the act label — the hero car owns the bottom-centre,
+     the minimap + rep + chip row own the bottom-left, and the mission
+     card owns the top-centre, so top-left is the only clear corner. */
+  body.cover-shot #dialogue { width: 400px; top: 95px; bottom: auto; left: 16px; transform: none; padding: 6px 10px; }
+  body.cover-shot #portraitCanvas { width: 48px; height: 48px; }
+  body.cover-shot #dialogueLine { font-size: 12px !important; }
   /* Character portrait + dialogue, bottom-centre, 24px safe margins.
      Narrowed to 560 px so the (now compact) bottom-right cluster can
      never reach its right end — r3 cut Aska's line there. */
@@ -203,6 +215,8 @@
     <canvas id="gauge" width="150" height="150"></canvas>
     <div id="vehicleName">CEMPAKA GT</div>
     <div id="vehiclePlate"></div>
+    <div id="vehicleCond"></div>
+    <div id="ojekMeter"></div>
     <div id="fuelBar" class="meter" title="Bensin"><i id="fuelFill"></i></div>
     <div id="nitroBar" class="meter" title="Nitro"><i id="nitroFill"></i></div>
     <div id="armorBar" class="meter" title="Armor" style="display:none"><i id="armorFill"></i></div>

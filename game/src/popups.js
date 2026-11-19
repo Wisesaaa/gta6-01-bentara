@@ -91,9 +91,9 @@ export function createPopups(container, centerContainer) {
     comboSince = now;
     if (combo >= 2) {
       const heat = combo >= 5 ? 'fx-hot' : combo >= 3 ? 'fx-warm' : '';
-      return centerFx(`NGEPOT ×${combo} +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot`, 'mid', seconds, heat);
+      return centerFx(`NGEPOT ×${combo} +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot · PARKIR LIAR`, 'mid', seconds, heat);
     }
-    return spawn(`NGEPOT +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot`, 'stunt', seconds);
+    return spawn(`NGEPOT +$${amount}`, `PARKIR LIAR · ${secondsHeld.toFixed(1)} detik ngepot`, 'stunt', seconds);
   }
 
   function nearMiss(amount) {

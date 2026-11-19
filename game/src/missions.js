@@ -175,6 +175,13 @@ export function createMissions(scene, city, rng, hooks) {
           a.face(Math.atan2(ctx.px - a.x, ctx.pz - a.z));
           if (d > 4) a.walk(ctx.dt, 4.6);
           else if (ctx.damagePlayer && rr(rng, 0, 1) < ctx.dt * 0.5) ctx.damagePlayer(rr(rng, 2, 5));
+          // Return fire: a tracer back at the player every ~2 s inside
+          // 45 m — the firefight reads, and the hook owns the hit roll.
+          a.shootTimer = (a.shootTimer === undefined ? rr(rng, 0.5, 1.5) : a.shootTimer) - ctx.dt;
+          if (a.shootTimer <= 0 && d < 45) {
+            a.shootTimer = rr(rng, 1.2, 2.2);
+            if (hooks.onAttackerShoot) hooks.onAttackerShoot(a);
+          }
         }
         if (stepState.timer <= 0) advance();
       },
@@ -219,6 +226,23 @@ export function createMissions(scene, city, rng, hooks) {
     a.setPos(L.x + Math.sin(ang) * 18, L.z + Math.cos(ang) * 18);
     attackers.push(a);
     if (hooks.onSpawnAttacker) hooks.onSpawnAttacker(a);
+    return a;
+  }
+
+  // Staging helpers for screenshots: put a live attacker — or one already
+  // downed, lying where a real kill left him — at an exact spot. The
+  // downed one goes through the same damage() path as a combat kill.
+  function stageAttacker(x, z) {
+    const a = new Human(scene, rng, 'attacker');
+    a.setPos(x, z);
+    a.face(rr(rng, 0, Math.PI * 2));
+    attackers.push(a);
+    return a;
+  }
+
+  function stageDownedAttacker(x, z) {
+    const a = stageAttacker(x, z);
+    a.damage(999);
     return a;
   }
 
@@ -267,7 +291,7 @@ export function createMissions(scene, city, rng, hooks) {
   function setIndex(i, stepIdx = 0) {
     index = Math.min(i, MISSIONS.length - 1);
     stepIndex = Math.min(stepIdx, current().steps.length - 1);
-    done = index >= MISSIONS.length;
+    done = i >= MISSIONS.length;
     beacon.visible = !done;
     setupStep();
     if (hooks.onIntro) hooks.onIntro(index);
@@ -276,7 +300,7 @@ export function createMissions(scene, city, rng, hooks) {
   start();
   return {
     current, step, objectiveText, stageText, stageFrac, nextText,
-    update, nearTalkTarget, start, setIndex,
+    update, nearTalkTarget, start, setIndex, stageAttacker, stageDownedAttacker,
     get index() { return index; },
     get stepIndex() { return stepIndex; },
     get done() { return done; },

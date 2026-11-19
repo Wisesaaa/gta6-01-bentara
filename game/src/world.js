@@ -10,8 +10,83 @@
 // its own meshes, so a lighting change never re-opens the whole city.
 import * as THREE from 'three';
 import { CITY, PALETTE, SUN, SUN_COLOR, SUN_INTENSITY } from './config.js';
-import { roadLines } from './city.js';
+import { roadLines, hitsSolid } from './city.js';
 import { createGoldenHour, applyGoldenHour } from './lighting.js';
+import { makeGlowSprite } from './effects.js';
+import { createPostFx } from './postfx.js';
+
+// Marina water (shader-dev water-ocean): exp(sin) wave stack, Schlick
+// Fresnel (F0 0.04), sun glint — cheap on purpose: 3 sine octaves in the
+// fragment shader, no FFT, no ray march. Fog is applied by hand (the
+// Exp2 formula) because a raw ShaderMaterial skips the fog chunk.
+function waterMaterial() {
+  const sunDir = new THREE.Vector3(SUN.x, SUN.y, SUN.z).normalize();
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uSunDir: { value: sunDir },
+      uDeep: { value: new THREE.Color(0x14504f) },
+      uShallow: { value: new THREE.Color(0x2f7a72) },
+      uSky: { value: new THREE.Color(0xecc9a0) },
+      uSunColor: { value: new THREE.Color(0xffc890) },
+      uFogColor: { value: new THREE.Color(0xe0c8a8) },
+      uFogDensity: { value: 0.006 },
+    },
+    vertexShader: `
+      varying vec3 vWorld;
+      varying float vFogDepth;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorld = wp.xyz;
+        vec4 mv = viewMatrix * wp;
+        vFogDepth = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec3 uSunDir;
+      uniform vec3 uDeep;
+      uniform vec3 uShallow;
+      uniform vec3 uSky;
+      uniform vec3 uSunColor;
+      uniform vec3 uFogColor;
+      uniform float uFogDensity;
+      varying vec3 vWorld;
+      varying float vFogDepth;
+      // One exp(sin) wave: sharp crest, broad trough (water-ocean).
+      float wave(vec2 p, vec2 dir, float freq, float speed) {
+        float x = dot(dir, p) * freq + uTime * speed;
+        return exp(sin(x) - 1.0);
+      }
+      float heightAt(vec2 p) {
+        return wave(p, vec2(0.8, 0.6), 1.0, 0.9)
+             + 0.5 * wave(p, vec2(-0.6, 0.8), 2.1, 1.4)
+             + 0.25 * wave(p, vec2(0.3, -0.9), 3.7, 2.1);
+      }
+      void main() {
+        vec2 p = vWorld.xz * 0.08;
+        float e = 0.6;
+        float hC = heightAt(p);
+        float hX = heightAt(p + vec2(e, 0.0));
+        float hZ = heightAt(p + vec2(0.0, e));
+        vec3 n = normalize(vec3(-(hX - hC) * 0.35, 1.0, -(hZ - hC) * 0.35));
+        vec3 viewDir = normalize(cameraPosition - vWorld);
+        // Schlick Fresnel, F0 0.04: grazing angles mirror the pale sky —
+        // kept at 0.55 so the water still reads as dusty teal, not haze.
+        float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, viewDir), 0.0), 5.0);
+        vec3 col = mix(mix(uDeep, uShallow, hC * 0.4), uSky, fres * 0.55);
+        // Sun glint: tight specular off the wave normals.
+        vec3 refl = reflect(-viewDir, n);
+        float glint = pow(max(dot(refl, uSunDir), 0.0), 240.0);
+        col += uSunColor * glint * 2.2;
+        col += uSunColor * pow(max(dot(refl, uSunDir), 0.0), 24.0) * 0.12;
+        // Exp2 haze, same density as the scene fog.
+        float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * vFogDepth * vFogDepth);
+        col = mix(col, uFogColor, clamp(fogFactor, 0.0, 1.0));
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  });
+}
 
 // One hash for all deterministic placement: the same seed grows the same street.
 function hash2(x, z) {
@@ -112,14 +187,17 @@ function buildGround(scene) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Marina water: a still, dusty-teal sheet south of the city edge.
+  // Marina water: an animated shader sheet south of the city edge —
+  // waves + Fresnel + sun glint (water-ocean), not a flat Lambert slab.
+  const waterMat = waterMaterial();
   const water = new THREE.Mesh(
     new THREE.PlaneGeometry(700, 130),
-    new THREE.MeshLambertMaterial({ color: PALETTE.water }),
+    waterMat,
   );
   water.rotation.x = -Math.PI / 2;
   water.position.set(0, 0.05, -194 - 65);
   scene.add(water);
+  scene.userData.waterMat = waterMat;
   // Wooden pier reaching into the water at the marina.
   const pierMat = new THREE.MeshLambertMaterial({ color: 0x8a6a3f });
   for (let i = 0; i < 5; i += 1) {
@@ -642,6 +720,19 @@ function buildSigns(scene) {
   signPasar.position.set(42, 6, 102);
   signPasar.rotation.y = Math.PI;
   scene.add(signPasar);
+  // Two shop signs on the tall tower's west face (x 48.8) behind the
+  // market: from the foot camera that face is a blank brown wall across
+  // the left third of the frame — the signs break it into a street,
+  // not a slab. They face west (-x), toward the market and the camera,
+  // and hang above the tents (2.6 m) and the attackers.
+  const signKedai = textSign('KEDAI KOPI', 7, 2.2, '#3f5a78', '#ffffff');
+  signKedai.position.set(48.4, 6, 91);
+  signKedai.rotation.y = -Math.PI / 2;
+  scene.add(signKedai);
+  const signToko = textSign('TOKO KELONTONG', 9, 2.2, '#c0392b', '#ffd75e');
+  signToko.position.set(48.4, 4, 96);
+  signToko.rotation.y = -Math.PI / 2;
+  scene.add(signToko);
   const signBengkel = textSign('BENGKEL LAS', 9, 2.2, '#c0392b', '#ffd75e');
   signBengkel.position.set(120, 6, 78);
   signBengkel.rotation.y = Math.PI;
@@ -713,12 +804,13 @@ function buildSkyline(scene) {
   });
   scene.add(skyWinMesh);
 
-  // Two moored boats on the marina water, so the story shot has life
-  // beyond the pier planks.
+  // Four moored boats on the marina water: two far, two near the pier,
+  // so the story shot has life beyond the pier planks at thumbnail
+  // distance instead of two specks on the horizon.
   const boatHullMat = new THREE.MeshLambertMaterial({ color: 0xc0392b });
   const boatHull2Mat = new THREE.MeshLambertMaterial({ color: 0xd8a13a });
   const boatCabinMat = new THREE.MeshLambertMaterial({ color: 0xe8e4da });
-  for (const [bx, bz, hullMat, rot] of [[-40, -232, boatHullMat, 0.3], [30, -242, boatHull2Mat, -0.4]]) {
+  for (const [bx, bz, hullMat, rot] of [[-40, -232, boatHullMat, 0.3], [30, -242, boatHull2Mat, -0.4], [-16, -208, boatHull2Mat, 0.15], [18, -214, boatHullMat, -0.2]]) {
     const hull = new THREE.Mesh(new THREE.BoxGeometry(7, 1.1, 2.6), hullMat);
     hull.position.set(bx, 0.55, bz);
     hull.rotation.y = rot;
@@ -866,6 +958,314 @@ function buildMural(scene, city) {
   return { building: best, mesh: mural };
 }
 
+// Menara Bentara: a tall slim landmark at the east end of the z=111
+// arterial, silhouetted against the sun at the end of the boulevard —
+// the cover's landmark. Visual only (beyond the city edge, no solid),
+// with a lit beacon crown so it reads at dusk too.
+function buildEastTower(scene) {
+  const group = new THREE.Group();
+  // Mid warm-grey body, not pale cream: against the pale 4pm sky the
+  // tower must read as a silhouette, not wash out into the horizon.
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x9a8a72 });
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0x5f6b62 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(18, 78, 18), bodyMat);
+  body.position.y = 39;
+  group.add(body);
+  for (const [fx, fz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.8, 78, 0.8), trimMat);
+    fin.position.set(fx * 8.8, 39, fz * 8.8);
+    group.add(fin);
+  }
+  const crown = new THREE.Mesh(new THREE.BoxGeometry(20, 4, 20), trimMat);
+  crown.position.y = 80;
+  group.add(crown);
+  const beacon = new THREE.Mesh(
+    new THREE.SphereGeometry(1.6, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffd75e }),
+  );
+  beacon.position.y = 84;
+  group.add(beacon);
+  const glow = makeGlowSprite(0xffd75e, 14, 0.7);
+  glow.position.y = 84;
+  group.add(glow);
+  // Lit window strips up the west face, toward the city.
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xffc46b });
+  for (let y = 12; y < 74; y += 12) {
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(2, 6), winMat);
+    strip.position.set(-9.1, y, 0);
+    strip.rotation.y = -Math.PI / 2;
+    group.add(strip);
+  }
+  group.position.set(250, 0, 111);
+  group.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+  scene.add(group);
+  return group;
+}
+
+// Blok pasar: a market street on the north-row sidewalks — striped
+// tents, gerobak carts, plastic chairs, sachet racks, warm stall lights
+// and an ES TEH stall. It sits on the sidewalks (x 20–28 west, 50–56
+// east, z 88–110), never on the road the player and the hero car use.
+function buildPasar(scene) {
+  const stripeTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 64;
+    const g = c.getContext('2d');
+    for (let k = 0; k < 8; k += 1) {
+      g.fillStyle = k % 2 === 0 ? '#c0392b' : '#f5eeda';
+      g.fillRect(k * 16, 0, 16, 64);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  })();
+  const stripeTexTeal = (() => {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 64;
+    const g = c.getContext('2d');
+    for (let k = 0; k < 8; k += 1) {
+      g.fillStyle = k % 2 === 0 ? '#1f6b74' : '#f5eeda';
+      g.fillRect(k * 16, 0, 16, 64);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  })();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
+  const cartMat = new THREE.MeshLambertMaterial({ color: 0x4a6b8a });
+  const chairCols = [0xc0392b, 0x1f6b74, 0xd8a13a, 0x2f6b4f];
+  const sachetCols = [0xc0392b, 0xd8a13a, 0x1f6b74, 0x8a4a6b, 0x2f6b4f];
+
+  function tent(x, z, teal, rotY) {
+    const g = new THREE.Group();
+    const top = new THREE.Mesh(
+      new THREE.BoxGeometry(5, 0.15, 4),
+      new THREE.MeshBasicMaterial({ map: teal ? stripeTexTeal : stripeTex }),
+    );
+    top.position.y = 2.6;
+    top.rotation.x = 0.12;
+    g.add(top);
+    for (const [px, pz] of [[-2.3, -1.8], [2.3, -1.8], [-2.3, 1.8], [2.3, 1.8]]) {
+      const pole = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.6, 0.12), woodMat);
+      pole.position.set(px, 1.3, pz);
+      g.add(pole);
+    }
+    // Counter + goods under the tent.
+    const counter = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.9, 1.2), woodMat);
+    counter.position.set(0, 0.45, -0.8);
+    g.add(counter);
+    for (let k = 0; k < 6; k += 1) {
+      const good = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.4, 0.5),
+        new THREE.MeshLambertMaterial({ color: sachetCols[k % sachetCols.length] }),
+      );
+      good.position.set(-1.8 + k * 0.7, 1.1, -0.8);
+      g.add(good);
+    }
+    const glow = makeGlowSprite(0xffe9a8, 3.2, 0.5);
+    glow.position.set(0, 2.2, 0);
+    g.add(glow);
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+    scene.add(g);
+    return g;
+  }
+
+  function gerobak(x, z, rotY) {
+    const g = new THREE.Group();
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.5, 1.2), cartMat);
+    bed.position.y = 0.7;
+    g.add(bed);
+    const canopy = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.1, 1.4),
+      new THREE.MeshBasicMaterial({ map: stripeTexTeal }),
+    );
+    canopy.position.y = 2.1;
+    canopy.rotation.x = 0.1;
+    g.add(canopy);
+    for (const [px, pz] of [[-0.9, -0.5], [0.9, -0.5], [-0.9, 0.5], [0.9, 0.5]]) {
+      const pole = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.4, 0.08), woodMat);
+      pole.position.set(px, 1.4, pz);
+      g.add(pole);
+    }
+    for (const sx of [-0.7, 0.7]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.12, 10), new THREE.MeshLambertMaterial({ color: 0x141414 }));
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(sx, 0.35, 0);
+      g.add(wheel);
+    }
+    const glow = makeGlowSprite(0xffe9a8, 2.4, 0.45);
+    glow.position.set(0, 1.6, 0);
+    g.add(glow);
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+    scene.add(g);
+    return g;
+  }
+
+  function chairs(x, z, rotY) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 3; k += 1) {
+      const chair = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.MeshLambertMaterial({ color: chairCols[k % chairCols.length] }),
+      );
+      chair.position.set(k * 0.7 - 0.7, 0.25, (k % 2) * 0.4);
+      g.add(chair);
+    }
+    const table = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.08, 10), woodMat);
+    table.position.set(0, 0.75, 0.8);
+    g.add(table);
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    scene.add(g);
+    return g;
+  }
+
+  function sachetRack(x, z, rotY) {
+    const g = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.0, 0.1), woodMat);
+    frame.position.y = 1.0;
+    g.add(frame);
+    for (let r = 0; r < 3; r += 1) {
+      for (let k = 0; k < 8; k += 1) {
+        const s = new THREE.Mesh(
+          new THREE.BoxGeometry(0.22, 0.3, 0.04),
+          new THREE.MeshLambertMaterial({ color: sachetCols[(r + k) % sachetCols.length] }),
+        );
+        s.position.set(-1.0 + k * 0.28, 0.5 + r * 0.55, 0.08);
+        g.add(s);
+      }
+    }
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    scene.add(g);
+    return g;
+  }
+
+  // East sidewalk (faces the road, where the foot camera looks).
+  // The row stays NORTH of the z=111 arterial (road band z 104–118):
+  // the old third tent at z 106 and the rack at z 110 sat IN the road,
+  // and from the cover's chase camera the rack's brown board read as a
+  // giant tan box dead-centre, hiding the hero car.
+  tent(52, 90, false, -Math.PI / 2);
+  tent(52, 98, true, -Math.PI / 2);
+  tent(52, 82, false, -Math.PI / 2);
+  gerobak(50, 94, -Math.PI / 2);
+  chairs(53, 102, -Math.PI / 2);
+  sachetRack(53, 94, -Math.PI / 2);
+  // West sidewalk.
+  tent(24, 92, true, Math.PI / 2);
+  tent(24, 100, false, Math.PI / 2);
+  gerobak(26, 108, Math.PI / 2);
+  chairs(23, 96, Math.PI / 2);
+  sachetRack(23, 104, Math.PI / 2);
+  // ES TEH stall sign over the (50,102) stall — the interact spot.
+  const esTeh = textSign('ES TEH', 3.2, 1.0, '#1f6b74', '#ffd75e');
+  esTeh.position.set(50, 3.4, 102);
+  esTeh.rotation.y = -Math.PI / 2;
+  scene.add(esTeh);
+}
+
+// Bengkel Roda Jaya walk-in bay: an open-front workshop at the industrial
+// yard (120,74) — a car on a lift, a respray booth, an upgrade board,
+// benches and warm interior light. Visual only (no solids), so the player
+// can walk in and the E prompt still opens the garage panel.
+function buildGarageBay(scene) {
+  const g = new THREE.Group();
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0xa89880 });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x3a3a38 });
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x8a8578 });
+  // Fill light: one warm point light in the middle of the bay, no
+  // shadows — the roof blocks the sun, so without it the interior reads
+  // as a dark cave instead of a workshop. Cheap (one light, no shadow
+  // map) and it also lifts the lift car, the booth and the board.
+  const fill = new THREE.PointLight(0xffe9a8, 90, 30, 1.6);
+  fill.position.set(0, 6, 0);
+  g.add(fill);
+  // Floor slab + back wall (east) + side walls (north/south) + roof.
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.2, 26), floorMat);
+  floor.position.set(0, 0.1, 0);
+  g.add(floor);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.6, 8, 26), wallMat);
+  back.position.set(8, 4, 0);
+  g.add(back);
+  // North wall full; south wall only the eastern half (local x -2..+8) —
+  // the south-west corner stays open as a side entrance, so a camera
+  // south-west of the bay sees the lift car and the upgrade board
+  // instead of a blank 8 m wall.
+  const northWall = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 0.6), wallMat);
+  northWall.position.set(0, 4, -13);
+  g.add(northWall);
+  const southWall = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 0.6), wallMat);
+  southWall.position.set(3, 4, 13);
+  g.add(southWall);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(16, 0.4, 26), darkMat);
+  roof.position.set(0, 8.2, 0);
+  g.add(roof);
+  // Lift: two posts + platform + a display car on top.
+  for (const sz of [-2.2, 2.2]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.4, 0.5), darkMat);
+    post.position.set(-1, 1.7, sz);
+    g.add(post);
+  }
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.25, 3.4), darkMat);
+  platform.position.set(-1, 1.3, 0);
+  g.add(platform);
+  const carBody = new THREE.Mesh(new THREE.BoxGeometry(4.3, 0.65, 1.9), new THREE.MeshLambertMaterial({ color: 0x2f6b8a }));
+  carBody.position.set(-1, 1.95, 0);
+  g.add(carBody);
+  const carCabin = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.55, 1.6), new THREE.MeshLambertMaterial({ color: 0x5d7a8a }));
+  carCabin.position.set(-1.2, 2.5, 0);
+  g.add(carCabin);
+  for (const [wx, wz] of [[-2.8, -0.95], [-2.8, 0.95], [0.8, -0.95], [0.8, 0.95]]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.28, 10), new THREE.MeshLambertMaterial({ color: 0x141414 }));
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(wx, 1.62, wz);
+    g.add(wheel);
+  }
+  // Respray booth: a U-shaped room at the back with a teal glow.
+  const boothMat = new THREE.MeshLambertMaterial({ color: 0x2f6b8a });
+  for (const [bx, bz, w, d] of [[6.5, -8, 0.4, 8], [6.5, 8, 0.4, 8], [4.5, -8, 4.4, 0.4]]) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 3.2, d), boothMat);
+    wall.position.set(bx, 1.6, bz);
+    g.add(wall);
+  }
+  const boothGlow = makeGlowSprite(0x2fd8c8, 5, 0.4);
+  boothGlow.position.set(5, 2, -8);
+  g.add(boothGlow);
+  // Upgrade board on the back wall: MESIN · BAN · TURBO + respray price.
+  const board = textSign('MESIN · BAN · TURBO', 6, 1.6, '#1d2a3a', '#ffd75e');
+  board.position.set(7.6, 5, 4);
+  board.rotation.y = -Math.PI / 2;
+  g.add(board);
+  const board2 = textSign('RESPRAY $150', 4, 1.2, '#c0392b', '#ffffff');
+  board2.position.set(7.6, 3.2, 4);
+  board2.rotation.y = -Math.PI / 2;
+  g.add(board2);
+  // Benches along the south wall + warm interior glows.
+  for (const bz of [-10, 10]) {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(3, 0.9, 1), woodMat2());
+    bench.position.set(4, 0.45, bz);
+    g.add(bench);
+  }
+  for (const [lx, lz] of [[-1, 0], [5, -8], [5, 8]]) {
+    const glow = makeGlowSprite(0xffe9a8, 5, 0.7);
+    glow.position.set(lx, 4.5, lz);
+    g.add(glow);
+  }
+  g.position.set(128, 0, 74);
+  g.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  scene.add(g);
+  return g;
+}
+
+function woodMat2() {
+  return new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
+}
+
 export function createView(canvas, city) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
   renderer.setPixelRatio(1);
@@ -877,6 +1277,17 @@ export function createView(canvas, city) {
   applyGoldenHour(renderer, scene);
 
   const camera = new THREE.PerspectiveCamera(62, 1280 / 720, 0.1, 2000);
+
+  // PostFx composer (shader-dev + threejs-webgl): the real pipeline —
+  // bloom, ACES, vignette, CA, grain — on THREE core only, because the
+  // vendored tree ships no postprocessing addons. If construction ever
+  // fails, render() falls back to the direct path, never a black frame.
+  let postfx = null;
+  try {
+    postfx = createPostFx(renderer, scene, camera);
+  } catch (e) {
+    postfx = null;
+  }
 
   // Golden-hour light rig: a low warm sun with long shadows, and a warm
   // hemisphere so the shadow side is amber, not dead grey.
@@ -908,23 +1319,97 @@ export function createView(canvas, city) {
   buildTrees(scene, city);
   buildPlaza(scene);
   const mural = buildMural(scene, city);
+  buildEastTower(scene);
+  buildPasar(scene);
+  buildGarageBay(scene);
+
+  // Game-feel trauma (game-feel skill): shake = trauma^2, summed sines at
+  // unrelated rates, decayed in REAL time so a hit-stop never freezes the
+  // camera off-centre. The shake rides on top of the smooth follow — it is
+  // applied in render() and undone right after, so it never accumulates
+  // and never moves a body. Shots freeze a trauma value for a Dutch angle
+  // that reads as impact in a still frame.
+  let trauma = 0;
+  let traumaT = 0;
+  let lastRenderNow = 0;
 
   function resize(width, height) {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    if (postfx) {
+      const s = new THREE.Vector2();
+      renderer.getDrawingBufferSize(s);
+      postfx.resize(s.x, s.y);
+    }
   }
 
   return {
-    renderer, scene, camera, sun, golden, mural, resize,
+    renderer, scene, camera, sun, golden, mural, resize, postfx,
+    addTrauma(a) { trauma = Math.min(1, trauma + a); },
+    setTrauma(a) { trauma = Math.min(1, Math.max(0, a)); },
+    get trauma() { return trauma; },
     placeCamera(x, z, heading, behind, up, lookAhead = 8) {
       const bx = x - Math.sin(heading) * behind;
       const bz = z - Math.cos(heading) * behind;
       camera.position.set(bx, up, bz);
       camera.lookAt(x + Math.sin(heading) * lookAhead, 1.6, z + Math.cos(heading) * lookAhead);
+      // keepClear: if a building stands between the camera and the player,
+      // pull the camera forward past the obstruction (first clear sample
+      // after the blocked stretch), then re-aim. The chase camera never
+      // ends up inside a wall on a tight street.
+      const dx = x - bx, dz = z - bz;
+      let blocked = false;
+      for (let s = 0.05; s <= 1; s += 0.05) {
+        const inSolid = !!hitsSolid(city, bx + dx * s, bz + dz * s, 1.5);
+        if (inSolid) blocked = true;
+        else if (blocked) {
+          camera.position.set(bx + dx * s, up + (1.6 - up) * s, bz + dz * s);
+          camera.lookAt(x + Math.sin(heading) * lookAhead, 1.6, z + Math.cos(heading) * lookAhead);
+          break;
+        }
+      }
+    },
+    // Same rule for a staged shot camera: move it toward its look target
+    // until the segment is clear of buildings. Returns the camera.
+    keepClear(cam, tx, ty, tz) {
+      const dx = tx - cam.position.x, dy = ty - cam.position.y, dz = tz - cam.position.z;
+      let blocked = false;
+      for (let s = 0.05; s <= 1; s += 0.05) {
+        const inSolid = !!hitsSolid(city, cam.position.x + dx * s, cam.position.z + dz * s, 1.5);
+        if (inSolid) blocked = true;
+        else if (blocked) {
+          cam.position.set(cam.position.x + dx * s, cam.position.y + dy * s, cam.position.z + dz * s);
+          return cam;
+        }
+      }
+      return cam;
     },
     render() {
-      renderer.render(scene, camera);
+      const now = performance.now();
+      const realDt = lastRenderNow ? Math.min((now - lastRenderNow) / 1000, 0.1) : 1 / 60;
+      lastRenderNow = now;
+      // Water + dust time advance with the render clock.
+      const wm = scene.userData.waterMat;
+      if (wm) wm.uniforms.uTime.value += realDt;
+      // Trauma decay in real time (game-feel gotcha: scaled dt would
+      // freeze the shake off-centre during a hit-stop).
+      if (trauma > 0) {
+        trauma = Math.max(0, trauma - 1.2 * realDt);
+        traumaT += realDt * 30;
+      }
+      const shake = trauma * trauma;
+      const roll = 0.05 * shake * Math.sin(traumaT * 1.1);
+      const ox = 0.35 * shake * Math.sin(traumaT * 1.7);
+      const oy = 0.25 * shake * Math.sin(traumaT * 2.3);
+      camera.rotateZ(roll);
+      camera.translateX(ox);
+      camera.translateY(oy);
+      if (postfx) postfx.render();
+      else renderer.render(scene, camera);
+      camera.translateY(-oy);
+      camera.translateX(-ox);
+      camera.rotateZ(-roll);
     },
   };
 }

@@ -80,6 +80,7 @@ export function createHud() {
     toast: $('toast'), prompt: $('prompt'), popups: $('popups'), centerFx: $('centerFx'),
     ticker: $('ticker'), raceChip: $('raceChip'),
     gauge: $('gauge'), vehicleName: $('vehicleName'), vehiclePlate: $('vehiclePlate'),
+    vehicleCond: $('vehicleCond'), ojekMeter: $('ojekMeter'),
     fuelBar: $('fuelBar'), fuelFill: $('fuelFill'), nitroBar: $('nitroBar'), nitroFill: $('nitroFill'),
     armorBar: $('armorBar'), armorFill: $('armorFill'),
     radioLine: $('radioLine'), eqBars: $('eqBars'), weaponBox: $('weaponBox'),
@@ -133,14 +134,15 @@ export function createHud() {
     // Marina water along the south edge.
     mapCtx.fillStyle = '#14424a';
     mapCtx.fillRect(0, py(-194), W, W - py(-194));
-    // Road graph: light lines on the dark disc.
-    mapCtx.strokeStyle = '#5a6a78';
-    mapCtx.lineWidth = 5;
+    // Road graph: bright lines on the dark disc, wide enough to read at
+    // thumbnail size — the old thin grey lines read as a grid, not roads.
+    mapCtx.strokeStyle = '#8a9aa8';
+    mapCtx.lineWidth = 7;
     for (const c of roadLines()) {
       mapCtx.beginPath(); mapCtx.moveTo(0, py(c)); mapCtx.lineTo(W, py(c)); mapCtx.stroke();
       mapCtx.beginPath(); mapCtx.moveTo(px(c), 0); mapCtx.lineTo(px(c), W); mapCtx.stroke();
     }
-    mapCtx.fillStyle = '#1d2833';
+    mapCtx.fillStyle = '#0d1218';
     for (const b of G.city.blocks) mapCtx.fillRect(px(b.x - 22), py(b.z + 22), 44 * s, 44 * s);
     const dot = (x, z, color, r = 3) => {
       mapCtx.fillStyle = color;
@@ -185,17 +187,16 @@ export function createHud() {
       mapCtx.arc(px(G.race.nextGate.x), py(G.race.nextGate.z), 6, 0, Math.PI * 2);
       mapCtx.stroke();
     }
-    // GPS route: dashed gold line from the player to the objective.
+    // GPS route: thick solid gold line from the player to the objective —
+    // the dashed hairline never read at thumbnail size.
     if (!G.missions.done) {
       const L = G.missionTarget();
-      mapCtx.strokeStyle = 'rgba(255, 215, 94, 0.75)';
-      mapCtx.lineWidth = 2;
-      mapCtx.setLineDash([5, 5]);
+      mapCtx.strokeStyle = 'rgba(255, 215, 94, 0.95)';
+      mapCtx.lineWidth = 4;
       mapCtx.beginPath();
       mapCtx.moveTo(px(G.player.x), py(G.player.z));
       mapCtx.lineTo(px(L.x), py(L.z));
       mapCtx.stroke();
-      mapCtx.setLineDash([]);
     }
     // Objective: pulsing gold diamond.
     if (!G.missions.done) {
@@ -214,15 +215,30 @@ export function createHud() {
     }
     // Traffic: faint grey dots, so the radar shows the city is busy.
     for (const c of G.traffic.cars) dot(c.x, c.z, '#7a8a98', 1.6);
-    // Search ring: a dashed red circle around the player while wanted.
+    // Search ring: while the player is unseen with heat on, a dashed red
+    // circle around the LAST-SEEN spot (the zone the police are sweeping),
+    // labelled ZONA — while seen, a pulsing ring around the player.
     if (G.state.heat >= 1) {
-      mapCtx.strokeStyle = 'rgba(255, 59, 46, 0.8)';
-      mapCtx.lineWidth = 2;
+      const searching = G.police && G.police.searching;
+      const cx = searching && G.police.lastSeen ? G.police.lastSeen.x : G.player.x;
+      const cz = searching && G.police.lastSeen ? G.police.lastSeen.z : G.player.z;
+      mapCtx.strokeStyle = searching ? 'rgba(255, 106, 90, 0.95)' : 'rgba(255, 59, 46, 0.8)';
+      mapCtx.lineWidth = searching ? 3 : 2;
       mapCtx.setLineDash([6, 5]);
       mapCtx.beginPath();
-      mapCtx.arc(px(G.player.x), py(G.player.z), 26, 0, Math.PI * 2);
+      mapCtx.arc(px(cx), py(cz), searching ? 34 : 26, 0, Math.PI * 2);
       mapCtx.stroke();
       mapCtx.setLineDash([]);
+      if (searching) {
+        mapCtx.fillStyle = '#ff6a5a';
+        mapCtx.font = 'bold 9px system-ui, sans-serif';
+        mapCtx.textAlign = 'center';
+        mapCtx.fillText('ZONA', px(cx), py(cz) - 38);
+      }
+    }
+    // Ojek bike: bright green dot + ring, so the fare run reads on radar.
+    if (G.ojek && G.ojek.state !== 'idle' && G.ojek.bike) {
+      dot(G.ojek.bike.x, G.ojek.bike.z, '#37d67a', 4);
     }
     // Player arrow, rotated by heading.
     mapCtx.save();
@@ -369,9 +385,18 @@ export function createHud() {
     els.starsBox.innerHTML = starsHtml(S.heat);
     const mins = 16 * 60 + Math.floor(S.time * 0.5);
     els.clockText.textContent = `HARI ${S.day} · ${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')} · MUSIM KEMARAU`;
+    // LOS chip: two states, always visible while wanted — TERLIHAT (red,
+    // blinking, the search zone follows the player) or HILANG (amber, the
+    // police are sweeping the last-seen zone).
     if (els.seenFlash) {
-      const seen = S.heat >= 1 && G.police && G.police.anyoneSees(P.x, P.z);
-      els.seenFlash.style.display = seen ? 'block' : 'none';
+      if (S.heat >= 1 && G.police) {
+        const seen = G.police.anyoneSees(P.x, P.z);
+        els.seenFlash.style.display = 'block';
+        els.seenFlash.textContent = seen ? '● TERLIHAT — ZONA MENGIKUTIMU' : '○ HILANG — ZONA PENCARIAN';
+        els.seenFlash.classList.toggle('lost', !seen);
+      } else {
+        els.seenFlash.style.display = 'none';
+      }
     }
     billTimer -= dt;
     if (billTimer <= 0) {
@@ -388,7 +413,7 @@ export function createHud() {
       const shown = units.slice(0, 5);
       let html = shown.map((u) => {
         const pill = STATUS_PILL[u.status] || [u.status, 'pill-cari'];
-        return `<div class="unit"><b>${u.name}</b><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
+        return `<div class="unit"><b>${u.name}</b><span class="cond">${u.cond || ''}</span><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
       }).join('');
       if (units.length > 5) html += `<div class="more">+${units.length - 5} unit lagi</div>`;
       els.policeRows.innerHTML = html;
@@ -399,6 +424,28 @@ export function createHud() {
     drawGauge(P);
     els.vehicleName.textContent = P.onFoot ? 'JALAN KAKI' : (P.car ? P.car.name.toUpperCase() : 'CEMPAKA GT');
     els.vehiclePlate.textContent = P.onFoot ? '' : (P.car && P.car.plate ? `PLAT ${P.car.plate}` : 'PLAT B 4821 KLM');
+    // Vehicle condition: the number Karimbu shows ("62% DENTED") — the
+    // body smoke already exists in car.js below 40% health.
+    if (els.vehicleCond) {
+      if (P.car) {
+        const hp = Math.round(P.car.health);
+        const label = hp >= 90 ? 'PRIMA' : hp >= 75 ? '' : hp >= 40 ? 'DENTED' : 'RUSAK';
+        els.vehicleCond.textContent = `KONDISI ${hp}%${label ? ` · ${label}` : ''}`;
+        els.vehicleCond.className = hp < 40 ? 'bad' : hp < 75 ? 'hurt' : '';
+        els.vehicleCond.style.display = 'block';
+      } else {
+        els.vehicleCond.style.display = 'none';
+      }
+    }
+    // Ojek fare meter beside the speedo, live while a ride is running.
+    if (els.ojekMeter) {
+      if (G.ojek && G.ojek.state !== 'idle' && typeof G.ojek.meterText === 'function') {
+        els.ojekMeter.textContent = G.ojek.meterText();
+        els.ojekMeter.style.display = 'block';
+      } else {
+        els.ojekMeter.style.display = 'none';
+      }
+    }
     if (P.car) {
       els.fuelBar.style.display = 'block';
       els.fuelFill.style.width = `${Math.round(P.car.fuel)}%`;
@@ -449,8 +496,8 @@ export function createHud() {
     if (G.garage) {
       const owned = G.garage.ownedList();
       const current = P.car ? P.car.name : null;
-      els.progressRail.innerHTML = `<div class="rail-title">GARASI</div>` + (owned.length === 0
-        ? `<div class="rail-car">CEMPAKA GT</div><div class="rail-note">Beli di Bengkel</div>`
+      els.progressRail.innerHTML = `<div class="rail-title">GARASI · RESPRAY + UPGRADE</div>` + (owned.length === 0
+        ? `<div class="rail-car">CEMPAKA GT</div><div class="rail-note">Beli di Bengkel Roda Jaya</div>`
         : owned.map((c) => `<div class="rail-car${current === c.name ? ' current' : ''}">${c.name}</div>`).join(''));
     }
     // Crosshair: on foot only, never in capture mode.
@@ -561,10 +608,18 @@ export function createHud() {
   }
 
   // Capture mode: 'cover' hides the dialogue box (the hero car must own
-  // the frame), 'story' hides only the crosshair. null restores all.
+  // the frame), 'coverportrait' keeps a compact portrait card (the cover
+  // needs a face, but the card is small and bottom-edge), 'story' hides
+  // only the crosshair. null restores all. Both cover modes add the
+  // body.cover-shot class, so the compact strip docks bottom-LEFT —
+  // without it the card falls back to the centred 560 px box and covers
+  // the hero car.
   function setCaptureMode(mode) {
     captureMode = mode;
-    els.dialogue.style.display = mode === 'cover' ? 'none' : els.dialogue.style.display;
+    document.body.classList.toggle('cover-shot', mode === 'cover' || mode === 'coverportrait');
+    if (mode === 'cover') els.dialogue.style.display = 'none';
+    else if (mode === 'coverportrait') els.dialogue.style.display = 'flex';
+    else els.dialogue.style.display = els.dialogue.style.display;
     els.crosshair.style.display = 'none';
     if (mode === null) els.crosshair.style.display = 'block';
   }
