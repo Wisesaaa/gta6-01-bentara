@@ -359,7 +359,10 @@ export function createOjek(scene, city, rng, hooks = {}) {
     if (phase === 'idle') return '';
     const base = `OJEK · ${formatRp(fare)} · ${formatKm(distance)}`;
     if (phase === 'riding' || phase === 'boarding') {
-      return scratched ? `${base} · TIP hilang — ada goresan` : `${base} · TIP ×2 kalau tanpa goresan`;
+      // Short: the pickup toast already states the condition
+      // ("Tanpa goresan = TIP ×2") — the meter carries fare + distance
+      // + TIP on one line instead of wrapping mid-word.
+      return scratched ? `${base} · TIP hilang — ada goresan` : `${base} · TIP ×2`;
     }
     return `${base} · motor meluncur…`;
   }

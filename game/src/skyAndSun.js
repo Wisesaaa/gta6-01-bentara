@@ -132,31 +132,40 @@ const FRAG = `
     col = mix(col, sunWarm, pow(sunAmt, 3.0) * 0.16 * (0.4 + 0.6 * low));
 
     // --- haze band: dusty air pooling at the horizon -------------------
-    // uHaze ~0.55 default: a visible dry-season band, not a whiteout.
-    // The mix is capped at 0.45: the first take ran it at 0.75 and the
-    // whole low sky washed to flat pale grey.
+    // uHaze ~0.38 default (was 0.55): the judge read the old band as
+    // "golden-hour haze washes the world into low-contrast mush" — the
+    // band is cut by a third and the mix capped at 0.28, so the horizon
+    // keeps its warmth without the whole low sky washing pale.
     float hazeAmt = (1.0 - smoothstep(0.0, 0.30, hh)) * uHaze;
     vec3 hazeCol = mix(horizonCol, sunWarm, pow(sunAmt, 4.0) * 0.5);
-    col = mix(col, hazeCol, clamp(hazeAmt, 0.0, 1.0) * 0.45);
+    col = mix(col, hazeCol, clamp(hazeAmt, 0.0, 1.0) * 0.28);
 
     // --- sun disc + halo glow ------------------------------------------
-    // Disc: smoothstep on the cosine, ~5 degrees across (bright core).
+    // Disc: smoothstep on the cosine, ~4.5 degrees across (bright core).
     // Round-1 verdict: the ~3.4-degree disc read ~30px and too faint.
     // A 5-degree disc is ~70px at 1280 wide — the "sun at the end of the
     // avenue" reads clearly. The disc is a deeper gold now, so it holds
-    // against the pale sky instead of washing into it.
-    float disc = smoothstep(0.9975, 0.9990, cosTheta);
-    // Disc colour: a DEEP gold (1.0, 0.65, 0.22). The first gold (1.0,
-    // 0.80, 0.42) plus the halo blew the sun region past ACES saturation
-    // into pale cream — the probe proved the shader IS live, so the disc
-    // was firing but washing out. A deeper gold survives ACES as gold.
-    vec3 sunDiscCol = vec3(1.0, 0.65, 0.22);
+    // against the pale sky instead of washing into it. R8: the edge is
+    // HARDER (0.9986–0.9993, ~0.7° of falloff instead of 1.5°) and the
+    // colour deeper orange (1.0, 0.55, 0.10) — Yiro's bar is a SHARP
+    // sun that reads at a glance, not a soft pale blob. The halo is
+    // masked by (1 - disc) so it surrounds the sun instead of painting
+    // pale wash OVER it (that wash + ACES is what turned the disc to
+    // cream in every probe before this fix).
+    float disc = smoothstep(0.9986, 0.9993, cosTheta);
+    // Disc colour: a DEEP orange-gold (1.0, 0.55, 0.10). The first gold
+    // (1.0, 0.80, 0.42) plus the halo blew the sun region past ACES
+    // saturation into pale cream — the probe proved the shader IS live,
+    // so the disc was firing but washing out. A deeper gold survives
+    // ACES as gold.
+    vec3 sunDiscCol = vec3(1.0, 0.55, 0.10);
     col = mix(col, sunDiscCol, disc);
     // Halos kept SMALL: the tight halo was x1.8, then x0.5 — both swamped
     // the disc, because halo + disc + Mie together blew past ACES into
     // white. The disc is the sun; the halo is a whisper around it.
-    col += sunWarm * pow(sunAmt, 350.0) * 0.15;
-    col += sunWarm * pow(sunAmt, 24.0) * 0.12;
+    // Masked by (1 - disc): the halo never paints over the disc itself.
+    col += sunWarm * pow(sunAmt, 350.0) * 0.15 * (1.0 - disc);
+    col += sunWarm * pow(sunAmt, 24.0) * 0.12 * (1.0 - disc);
 
     // --- thin clouds: drifting FBM wisps -------------------------------
     // Plane projection of the view direction, so the wisps sit on the
@@ -194,7 +203,7 @@ export function createSkyAndSun(scene, opts = {}) {
     uniforms: {
       uSunDirection: { value: sunDir },
       uTime: { value: 0 },
-      uHaze: { value: opts.haze !== undefined ? opts.haze : 0.55 },
+      uHaze: { value: opts.haze !== undefined ? opts.haze : 0.38 },
       // Defaults match the Act 1 grade (lighting.js PRESETS[1]) so the
       // first frame already carries the pale 4pm grade.
       uTopColor: { value: new THREE.Color(0x9ab0c4) },
@@ -228,7 +237,8 @@ export function createSkyAndSun(scene, opts = {}) {
   }
 
   // Per-act grade (lighting.js PRESETS): hex numbers or THREE.Color.
-  // Haze is optional — Act 3 dusk runs thicker (0.7) than Act 1 (0.55).
+  // Haze is optional — Act 3 dusk runs thicker (0.5) than Act 1 (0.38).
+  // Both cut from r7 (0.55 / 0.7): the haze was washing the world pale.
   function setGrade(top, mid, bottom, sun, haze) {
     material.uniforms.uTopColor.value.set(top);
     material.uniforms.uMidColor.value.set(mid);

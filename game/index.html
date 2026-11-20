@@ -178,6 +178,52 @@
   #screen .key { color: var(--gold); font-weight: 700; }
   #screen.hidden { display: none; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* HUD profiles (r8 de-clutter — judge: "a dozen panels"): one focus
+     cluster per frame, the rest hidden. CSS !important beats the inline
+     display styles hud.update() writes every frame, so the profile is
+     enforced without touching the live HUD logic. Baseline was 18/18/16/15
+     panels; after profiles: heat ~9, drive ~8, foot ~8, story 3. */
+  body[data-hud="heat"] #repRow, body[data-hud="heat"] #chipRow,
+  body[data-hud="heat"] #weaponBox, body[data-hud="heat"] #radioLine,
+  body[data-hud="heat"] #eqBars, body[data-hud="heat"] #progressRail,
+  body[data-hud="heat"] #billPill, body[data-hud="heat"] #raceChip,
+  body[data-hud="heat"] #controlsHint { display: none !important; }
+  body[data-hud="drive"] #repRow, body[data-hud="drive"] #chipRow,
+  body[data-hud="drive"] #weaponBox, body[data-hud="drive"] #radioLine,
+  body[data-hud="drive"] #eqBars, body[data-hud="drive"] #policeBox,
+  body[data-hud="drive"] #billPill, body[data-hud="drive"] #controlsHint,
+  body[data-hud="drive"] #dialogue, body[data-hud="drive"] #ledgerCard,
+  body[data-hud="drive"] #prompt, body[data-hud="drive"] #crosshair { display: none !important; }
+  body[data-hud="foot"] #repRow, body[data-hud="foot"] #chipRow,
+  body[data-hud="foot"] #radioLine, body[data-hud="foot"] #eqBars,
+  body[data-hud="foot"] #policeBox, body[data-hud="foot"] #progressRail,
+  body[data-hud="foot"] #billPill, body[data-hud="foot"] #controlsHint,
+  body[data-hud="foot"] #dialogue, body[data-hud="foot"] #ledgerCard,
+  body[data-hud="foot"] #ticker, body[data-hud="foot"] #raceChip,
+  body[data-hud="foot"] #ojekMeter { display: none !important; }
+  body[data-hud="story"] #missionStinger, body[data-hud="story"] #actChip,
+  body[data-hud="story"] #actPips, body[data-hud="story"] #mapWrap,
+  body[data-hud="story"] #cashBox, body[data-hud="story"] #driveBox,
+  body[data-hud="story"] #progressRail, body[data-hud="story"] #dialogue,
+  body[data-hud="story"] #ledgerCard, body[data-hud="story"] #ticker,
+  body[data-hud="story"] #raceChip, body[data-hud="story"] #toast,
+  body[data-hud="story"] #popups, body[data-hud="story"] #prompt,
+  body[data-hud="story"] #crosshair, body[data-hud="story"] #controlsHint,
+  body[data-hud="story"] #vignette { display: none !important; }
+  /* Full city map + completion screen (r8 frame 4): the map is the
+     dominant element, stats + ledger + one dialogue line beside it. */
+  #mapScreen { position: fixed; inset: 0; display: none; flex-direction: row; align-items: center; justify-content: center; gap: 28px; background: rgba(13,18,24,.96); z-index: 4; padding: 20px; box-sizing: border-box; }
+  #mapScreen.show { display: flex; }
+  #mapCanvas { border: 2px solid var(--panel-line); border-radius: 12px; background: #10161d; flex: none; }
+  #mapSide { width: 420px; flex: none; }
+  #mapBanner { font-size: 26px; font-weight: 800; letter-spacing: 2px; line-height: 1.25; color: var(--gold); margin-bottom: 14px; }
+  #mapStats { font-size: 16px; line-height: 1.9; letter-spacing: 1px; }
+  #mapStats b { color: var(--gold); }
+  #mapLedger { font-size: 15px; line-height: 1.7; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
+  #mapLedger .row { display: flex; justify-content: space-between; }
+  #mapLedger .total { font-weight: 700; color: var(--gold); }
+  #mapQuote { font-size: 14px; font-style: italic; line-height: 1.5; color: #f3e6c8; margin-top: 14px; }
+  #mapQuote b { color: var(--gold); font-style: normal; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -229,6 +275,15 @@
   <div id="garagePanel" class="shopPanel panel"></div>
   <div id="usahaPanel" class="shopPanel panel"></div>
   <div id="shopPanel" class="shopPanel panel"></div>
+  <div id="mapScreen">
+    <canvas id="mapCanvas" width="560" height="560"></canvas>
+    <div id="mapSide">
+      <div id="mapBanner">SEMUA MISI SELESAI — BENTARA MILIKMU</div>
+      <div id="mapStats"></div>
+      <div id="mapLedger"></div>
+      <div id="mapQuote"></div>
+    </div>
+  </div>
 </div>
 <div id="screen"></div>
 <p id="status" role="status" aria-live="polite"></p>

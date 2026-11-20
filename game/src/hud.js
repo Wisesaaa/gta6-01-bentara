@@ -13,6 +13,7 @@
 // real game state — never a string set by a shot script.
 import { LOCATIONS, roadLines } from './city.js';
 import { routeWaypoints } from './gpsRoute.js';
+import { drawMap } from './mapScreen.js';
 import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS } from './config.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
@@ -90,6 +91,8 @@ export function createHud() {
     garagePanel: $('garagePanel'), usahaPanel: $('usahaPanel'), shopPanel: $('shopPanel'),
     crosshair: $('crosshair'), screen: $('screen'), status: $('status'),
     pauseStats: $('pauseStats'),
+    mapScreen: $('mapScreen'), mapCanvas: $('mapCanvas'), mapBanner: $('mapBanner'),
+    mapStats: $('mapStats'), mapLedger: $('mapLedger'), mapQuote: $('mapQuote'),
   };
   const mapCtx = els.minimap.getContext('2d');
   const gaugeCtx = els.gauge.getContext('2d');
@@ -105,6 +108,7 @@ export function createHud() {
   let ledgerTimer = 0;
   let tickerTimer = 0;
   let captureMode = null;
+  let hudProfile = null;
   let shopKind = null;
 
   function starsHtml(heat) {
@@ -630,6 +634,40 @@ export function createHud() {
     if (mode === null) els.crosshair.style.display = 'block';
   }
 
+  // HUD profile (r8 de-clutter): one focus cluster per frame. The CSS in
+  // index.html hides the rest with !important; this only flips the
+  // body[data-hud] attribute. null restores the full live HUD.
+  function setHudProfile(mode) {
+    hudProfile = mode;
+    if (mode) document.body.dataset.hud = mode;
+    else delete document.body.dataset.hud;
+  }
+
+  // Full city map + completion screen (r8 frame 4). Stats + ledger come
+  // from the live game state, never a staged string. Returns the map
+  // draw info (markers, roads, route points) for the shot QA.
+  function showMapScreen(G, ledgerData) {
+    const mp = missionProgress(G.missions);
+    const assets = G.usaha ? G.usaha.assetChip() : 'ASET 0/3';
+    els.mapStats.innerHTML = `MISI <b>8/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
+      + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${assets} · KEMAJUAN <b>${mp.pct}%</b>`;
+    if (ledgerData) {
+      els.mapLedger.innerHTML = `<div class="row"><span>Hasil</span><span>+$${ledgerData.hasil.toLocaleString('en-US')}</span></div>`
+        + `<div class="row"><span>Tagihan</span><span>−$${ledgerData.tagihan.toLocaleString('en-US')}</span></div>`
+        + `<div class="row total"><span>BERSIH</span><span>$${ledgerData.bersih.toLocaleString('en-US')}</span></div>`
+        + `<div class="row"><span>REP</span><span>+${ledgerData.rep}</span></div>`;
+    } else {
+      els.mapLedger.innerHTML = '';
+    }
+    els.mapQuote.innerHTML = `<b>PAK ASKA · PENERIMA MARINA</b><br>“Barang sampai, uang jalan. Marina tidak pernah tidur — dan sekarang kota ini tahu namamu.”`;
+    const info = drawMap(els.mapCanvas, G);
+    els.mapScreen.classList.add('show');
+    return info;
+  }
+  function hideMapScreen() {
+    els.mapScreen.classList.remove('show');
+  }
+
   // Hide the dialogue box outright (a shot stage kills a mission intro
   // that would otherwise sit over the frame for its 7 s lifetime).
   function hideDialogue() {
@@ -764,5 +802,6 @@ export function createHud() {
     update, toast, dialogue, prompt, announce, showScreen, hideScreen,
     popups, els, stinger, ticker, ledger, setCaptureMode, hideDialogue,
     showGarage, showUsaha, showWeaponShop, closeShop, isShopOpen,
+    setHudProfile, showMapScreen, hideMapScreen,
   };
 }

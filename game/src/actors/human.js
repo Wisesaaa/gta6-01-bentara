@@ -39,7 +39,12 @@ export class Human {
     this.speed = 0;
     this.heading = rng ? rng() * Math.PI * 2 : 0;
     this.walkPhase = rng ? rng() * 6 : 0;
-    const shirt = role === 'cop' ? 0x1d2a3a : role === 'attacker' ? 0x6b1f1f : role === 'taxi' ? 0xffd75e : SHIRT[Math.floor((rng ? rng() : 0.5) * SHIRT.length)];
+    // Cop shirt is a LIGHTER steel navy (0x2e4a66, was 0x1d2a3a): the
+    // dark navy vanished against dark asphalt at 12 m — the foot frame's
+    // cops read as shadows, not police. The green cap + gun stay, so the
+    // cop still reads as a cop, just one the eye can find. Attackers
+    // stay dark red (0x6b1f1f), so the two factions stay distinct.
+    const shirt = role === 'cop' ? 0x2e4a66 : role === 'attacker' ? 0x6b1f1f : role === 'taxi' ? 0xffd75e : SHIRT[Math.floor((rng ? rng() : 0.5) * SHIRT.length)];
     const skin = SKIN[Math.floor((rng ? rng() : 0.5) * SKIN.length)];
     const hat = role === 'cop' ? 'cap' : HATS[Math.floor((rng ? rng() : 0.5) * HATS.length)];
     this.group = new THREE.Group();

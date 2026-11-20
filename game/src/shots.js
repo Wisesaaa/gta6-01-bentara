@@ -20,22 +20,24 @@
 //   One cruiser sits tight behind the player (RAMMING range) — the camera
 //   is a three-quarter view from the west, never the 22 m pull-back, so
 //   the player car stays the hero.
-// 3-foot: on foot outside WARUNG SARI, emissive sign + tarp awning, the
-//   pasar block behind (striped tents, gerobak, ES TEH stall), 10+
-//   pedestrians fleeing a real shot, a live firefight frozen mid-tracer
-//   (one outbound, one return), a downed attacker + cash/ammo drops, the
-//   warung interaction pill live, the weapon rail with its LOCKED slots,
-//   and the red CEMPAKA GT parked clearly in frame — traffic kept clear
-//   of it.
-// 4-story: marina handoff, letterbox bars, PAK ASKA's card fully inside
-//   the safe margins, ledger chip, city glow, ZERO cut text. Staged by
-//   really completing MISSION 8 live (the largest real ledger:
-//   "PANAS TERAKHIR SELESAI / Hasil +$1.000 / Tagihan −$0 / REP +600 /
-//   BERSIH +$1.000") — never a staged M3 +$2.165, which the ledger can
-//   never pay. Crosshair hidden.
+// 3-foot: on foot at the north-row market, WANTED — 2 foot cops closing
+//   in on the player between the camera and him, 3 cruisers + a roadblock
+//   holding the street's north end, 3 stars + the TERLIHAT chip, peds
+//   fleeing the cordon, the pasar signs readable. The hero car is OUT of
+//   frame (the judge's gap is "all vehicle-bound"); the player, the cops
+//   and the market carry the scene. One frozen cop tracer crosses the
+//   frame. Emissive WARUNG SARI sign + tarp awning, striped tents,
+//   gerobak, ES TEH stall, the warung interaction pill live, the weapon
+//   rail with its LOCKED slots, a real collectible on the walking line.
+// 4-story: FULL CITY MAP + COMPLETION SCREEN — the whole city on one
+//   canvas (road grid, marina water, 8 numbered mission spots, the M8
+//   gold route Plaza -> Marina, player arrow) beside the completion
+//   stats, the real M8 ledger and one Pak Aska line. Staged by really
+//   completing MISSION 8 live. No letterbox, no stacked cards.
 import * as THREE from 'three';
 import { STEP, COLLECTIBLES } from './config.js';
 import { loc } from './city.js';
+import { makeGlowSprite } from './effects.js';
 
 const SHOTS = {
   heat: { at: 2 },
@@ -112,6 +114,7 @@ export function stageShot(name, game, atSeconds) {
   G.hud.hideScreen();
 
   if (name === 'drive') {
+    G.hud.setHudProfile('drive');
     G.missions.setIndex(1);
     // The M2 intro (Letkol Rahmat) would sit over the frame for its 7 s
     // lifetime; the drive shot is a chase, not a conversation.
@@ -265,6 +268,18 @@ export function stageShot(name, game, atSeconds) {
       G.effects.smoke(dx - Math.sin(dh) * 2.4 * k, dz - Math.cos(dh) * 2.4 * k, true);
     }
     G.effects.smoke(dx + 2.5, dz + 11, false);
+    // r8 fix (round-1 verdict): the next race gate's gold hoop sits ~54°
+    // off the drive camera's axis, so its rim clips into the frame's
+    // right edge as a cut gold arc. The race is still proven by the HUD
+    // race chip + the minimap's gold circle — hide the 3D hoop + posts
+    // for this frame only (the gate stays live: position, minimap and
+    // timer untouched).
+    const driveGate = G.race.nextGate;
+    if (driveGate) {
+      driveGate.ring.visible = false;
+      driveGate.post.visible = false;
+      driveGate.post2.visible = false;
+    }
     // Frozen impact trauma (game-feel): a cruiser is in RAMMING range, so
     // the frame carries a slight Dutch angle — the chase reads as a hit,
     // not a parked pose.
@@ -273,6 +288,7 @@ export function stageShot(name, game, atSeconds) {
     window.__shotReady = true;
     return { name, seconds, steps };
   } else if (name === 'heat') {
+    G.hud.setHudProfile('heat');
     // Mission 3 RAMPOKAN KECIL: its objective is "Pergi ke Kawasan
     // Industri", so the mission panel matches the district in frame, and a
     // robbery at 4.2 stars is the chase the cover is supposed to show.
@@ -492,20 +508,25 @@ export function stageShot(name, game, atSeconds) {
     // it. Yawing south moves the disc ~85 px left to ~x904, into the clear
     // sky gap between the mission banner and the stars panel. The car
     // shifts ~70 px left of centre — still the hero, still prominent.
-    cam.lookAt(G.player.x + 40, 6, G.player.z + 10);
-    G.view.keepClear(cam, G.player.x + 40, 6, G.player.z + 10);
+    // R8: lookAt z +10 -> +12 (another ~2.7° south): the STOP sign at
+    // the right edge read "TOP" (its S sat off-frame) — the extra yaw
+    // pulls the whole sign ~40 px left, fully into the frame, while the
+    // disc only slides to ~x772, still in clear sky.
+    cam.lookAt(G.player.x + 40, 6, G.player.z + 12);
+    G.view.keepClear(cam, G.player.x + 40, 6, G.player.z + 12);
     G.hud.dialogue('SARI · WARUNG SARI', 'Jalan ini milik kita, Wira. Gas terus, jangan berhenti.', 'sari', 600);
-    // Re-show the drift popup the chase really earned (cash 18250 -> 18292,
-    // a 0.7 s slide at $60/s = +$42) with a 60 s lifetime: popups fade on
-    // wall-clock time, and one slow SwiftShader frame outlives the 2.6 s
-    // default, so the frozen frame would lose the popup the cover is
-    // supposed to prove. Same values, same call the game itself makes
-    // when a drift pays. Clear first: the live drift already left one
-    // popup, and re-showing without clearing stacks a duplicate.
+    // r8 fix (round-1 verdict): the NGEPOT drift popup is hidden in the
+    // heat frame — it is economy feedback, not the chase story, and this
+    // is the busiest frame. The drift still paid (cash 18250 -> 18292
+    // shows in the HUD cash total); only the popup is gone. Clear first:
+    // the live drift already left one popup, and re-showing without
+    // clearing stacks a duplicate.
     G.hud.popups.clear();
-    G.hud.popups.drift(42, 0.7, 60);
     // The mission stinger, held for the capture too.
     G.hud.stinger('MISI 3/8 — RAMPOKAN KECIL', 'Kawasan Industri', 60);
+    // Radio as ONE ticker line (r8 de-clutter: the radio card is gone
+    // from the cover — the song still reads, as a single line).
+    G.hud.ticker('RADIO KEMARAU 92.4 · Musim Kering — Senja Bentara', 60);
     // Frozen drift dust: the slide really laid smoke during the sim, but
     // the sim's puffs faded before the freeze — re-fire four big dust
     // puffs along the car's trail, frozen at full opacity for the
@@ -525,36 +546,30 @@ export function stageShot(name, game, atSeconds) {
     return { name, seconds, steps };
   } else if (name === 'foot') {
     // Mission 2 ANTAR PAKET: the player is on foot at the north-row
-    // market, outside WARUNG SARI — the warung interaction pill is live,
-    // the emissive sign + tarp awning are in frame, and the red CEMPAKA
-    // GT is parked clearly nearby.
+    // market, WANTED — the warung interaction pill is live, the emissive
+    // sign + tarp awning are in frame, and the cordon closes the street.
     G.missions.setIndex(1);
     // The M2 intro would sit over the frame; the foot shot is a market
     // street, not a conversation.
     G.hud.hideDialogue();
+    G.hud.setHudProfile('foot');
     G.state.cash = 19600;
     G.state.rep = 1960;
-    G.state.heat = 0;
+    // WANTED on foot (r8): heat 4.0 before the sim, so 2 foot cops + 3
+    // cruisers + the roadblock + the HELI spawn and close in — the frame's
+    // story is the cordon, not a firefight with attackers (those are
+    // gone). 4 stars (brief allows 3–4); the heli's spotlight cone +
+    // pool fall on the player's ground, which is what finally lights
+    // this shaded market street — without it the player and the cops
+    // read as dark figures on dark asphalt.
+    G.state.heat = 4.0;
     const L = loc('northRowStall');
     G.player.setPos(44, 104, -2.85);
     G.player.weapon = 'pistol';
-    // The firefight: two live attackers closing on the player and one
-    // already downed where a real kill left him — staged BEFORE the sim
-    // so the player's walk and the attackers' presence happen around
-    // real bodies, not empty air. They cluster around the player's END
-    // position (he walks north-west to ~(40,92)): the near attacker at
-    // (44,88), the far one at (48,90), the downed one at (42,90) — all
-    // within 12 m of the camera, so the figures, the tracers and the
-    // drops read instead of vanishing at 20 m. The downed one goes
-    // through the same damage() path as a combat kill.
-    G.missions.stageAttacker(44, 88);
-    G.missions.stageAttacker(48, 90);
-    // The downed one goes through the same damage() path as a combat
-    // kill, then lies ACROSS the frame (face 2.48) on open ground
-    // between the player and the camera — a flat body that reads as a
-    // body, not a dark slab behind a stall.
-    const downedAtk = G.missions.stageDownedAttacker(40, 84);
-    downedAtk.face(2.48);
+    // No attackers in this frame (r8): the wanted scene's threat is the
+    // police cordon itself — 2 foot cops spawn from the heat and walk at
+    // the player during the sim, then get re-staged to exact spots after
+    // it. The old firefight (attackers + downed body + drops) is gone.
     // The WARUNG SARI sign (42,5,104) sits 2 m behind PASAR PAGI
     // (42,6,102) and 1 m lower, so from any northern camera the two
     // signs stack and WARUNG SARI never reads. Stage it forward and
@@ -577,15 +592,12 @@ export function stageShot(name, game, atSeconds) {
         obj.position.set(54, 5, 96);
       }
     });
-    // The player's own red car, parked clearly ON THE ROAD west of the
-    // player (x=36, west lane of the x=37 road) — the first take parked
-    // it at x=52, inside the warung block's footprint, where a building
-    // hid it; the second take put it at x=44, where a market stall hid
-    // it from the southern camera; the third put it at (40,94), where it
-    // stood on the player's walking line and hid him. At (36,96) it sits
-    // beside the player, never on him.
-    G.parked[0].x = 36;
-    G.parked[0].z = 96;
+    // The player's own red car is NOT the subject of this frame (r8):
+    // it parks far out of frame at (75,130), east of the market — the
+    // judge's gap is "all vehicle-bound", so the wanted scene belongs
+    // to the player on foot and the cops closing in, not the car.
+    G.parked[0].x = 75;
+    G.parked[0].z = 130;
     G.parked[0].heading = 1.2;
     G.parked[0].sync();
     // Traffic kept clear of the hero car AND the frame: every car is
@@ -605,9 +617,9 @@ export function stageShot(name, game, atSeconds) {
       c.speed = 10;
       c.sync();
     });
-    // Props kept clear of the hero car's spot (a market stall sat on it).
+    // Props kept clear of the hero car's (out-of-frame) spot.
     for (const prop of G.props.props) {
-      if (!prop.broken && Math.hypot(prop.x - 36, prop.z - 96) < 6) {
+      if (!prop.broken && Math.hypot(prop.x - 75, prop.z - 130) < 6) {
         prop.x = 30;
         prop.z = 84;
         prop.mesh.position.x = 30;
@@ -659,6 +671,11 @@ export function stageShot(name, game, atSeconds) {
       p.setPos(footPedSpots[k][0], footPedSpots[k][1]);
       p.target = { x: footPedSpots[k][0] + (k % 2 === 0 ? 10 : -10), z: footPedSpots[k][1] - 8 };
       p.fleeTimer = 2;
+      // fleeFrom must be set with fleeTimer: peds.step reads
+      // p.fleeFrom.x on the first step a fleeing ped takes — without it
+      // the step crashes. They flee from the shots, i.e. from the
+      // player, so the direction reads as away from the cordon.
+      p.fleeFrom = { x: G.player.x, z: G.player.z };
     });
     // Fleeing pose, frozen mid-stride: the frame freezes right after
     // staging, so no walk() ever runs — without a posed lean + leg
@@ -686,6 +703,7 @@ export function stageShot(name, game, atSeconds) {
       p.setPos(s[0], s[1]);
       p.target = { x: s[2], z: s[3] };
       p.fleeTimer = 2;
+      p.fleeFrom = { x: G.player.x, z: G.player.z };
       p.face(Math.atan2(s[2] - s[0], s[3] - s[1]));
       p.legL.rotation.x = 0.8;
       p.legR.rotation.x = -0.8;
@@ -729,23 +747,78 @@ export function stageShot(name, game, atSeconds) {
       c.heading = k === 0 ? 1.2 : -1.2;
       c.sync();
     });
-    // The attackers, re-staged to exact spots after the sim (the player's
-    // walk may have shifted them): the living ones stand facing the
-    // player, the downed ones stay where they fell.
-    const liveAtk = G.missions.attackers.filter((a) => a.alive);
-    const atkSpots = [[44, 88], [48, 90]];
-    liveAtk.forEach((a, k) => {
-      const s = atkSpots[k % atkSpots.length];
-      a.setPos(s[0], s[1]);
-      a.face(Math.atan2(G.player.x - s[0], G.player.z - s[1]));
+    // The M2 survive step may have auto-spawned an attacker during the
+    // 2 s sim — dispose any that appeared, so the frame holds only cops
+    // and civilians (an attacker would read as a third faction).
+    for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
+    // The cordon, re-staged to exact spots after the sim (the sim's walk
+    // may have scattered them): 2 foot cops CLOSE to the player — 4–5 m
+    // off, flanking him left-front and right-front, facing him, guns on
+    // him. Take 1 staged them 6–8 m off and they vanished into the dark
+    // street at 12 m from the lens; at 4–5 m they are ~110 px tall, the
+    // tracers between them and the player are short and bright, and the
+    // frame reads as a cordon that has him cornered. 3 cruisers hold the
+    // street's north end beside the roadblock, lights on the player, none
+    // of them between the camera and the player. The roadblock sits
+    // across the street at (40,118).
+    const cops = (G.police.cops || []).filter((c) => c.alive);
+    // r8 fix (round-1 verdict): the cops read as shadows at 12 m — 2 m
+    // closer to the lens and 20% bigger, so the uniform + green cap read
+    // at full-frame size without zooming.
+    const copSpots = [[38, 86], [44, 88]];
+    cops.forEach((c, k) => {
+      const s = copSpots[k % copSpots.length];
+      c.setPos(s[0], s[1]);
+      c.face(Math.atan2(G.player.x - s[0], G.player.z - s[1]));
+      c.group.scale.setScalar(1.2);
     });
-    // Loot on the ground beside the downed attacker: a cash bundle and
-    // an ammo crate, both real drops (walk over them and they collect) —
-    // scaled 1.6× so they read at 12 m instead of hiding in the grass.
-    const dCash = G.effects.dropCash(39, 83, 40);
-    const dAmmo = G.effects.dropAmmo(41, 83, 'shells', 6);
-    if (dCash) dCash.group.scale.setScalar(1.6);
-    if (dAmmo) dAmmo.group.scale.setScalar(1.6);
+    const cruiserSpots = [[33, 108], [47, 112], [52, 106]];
+    G.police.cruisers.forEach((c, k) => {
+      const s = cruiserSpots[k % cruiserSpots.length];
+      c.x = s[0];
+      c.z = s[1];
+      c.heading = Math.PI;
+      c.speed = 0;
+      c.sync();
+    });
+    const rb = G.police.roadblock;
+    if (rb) {
+      rb.x = 40;
+      rb.z = 118;
+      rb.heading = Math.PI / 2;
+      rb.speed = 0;
+      rb.sync();
+    }
+    // r8 fix (round-1 verdict): the cruisers + roadblock at the street's
+    // far end read as dark shapes at 12 m — red/blue lightbar glows mark
+    // each cruiser and amber marks the roadblock, so the cordon reads as
+    // a cordon even where the car bodies stay small.
+    G.police.cruisers.forEach((c) => {
+      const red = makeGlowSprite(0xff3b30, 2.2, 0.85);
+      red.position.set(c.x - 0.8, 2.2, c.z);
+      G.view.scene.add(red);
+      const blue = makeGlowSprite(0x2f7bff, 2.2, 0.85);
+      blue.position.set(c.x + 0.8, 2.2, c.z);
+      G.view.scene.add(blue);
+    });
+    if (rb) {
+      const amber = makeGlowSprite(0xffb020, 2.6, 0.8);
+      amber.position.set(rb.x, 2.4, rb.z);
+      G.view.scene.add(amber);
+    }
+    // One extra 1/60 s step AFTER the re-stage: the police step now sees
+    // the cops 6-8 m from the player (anyoneSees < 40 m), so the LOS chip
+    // flips from HILANG to TERLIHAT and the search ring hides — the frame
+    // reads as a cordon that HAS him, not one still looking. One step
+    // moves nobody more than a few centimetres, so the staged spots hold.
+    // The M2 survive step could spawn one more attacker on this step —
+    // dispose again, same as above.
+    G.step(1 / 60);
+    for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
+    // The taxi/ojek toast re-fired during the sim — clear it so the
+    // centre holds only the warung prompt and the idol popup, not a
+    // third stacked line.
+    G.hud.toast('', 0.01);
     // Re-show the popup the walk really earned, with the STAGED item's
     // real kind and value and a 60 s lifetime, for the same slow-capture
     // reason as the cover's drift popup. Clear first: the live collect
@@ -758,69 +831,87 @@ export function stageShot(name, game, atSeconds) {
     G.hud.popups.collect(itemValue, stagedItem ? stagedItem.kind : 'tape', 60);
     G.setShotInput({ active: false });
     // Foot camera: (38, 4, 76) looking almost due south at the
-    // player's END position (40, 2.5, 96) — ~12 m from the player, so
-    // the player and the firefight read big enough to see (at 28 m the
-    // player was a small dark figure and the tracers were hairlines),
-    // while the market signs stay readable instead of the giants they
-    // were from 13 m. Aimed south, not south-east: the east tower's
-    // west face (x 48.8) filled the left ~35% from the (46, 94) aim —
-    // the southerly aim pushes its north corner out of frame and the
-    // KEDAI KOPI / TOKO KELONTONG signs break what is left of it. The
-    // red CEMPAKA GT sits right of the player, the player stands centre
-    // beside his car, the pasar tents fill the left of the frame.
+    // player's END position (40, 2.5, 96) — ~12 m from the player.
+    // Take 2 tried (38, 3.2, 82), 10 m: TOO CLOSE — the near cop sat
+    // 4.5 m from the lens, so his tracer crossed the frame as a giant
+    // white beam, his muzzle flash filled the bottom-right as a gold
+    // sun, and the low lens put a near-black road slab over the bottom
+    // 40%. At 12 m the cops + crossfire + flash read at honest size
+    // and the market fills the frame. Aimed south, not south-east: the
+    // east tower's west face (x 48.8) filled the left ~35% from the
+    // (46, 94) aim — the southerly aim pushes its north corner out of
+    // frame and the KEDAI KOPI / TOKO KELONTONG signs break what is
+    // left of it. The two foot cops stand between the camera and the
+    // player, the player stands centre, the pasar tents fill the left
+    // of the frame, and the cordon closes the street behind him.
     const cam = G.view.camera;
     cam.position.set(38, 4, 76);
     cam.lookAt(40, 2.5, 96);
     G.view.keepClear(cam, 40, 2.5, 96);
-    // Frozen firefight: one live tracer from the player toward the near
-    // attacker, and one return tracer from the far attacker toward the
-    // player — fired after the last step, so both tracers + muzzle
-    // flashes are at full opacity when the frame freezes. combat.shoot
-    // only draws the visuals; damage and drops stay in the game's own
-    // shot handler, so no staged body changes state here.
-    if (liveAtk.length > 0) {
-      const near = liveAtk[0];
-      const origin = new THREE.Vector3(G.player.x, 1.4, G.player.z);
-      const dir = new THREE.Vector3(near.x - G.player.x, 1.2 - 1.4, near.z - G.player.z).normalize();
-      G.player.combat.shoot(origin, dir, 'pistol', { humans: liveAtk, cars: [] });
-      const far = liveAtk[1] || liveAtk[0];
-      const back = new THREE.Vector3(far.x, 1.4, far.z);
-      const bdir = new THREE.Vector3(G.player.x - far.x, 1.2 - 1.4, G.player.z - far.z).normalize();
-      G.player.combat.shoot(back, bdir, 'pistol', { humans: [], cars: [] });
-    }
-    // Frozen muzzle smoke + impact sparks: the tracers are frozen at full
-    // opacity, but their smoke and sparks faded — re-fire one smoke puff
-    // at each shooter's muzzle and a spark burst where the return tracer
-    // meets the player, frozen for the capture. Muzzles are offset 1.2 m
-    // toward the target, so no puff ever veils the shooter. The puffs
-    // are FAINT (scale 0.9, opacity 0.35, dark warm tint): round-1 verdict
-    // — the full puffs read as a big white blob left of the player.
-    if (liveAtk.length > 0) {
-      const near = liveAtk[0];
-      const far = liveAtk[1] || liveAtk[0];
-      const ndx = near.x - G.player.x;
-      const ndz = near.z - G.player.z;
+    // Frozen cordon fire: CROSSFIRE from both foot cops toward the player
+    // — two tracers converging on him read as a cordon shooting, where
+    // one thin tracer read as a scratch. combat.shoot only draws the
+    // visuals; damage stays in the game's own shot handler, so no staged
+    // body changes state. The second cop aims 1 m past the player, so
+    // its tracer crosses the first near him instead of doubling it.
+    if (cops.length > 0) {
+      const near = cops[0];
+      const origin = new THREE.Vector3(near.x, 1.4, near.z);
+      const dir = new THREE.Vector3(G.player.x - near.x, 1.2 - 1.4, G.player.z - near.z).normalize();
+      G.player.combat.shoot(origin, dir, 'pistol', { humans: [], cars: [] });
+      // Muzzle flash: a bright additive glow at the near cop's muzzle,
+      // frozen for the capture — the gunshot reads even at a glance.
+      const ndx = G.player.x - near.x;
+      const ndz = G.player.z - near.z;
       const nd = Math.hypot(ndx, ndz) || 1;
-      G.effects.smoke(G.player.x + (ndx / nd) * 1.2, G.player.z + (ndz / nd) * 1.2, false, true);
-      const fdx = G.player.x - far.x;
-      const fdz = G.player.z - far.z;
-      const fd = Math.hypot(fdx, fdz) || 1;
-      G.effects.smoke(far.x + (fdx / fd) * 1.2, far.z + (fdz / fd) * 1.2, false, true);
-      G.effects.sparks(G.player.x + (ndx / nd) * 1.5, G.player.z + (ndz / nd) * 1.5);
+      // Scale 1.4: take 2's 2.0 read as a gold sun from the close lens.
+      const flash = makeGlowSprite(0xffd75e, 1.4, 0.9);
+      flash.position.set(near.x + (ndx / nd) * 1.2, 1.4, near.z + (ndz / nd) * 1.2);
+      G.view.scene.add(flash);
     }
-    // Frozen firefight trauma: tracers are crossing the frame, so the
+    if (cops.length > 1) {
+      const second = cops[1];
+      const origin2 = new THREE.Vector3(second.x, 1.4, second.z);
+      const dir2 = new THREE.Vector3(G.player.x + 1 - second.x, 1.2 - 1.4, G.player.z + 1 - second.z).normalize();
+      G.player.combat.shoot(origin2, dir2, 'pistol', { humans: [], cars: [] });
+    }
+    // Frozen muzzle smoke + impact sparks: the tracer is frozen at full
+    // opacity, but its smoke faded — re-fire one FAINT puff at the cop's
+    // muzzle (offset 1.2 m toward the player, so it never veils the cop)
+    // and a spark burst where the tracer meets the player.
+    if (cops.length > 0) {
+      const near = cops[0];
+      const ndx = G.player.x - near.x;
+      const ndz = G.player.z - near.z;
+      const nd = Math.hypot(ndx, ndz) || 1;
+      G.effects.smoke(near.x + (ndx / nd) * 1.2, near.z + (ndz / nd) * 1.2, false, true);
+      G.effects.sparks(G.player.x - (ndx / nd) * 1.5, G.player.z - (ndz / nd) * 1.5);
+    }
+    // r8 fix (round-1 verdict): the market street's near half read as a
+    // black void — a warm fill from the camera side lifts the road, the
+    // stalls and the cops' fronts. Shot-local staging lights: they live
+    // only in this frozen frame, never in the live game. The directional
+    // alone (0.85) left the shadowed asphalt black — the hemisphere is
+    // what actually lifts a shadowed street, since it ignores the sun's
+    // shadow map.
+    const footFill = new THREE.DirectionalLight(0xffe0b8, 1.2);
+    footFill.position.set(30, 16, 62);
+    footFill.target.position.set(42, 0, 96);
+    G.view.scene.add(footFill);
+    G.view.scene.add(footFill.target);
+    const footHemi = new THREE.HemisphereLight(0xffe0b8, 0x6a5a48, 0.55);
+    G.view.scene.add(footHemi);
+    // Frozen cordon trauma: a cop tracer is crossing the frame, so the
     // camera leans into the exchange — combat depth you can see.
-    G.view.setTrauma(0.4);
+    G.view.setTrauma(0.3);
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };
   } else {
     // story: the marina handoff, staged by REALLY completing MISSION 8
-    // live. The deliver step is at the marina, the player is already
-    // inside its radius, so one step completes it: the ledger pays the
-    // largest real numbers in the game (Hasil +$1.000 / Tagihan −$0 /
-    // REP +600 / BERSIH +$1.000). PAK ASKA takes the handoff beside Pak
-    // Wira, letterbox bars on, crosshair off, zero cut text.
+    // live — and shown as a FULL CITY MAP + COMPLETION SCREEN (r8),
+    // not a letterboxed dialogue scene.
+    G.hud.setHudProfile('story');
     G.missions.setIndex(7, 2);
     G.state.cash = 250;
     G.state.rep = 0;
@@ -882,15 +973,14 @@ export function stageShot(name, game, atSeconds) {
       c.heading = k === 0 ? -1.2 : 1.2;
       c.sync();
     });
-    // PAK ASKA takes the handoff — full card, inside the safe margins,
-    // 600 s so the box never times out during the capture.
-    G.hud.dialogue('PAK ASKA · PENERIMA MARINA', 'Barang sampai, uang jalan. Marina tidak pernah tidur — dan sekarang kota ini tahu namamu.', 'aska', 600);
-    // Letterbox + no crosshair for the story frame.
-    document.body.classList.add('letterbox');
+    // Full city map + completion screen (r8): the map is the frame now —
+    // no letterbox, no dialogue card, no ledger card stacked on it. The
+    // ledger numbers are the ones the live completion really paid, shown
+    // inside the map screen beside the stats; Pak Aska's line is one row
+    // under them. The map draws the whole city: 8 numbered mission spots,
+    // the M8 gold route Plaza -> Marina, the player arrow at the marina.
     G.hud.setCaptureMode('story');
-    // Re-show the ledger the live completion really paid, with a 60 s
-    // lifetime for the slow capture. Same numbers the game itself paid.
-    G.hud.ledger({ title: 'PANAS TERAKHIR', hasil: 1000, tagihan: 0, bersih: 1000, rep: 600 }, 60);
+    G.hud.showMapScreen(G, { title: 'PANAS TERAKHIR', hasil: 1000, tagihan: 0, bersih: 1000, rep: 600 });
     // Close camera due south of the player, looking due north: the player
     // stands left-foreground with his back to us, Wira and Aska just
     // beyond him, and the MARINA sign, the water, the boats and the

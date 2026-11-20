@@ -72,7 +72,8 @@ const LIT_FRAG = `
     // is what returns the hue; the redder sun/rim above keep it there.
     vec3 lum = vec3(dot(col, vec3(0.299, 0.587, 0.114)));
     col = mix(lum, col, 1.35);
-    // Exp2 haze, same density as the scene fog.
+    // Exp2 haze, same density as the scene fog (0.004 since r8 — the
+    // old 0.006 washed the car pale at distance).
     float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * vFogDepth * vFogDepth);
     col = mix(col, uFogColor, clamp(fogFactor, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
@@ -98,7 +99,7 @@ export function createLitBodyMaterial(hex) {
       uRimColor: { value: new THREE.Color(0xff6a3d) },
       uHazeColor: { value: new THREE.Color(0xe0c8a8) },
       uFogColor: { value: new THREE.Color(0xe0c8a8) },
-      uFogDensity: { value: 0.006 },
+      uFogDensity: { value: 0.004 },
     },
     vertexShader: LIT_VERT,
     fragmentShader: LIT_FRAG,
