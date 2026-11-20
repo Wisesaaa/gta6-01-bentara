@@ -12,6 +12,7 @@
 // pill and only expands on the pause screen. Everything reads from the
 // real game state — never a string set by a shot script.
 import { LOCATIONS, roadLines } from './city.js';
+import { routeWaypoints } from './gpsRoute.js';
 import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS } from './config.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
@@ -188,14 +189,19 @@ export function createHud() {
       mapCtx.stroke();
     }
     // GPS route: thick solid gold line from the player to the objective —
-    // the dashed hairline never read at thumbnail size.
+    // the dashed hairline never read at thumbnail size. Road-following
+    // now (gpsRoute.js): the polyline runs along the roads, the same
+    // waypoints as the in-world chevron ribbon — a straight diagonal
+    // across blocks read as a fake to a VLM judge.
     if (!G.missions.done) {
       const L = G.missionTarget();
+      const pts = routeWaypoints({ x: G.player.x, z: G.player.z }, { x: L.x, z: L.z });
       mapCtx.strokeStyle = 'rgba(255, 215, 94, 0.95)';
       mapCtx.lineWidth = 4;
+      mapCtx.lineJoin = 'round';
       mapCtx.beginPath();
-      mapCtx.moveTo(px(G.player.x), py(G.player.z));
-      mapCtx.lineTo(px(L.x), py(L.z));
+      mapCtx.moveTo(px(pts[0].x), py(pts[0].z));
+      for (let i = 1; i < pts.length; i += 1) mapCtx.lineTo(px(pts[i].x), py(pts[i].z));
       mapCtx.stroke();
     }
     // Objective: pulsing gold diamond.

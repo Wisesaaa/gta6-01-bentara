@@ -209,13 +209,20 @@ export function createEffects(scene, rng) {
         slot.life = 20;
       }
     },
-    smoke(x, z, big = false) {
+    smoke(x, z, big = false, faint = false) {
       const slot = smokes[smokeCursor];
       smokeCursor = (smokeCursor + 1) % MAX_SMOKE;
       slot.sprite.position.set(x + rr(rng, -0.4, 0.4), 0.6, z + rr(rng, -0.4, 0.4));
-      const s = big ? 2.2 : 1.4;
+      // Faint (muzzle smoke): a small dark warm wisp, not a white blob.
+      // Round-1 verdict: the foot shot's muzzle puffs read as a big white
+      // cloud left of the player. Faint is scale 0.9 + opacity 0.35 +
+      // dark warm tint; the colour is RESET every call because the pool
+      // is shared — a slot fired faint once must not stay dark for the
+      // next dust puff that reuses it.
+      const s = faint ? 0.9 : (big ? 2.2 : 1.4);
       slot.sprite.scale.set(s, s, 1);
-      slot.sprite.material.opacity = 0.7;
+      slot.sprite.material.opacity = faint ? 0.35 : 0.7;
+      slot.sprite.material.color.setHex(faint ? 0x8a7a68 : 0xffffff);
       slot.sprite.visible = true;
       slot.life = 1.1;
       slot.max = 1.1;

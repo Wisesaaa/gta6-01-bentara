@@ -37,6 +37,8 @@ import { missionIntro, randomTaunt } from './dialogue.js';
 import { Garage, discountedPrice } from './garage.js';
 import { Usaha } from './usaha.js';
 import { createEffects } from './effects.js';
+import { createGpsRoute } from './gpsRoute.js';
+import { applyLitBody } from './litPass.js';
 import { actForMission, repLevel, hasUnlock } from './progress.js';
 
 export function createGame(canvas, seed = 7) {
@@ -124,6 +126,9 @@ export function createGame(canvas, seed = 7) {
   // nose east so driving away needs no three-point turn past the ruko walls.
   const parked = [];
   const playerCar = new Car(view.scene, rng, { name: 'CEMPAKA GT', kind: 'sport', x: 10, z: -180.5, heading: Math.PI / 2, color: 0xb8442f });
+  // Custom lit pass on the hero car only (litPass.js): sun-warmed
+  // Lambert + warm Fresnel rim, so the red body reads as lit, not flat.
+  applyLitBody(playerCar);
   parked.push(playerCar);
   parked.push(new Car(view.scene, rng, { name: 'Sedan Tua', x: 118, z: 66, heading: 1.2, color: 0x4a4a42 }));
   parked.push(new Car(view.scene, rng, { name: 'Pickup', x: 44, z: 88, heading: -0.6, color: 0x2f6b4f }));
@@ -272,6 +277,12 @@ export function createGame(canvas, seed = 7) {
   // Depth systems: world effects (skids, smoke, sparks, cop drops), the
   // garage economy and the property economy.
   const effects = createEffects(view.scene, rng);
+  // Live GPS route (gpsRoute.js): in-world gold chevron ribbon + pulsing
+  // ring on the objective. Rebuilt only when the player moved 3 m+ or
+  // the objective changed — the strip rebuild is cheap, not every-frame.
+  const gpsRoute = createGpsRoute(view.scene);
+  let lastGpsKey = '';
+  let lastGpsFrom = null;
   const garage = new Garage({ state, scene: view.scene, rng, parked, hud, audio, player });
   const usaha = new Usaha({ state, hud, audio });
 
@@ -817,6 +828,29 @@ export function createGame(canvas, seed = 7) {
       // Es teh buff ticks down; while it lasts, heat decays twice as fast.
       if (state.esTehTimer > 0) state.esTehTimer -= dt;
       if (view.golden) view.golden.update(dt, state.time);
+      // Live GPS route: rebuild on a 3 m move or an objective change,
+      // hide once every mission is done. The ribbon + ring are the
+      // in-world half of gpsRoute.js; the minimap polyline is its other.
+      if (gpsRoute) {
+        // No route when done, or when the objective is under 8 m away:
+        // a ribbon to a target the player is standing on loops around
+        // his feet (the foot shot's 5 m objective drew a loop in frame).
+        const tgt0 = missions.done ? null : missionTarget();
+        const near = tgt0 && Math.hypot(player.x - tgt0.x, player.z - tgt0.z) < 8;
+        if (missions.done || near) {
+          if (lastGpsKey !== 'done') { gpsRoute.setRoute(null, null); lastGpsKey = 'done'; }
+        } else {
+          const tgt = missionTarget();
+          const k = `${tgt.x | 0},${tgt.z | 0}`;
+          const moved = !lastGpsFrom || Math.hypot(player.x - lastGpsFrom.x, player.z - lastGpsFrom.z) > 3;
+          if (k !== lastGpsKey || moved) {
+            lastGpsKey = k;
+            lastGpsFrom = { x: player.x, z: player.z };
+            gpsRoute.setRoute({ x: player.x, z: player.z }, { x: tgt.x, z: tgt.z });
+          }
+        }
+        gpsRoute.update(dt, state.time);
+      }
       // Heat decay: 11 s with no police line of sight drops one star
       // (5.5 s with the es teh buff).
       if (state.heat > 0) {

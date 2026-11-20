@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { PALETTE, SUN } from './config.js';
 import { makeGlowSprite } from './effects.js';
+import { createSkyAndSun } from './skyAndSun.js';
 
 export const SUN_COLOR = 0xffc890;
 export const SUN_INTENSITY = 3.0;
@@ -41,57 +42,6 @@ const PRESETS = {
   },
 };
 
-function skyDomeMaterial(preset) {
-  // Atmospheric scattering, analytic variant (no ray march — one
-  // fragment shader on a 900 m shell): the 3-stop Rayleigh-ish gradient
-  // (pale-cream horizon -> pale-peach mid -> pale blue-grey top, a
-  // bleached 4pm sky, NOT a red sunset) plus a Mie forward-scatter glow
-  // that warms the sky toward the sun and a tight sun halo. The glow is
-  // what makes the 4pm sun read as light in the air, not a painted disc.
-  const sunDir = new THREE.Vector3(SUN.x, SUN.y, SUN.z).normalize();
-  return new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
-    fog: false,
-    uniforms: {
-      topColor: { value: new THREE.Color(preset.skyTop) },
-      midColor: { value: new THREE.Color(preset.skyMid) },
-      bottomColor: { value: new THREE.Color(preset.skyBottom) },
-      sunDir: { value: sunDir },
-      sunColor: { value: new THREE.Color(preset.sun) },
-    },
-    vertexShader: `
-      varying vec3 vDir;
-      void main() {
-        vDir = normalize(position);
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader: `
-      uniform vec3 topColor;
-      uniform vec3 midColor;
-      uniform vec3 bottomColor;
-      uniform vec3 sunDir;
-      uniform vec3 sunColor;
-      varying vec3 vDir;
-      void main() {
-        float h = clamp(vDir.y, -0.08, 1.0);
-        // Horizon band: bottom colour low, mid through the middle,
-        // top colour only high overhead.
-        vec3 col = mix(bottomColor, midColor, smoothstep(0.0, 0.22, h));
-        col = mix(col, topColor, smoothstep(0.2, 0.65, h));
-        // Mie forward scattering: the sky warms toward the sun, strongest
-        // near the horizon (haze) and tightest right around the disc.
-        float sunAmt = max(dot(normalize(vDir), sunDir), 0.0);
-        float low = 1.0 - smoothstep(0.0, 0.4, h);
-        col = mix(col, sunColor, pow(sunAmt, 3.0) * 0.22 * (0.4 + 0.6 * low));
-        col += sunColor * pow(sunAmt, 24.0) * 0.5;
-        col += sunColor * pow(sunAmt, 350.0) * 1.4;
-        gl_FragColor = vec4(col, 1.0);
-      }`,
-  });
-}
-
 function hazeBandTexture() {
   const c = document.createElement('canvas');
   c.width = 4;
@@ -120,40 +70,12 @@ export function createGoldenHour(scene, city, rng, lights = {}) {
   const preset = PRESETS[1];
   const { sun, hemi } = lights;
 
-  // --- sky dome: 900 m shell, shader gradient, never fogged.
-  const domeMat = skyDomeMaterial(preset);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 12), domeMat);
-  scene.add(dome);
-
-  // --- the sun itself: a hard disc low over the avenue + a halo sprite.
-  // The disc is near-white and large enough to read against the pale
-  // sky (r3's small yellow disc washed out), and the halo MUST ignore
-  // fog — a SpriteMaterial fogs by default, and at 815 m the Exp2 haze
-  // erased it entirely, which is why r3 had no visible sun at all.
-  const sunDir = new THREE.Vector3(SUN.x, SUN.y, SUN.z).normalize();
-  const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(60, 32),
-    new THREE.MeshBasicMaterial({ color: 0xfff3b0, fog: false }),
-  );
-  disc.position.copy(sunDir).multiplyScalar(820);
-  disc.lookAt(0, 0, 0);
-  scene.add(disc);
-  const halo = makeGlowSprite(0xffc890, 420, 1.0);
-  halo.material.fog = false;
-  halo.position.copy(sunDir).multiplyScalar(815);
-  scene.add(halo);
-  // Sun glare: a wide horizontal streak + a soft inner glare, both
-  // fog-immune, so the 4pm sun reads as glare, not a flat white disc.
-  const streak = makeGlowSprite(0xffe9a8, 1, 0.5);
-  streak.material.fog = false;
-  streak.material.rotation = -0.12;
-  streak.scale.set(760, 64, 1);
-  streak.position.copy(sunDir).multiplyScalar(810);
-  scene.add(streak);
-  const glare = makeGlowSprite(0xfff3b0, 260, 0.35);
-  glare.material.fog = false;
-  glare.position.copy(sunDir).multiplyScalar(812);
-  scene.add(glare);
+  // --- sky dome: the dedicated GLSL sky+sun pass (skyAndSun.js) —
+  // analytic scattering, drifting cloud wisps, sun disc + halo in the
+  // shader. It replaces the old preset dome + mesh sun disc: one sky
+  // system, no double sun. Per-act grades flow through setGrade().
+  const sky = createSkyAndSun(scene);
+  sky.setGrade(preset.skyTop, preset.skyMid, preset.skyBottom, preset.sun, 0.55);
 
   // --- haze band: a translucent cylinder hugging the horizon.
   const haze = new THREE.Mesh(
@@ -263,10 +185,8 @@ export function createGoldenHour(scene, city, rng, lights = {}) {
     }
     const renderer = scene.userData.renderer;
     if (renderer) renderer.toneMappingExposure = p.exposure;
-    domeMat.uniforms.topColor.value.setHex(p.skyTop);
-    domeMat.uniforms.midColor.value.setHex(p.skyMid);
-    domeMat.uniforms.bottomColor.value.setHex(p.skyBottom);
-    domeMat.uniforms.sunColor.value.setHex(p.sun);
+    // Per-act grade flows into the sky shader (dusk runs thicker haze).
+    sky.setGrade(p.skyTop, p.skyMid, p.skyBottom, p.sun, act === 3 ? 0.7 : 0.55);
     for (const g of lampGlows) g.material.opacity = p.lampGlow;
     // Act 3 dusk: the lit windows burn brighter.
     scene.traverse((o) => {
@@ -278,7 +198,8 @@ export function createGoldenHour(scene, city, rng, lights = {}) {
   }
 
   function update(dt, t) {
-    // Motes drift east with the wind and bob.
+    // Sky time: cloud drift + sun glow run on the absolute clock.
+    sky.update(dt, t);
     const pos = moteGeo.attributes.position.array;
     for (let i = 0; i < moteCount; i += 1) {
       pos[i * 3] += dt * 1.6;
@@ -292,8 +213,6 @@ export function createGoldenHour(scene, city, rng, lights = {}) {
       d.mesh.position.x = d.cx + Math.sin(t * 0.25 + d.phase) * 12;
       d.mesh.position.z = d.cz + Math.cos(t * 0.2 + d.phase) * 10;
     }
-    // The halo breathes, slowly.
-    halo.material.opacity = 0.8 + Math.sin(t * 0.8) * 0.07;
     // Ash drifts west and falls; columns lean east with the wind.
     const apos = ashGeo.attributes.position.array;
     for (let i = 0; i < ashCount; i += 1) {

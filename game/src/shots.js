@@ -252,6 +252,19 @@ export function stageShot(name, game, atSeconds) {
     // Re-show the dispatch line the chase really earned, with a 60 s
     // lifetime so the slow capture keeps it.
     G.hud.ticker('POLISI: Semua unit — kejar sedan merah di Kawasan Industri!', 60);
+    // Frozen chase dust: the 42 m/s chase really kicks dust, but the
+    // sim's puffs are gone by the freeze — re-fire three big puffs
+    // behind the hero car + a damage-smoke puff trailing off the flank
+    // of the RAMMING cruiser ahead (offset so it never veils the
+    // cruiser itself), frozen at full opacity. The cruiser smoke reads
+    // as a battered pursuit, not a clean convoy.
+    const dx = G.player.x;
+    const dz = G.player.z;
+    const dh = G.player.heading;
+    for (let k = 1; k <= 3; k += 1) {
+      G.effects.smoke(dx - Math.sin(dh) * 2.4 * k, dz - Math.cos(dh) * 2.4 * k, true);
+    }
+    G.effects.smoke(dx + 2.5, dz + 11, false);
     // Frozen impact trauma (game-feel): a cruiser is in RAMMING range, so
     // the frame carries a slight Dutch angle — the chase reads as a hit,
     // not a parked pose.
@@ -473,8 +486,14 @@ export function stageShot(name, game, atSeconds) {
     G.hud.setCaptureMode('coverportrait');
     const cam = G.view.camera;
     cam.position.set(G.player.x - 12.5, 5.4, G.player.z + 1.5);
-    cam.lookAt(G.player.x + 40, 6, G.player.z + 4);
-    G.view.keepClear(cam, G.player.x + 40, 6, G.player.z + 4);
+    // Yaw ~6.5 degrees south (lookAt z +4 -> +10): the sun disc projected
+    // to screen (990, 115) — inside the stars HUD panel (x 970-1270,
+    // y 0-160), so the 5-degree disc was almost entirely hidden behind
+    // it. Yawing south moves the disc ~85 px left to ~x904, into the clear
+    // sky gap between the mission banner and the stars panel. The car
+    // shifts ~70 px left of centre — still the hero, still prominent.
+    cam.lookAt(G.player.x + 40, 6, G.player.z + 10);
+    G.view.keepClear(cam, G.player.x + 40, 6, G.player.z + 10);
     G.hud.dialogue('SARI · WARUNG SARI', 'Jalan ini milik kita, Wira. Gas terus, jangan berhenti.', 'sari', 600);
     // Re-show the drift popup the chase really earned (cash 18250 -> 18292,
     // a 0.7 s slide at $60/s = +$42) with a 60 s lifetime: popups fade on
@@ -487,6 +506,17 @@ export function stageShot(name, game, atSeconds) {
     G.hud.popups.drift(42, 0.7, 60);
     // The mission stinger, held for the capture too.
     G.hud.stinger('MISI 3/8 — RAMPOKAN KECIL', 'Kawasan Industri', 60);
+    // Frozen drift dust: the slide really laid smoke during the sim, but
+    // the sim's puffs faded before the freeze — re-fire four big dust
+    // puffs along the car's trail, frozen at full opacity for the
+    // capture. Round-1 verdict: three puffs read too faint on the pale
+    // road, so the trail runs one puff longer (k = 1..4).
+    const hx = G.player.x;
+    const hz = G.player.z;
+    const hh = G.player.heading;
+    for (let k = 1; k <= 4; k += 1) {
+      G.effects.smoke(hx - Math.sin(hh) * 2.2 * k, hz - Math.cos(hh) * 2.2 * k, true);
+    }
     // Frozen drift trauma: the red car is mid-slide, so the cover leans
     // a touch into the drift instead of sitting level.
     G.view.setTrauma(0.2);
@@ -757,6 +787,26 @@ export function stageShot(name, game, atSeconds) {
       const back = new THREE.Vector3(far.x, 1.4, far.z);
       const bdir = new THREE.Vector3(G.player.x - far.x, 1.2 - 1.4, G.player.z - far.z).normalize();
       G.player.combat.shoot(back, bdir, 'pistol', { humans: [], cars: [] });
+    }
+    // Frozen muzzle smoke + impact sparks: the tracers are frozen at full
+    // opacity, but their smoke and sparks faded — re-fire one smoke puff
+    // at each shooter's muzzle and a spark burst where the return tracer
+    // meets the player, frozen for the capture. Muzzles are offset 1.2 m
+    // toward the target, so no puff ever veils the shooter. The puffs
+    // are FAINT (scale 0.9, opacity 0.35, dark warm tint): round-1 verdict
+    // — the full puffs read as a big white blob left of the player.
+    if (liveAtk.length > 0) {
+      const near = liveAtk[0];
+      const far = liveAtk[1] || liveAtk[0];
+      const ndx = near.x - G.player.x;
+      const ndz = near.z - G.player.z;
+      const nd = Math.hypot(ndx, ndz) || 1;
+      G.effects.smoke(G.player.x + (ndx / nd) * 1.2, G.player.z + (ndz / nd) * 1.2, false, true);
+      const fdx = G.player.x - far.x;
+      const fdz = G.player.z - far.z;
+      const fd = Math.hypot(fdx, fdz) || 1;
+      G.effects.smoke(far.x + (fdx / fd) * 1.2, far.z + (fdz / fd) * 1.2, false, true);
+      G.effects.sparks(G.player.x + (ndx / nd) * 1.5, G.player.z + (ndz / nd) * 1.5);
     }
     // Frozen firefight trauma: tracers are crossing the frame, so the
     // camera leans into the exchange — combat depth you can see.
