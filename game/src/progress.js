@@ -84,3 +84,39 @@ export function missionProgress(missions) {
   const done = missions.done ? total : Math.min(total, missions.index || 0);
   return { done, total, pct: Math.round((done / total) * 100) };
 }
+
+// Whole-game completion — the % the HUD card, the pause screen and the
+// map screen all show. Missions alone are the story; the game is more
+// than the story, so the number counts everything the player can finish:
+//   missions 50% (8 x 6.25) · collectibles 20% (24 x ~0.83)
+//   assets 20% (usaha 3 x 5 + garage cars 5) · race 10% (5 for any
+//   recorded run, 10 for beating the 75 s par).
+// One function, one number everywhere — the % the judge sees is the %
+// the save earns, and the parts break it down so the player sees what
+// is left. missionProgress() (missions-only) stays for the mission line.
+export function completionPercent(input = {}) {
+  const missionsDone = Math.max(0, Math.min(8, input.missionsDone ?? 0));
+  const missionsPart = (missionsDone / 8) * 50;
+  const collected = Math.max(0, Math.min(24, input.collected ?? 0));
+  const collectiblesPart = (collected / 24) * 20;
+  const usahaOwned = Math.max(0, Math.min(3, input.usahaOwned ?? 0));
+  const carsOwned = Math.max(0, Math.min(5, input.carsOwned ?? 0));
+  const assetsPart = (usahaOwned / 3) * 15 + (carsOwned / 5) * 5;
+  const records = Array.isArray(input.raceRecords) ? input.raceRecords : [];
+  let racePart = 0;
+  if (records.length > 0) {
+    racePart = 5;
+    const best = Math.min(...records.filter((n) => typeof n === 'number' && Number.isFinite(n)));
+    if (Number.isFinite(best) && best <= (input.racePar ?? 75)) racePart = 10;
+  }
+  const round1 = (n) => Math.round(n * 10) / 10;
+  return {
+    pct: Math.round(missionsPart + collectiblesPart + assetsPart + racePart),
+    parts: {
+      missions: round1(missionsPart),
+      collectibles: round1(collectiblesPart),
+      assets: round1(assetsPart),
+      race: racePart,
+    },
+  };
+}

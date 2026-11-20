@@ -117,9 +117,11 @@ export function drawMap(canvas, G) {
     ctx.fillStyle = '#f3e6c8';
     ctx.fillText(label, px(L.x), py(L.z) + dir * 30);
   }
-  // Player arrow at the marina, rotated by heading.
+  // Player arrow at the marina, rotated by heading. Offset 6 px north
+  // (back along the M8 route) so the arrow no longer covers the "1" in
+  // marker 1 (MARINA BENTARA) directly below it.
   ctx.save();
-  ctx.translate(px(G.player.x), py(G.player.z));
+  ctx.translate(px(G.player.x), py(G.player.z) - 6);
   ctx.rotate(-G.player.heading);
   ctx.fillStyle = '#ffffff';
   ctx.strokeStyle = '#10161d';

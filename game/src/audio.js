@@ -141,6 +141,11 @@ export function createAudio() {
     },
     nextStation() { return ensureRadio().nextStation(); },
     nextTrack() { return ensureRadio().nextTrack(); },
+    // Raw analyser levels (0..1 per band) + the live crossfade state —
+    // the QA probes these directly; eqLevels() is the HUD's smoothed
+    // view of the same signal.
+    levels() { return ensureRadio().getLevels(); },
+    crossfade() { return ensureRadio().getCrossfade(); },
     // Engine pitch follows speed; siren wails while the heat is on.
     step(dt, speedKmh, heat) {
       // The visualizer clock runs even without an AudioContext.

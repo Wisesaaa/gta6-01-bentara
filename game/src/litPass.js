@@ -20,64 +20,8 @@
 // so respray / garage repaint keeps working exactly as before.
 import * as THREE from 'three';
 import { SUN } from './config.js';
-
-const LIT_VERT = `
-  varying vec3 vNormal;
-  varying vec3 vWorld;
-  varying float vFogDepth;
-  void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vWorld = wp.xyz;
-    vNormal = normalize(mat3(modelMatrix) * normal);
-    vec4 mv = viewMatrix * wp;
-    vFogDepth = -mv.z;
-    gl_Position = projectionMatrix * mv;
-  }`;
-
-const LIT_FRAG = `
-  uniform vec3 uColor;
-  uniform vec3 uSunDir;
-  uniform vec3 uSunColor;
-  uniform vec3 uSkyColor;
-  uniform vec3 uGroundColor;
-  uniform vec3 uRimColor;
-  uniform vec3 uHazeColor;
-  uniform vec3 uFogColor;
-  uniform float uFogDensity;
-  varying vec3 vNormal;
-  varying vec3 vWorld;
-  varying float vFogDepth;
-  void main() {
-    vec3 n = normalize(vNormal);
-    vec3 viewDir = normalize(cameraPosition - vWorld);
-    vec3 sunDir = normalize(uSunDir);
-    // Sun-warmed Lambert: the low 4pm sun is the only key light, so
-    // faces turned to it run hot and faces away fall to amber ambient.
-    // Ambient 0.28 (was 0.22): the darker value left the shadowed faces
-    // brown; the red needs light even in shadow to stay red, not rust.
-    float diff = max(dot(n, sunDir), 0.0);
-    vec3 ambient = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5) * 0.28;
-    vec3 col = uColor * (ambient + uSunColor * diff * 1.35);
-    // Fresnel rim (shader-programming pattern, power 3): warm RED light
-    // on the silhouette, so the red body never melts into the red dusk.
-    float f = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);
-    col += uRimColor * f * 0.30;
-    // Dry-season dust: pull the paint a touch toward the haze, more on
-    // the rim where the dust in the air catches the light.
-    col = mix(col, uHazeColor, 0.03 + f * 0.05);
-    // Saturation boost: the paint is a brick red (0xb8442f) and the warm
-    // light drags it toward brown-orange. Push the colour away from grey
-    // so the body reads VIVID red — the r6 frame's car samples #903328 /
-    // #8c1e1a, and the first lit pass sampled #a66047 (rust). The boost
-    // is what returns the hue; the redder sun/rim above keep it there.
-    vec3 lum = vec3(dot(col, vec3(0.299, 0.587, 0.114)));
-    col = mix(lum, col, 1.35);
-    // Exp2 haze, same density as the scene fog (0.004 since r8 — the
-    // old 0.006 washed the car pale at distance).
-    float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * vFogDepth * vFogDepth);
-    col = mix(col, uFogColor, clamp(fogFactor, 0.0, 1.0));
-    gl_FragColor = vec4(col, 1.0);
-  }`;
+// GLSL lives in render3d/shaders.js (the pipeline library) — one copy.
+import { LIT_VERT, LIT_FRAG } from './render3d/shaders.js';
 
 export function createLitBodyMaterial(hex) {
   const sunDir = new THREE.Vector3(SUN.x, SUN.y, SUN.z).normalize();

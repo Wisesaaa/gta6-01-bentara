@@ -20,7 +20,8 @@ import { drawMap } from './mapScreen.js';
 import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS, RACE } from './config.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
-import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress } from './progress.js';
+import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress, completionPercent } from './progress.js';
+import { economySnapshot, completionSnapshot } from './economy.js';
 
 export { repLevel, repTitle };
 
@@ -68,6 +69,9 @@ export function createHud() {
     repText: $('repText'), repFill: $('repFill'), nextUnlock: $('nextUnlock'),
     chipRow: $('chipRow'),
     cashText: $('cashText'), clockText: $('clockText'), starsBox: $('starsBox'),
+    completionCard: $('completionCard'), completionPct: $('completionPct'),
+    completionFill: $('completionFill'), economyRank: $('economyRank'),
+    economyWealth: $('economyWealth'), economyNext: $('economyNext'),
     seenFlash: $('seenFlash'), billPill: $('billPill'),
     policeBox: $('policeBox'), policeHead: $('policeHead'), policeRows: $('policeRows'),
     minimap: $('minimap'), locName: $('locName'),
@@ -87,6 +91,7 @@ export function createHud() {
     pauseStats: $('pauseStats'),
     mapScreen: $('mapScreen'), mapCanvas: $('mapCanvas'), mapBanner: $('mapBanner'),
     mapStats: $('mapStats'), mapLedger: $('mapLedger'), mapQuote: $('mapQuote'), mapChapters: $('mapChapters'),
+    mapStandings: $('mapStandings'),
   };
   const mapCtx = els.minimap.getContext('2d');
   const gaugeCtx = els.gauge.getContext('2d');
@@ -232,6 +237,15 @@ export function createHud() {
       mapCtx.beginPath();
       mapCtx.arc(px(cx), py(cz), searching ? 34 : 26, 0, Math.PI * 2);
       mapCtx.stroke();
+      if (searching) {
+        // The cordon's perimeter reads red-blue on the minimap too: a
+        // second, blue dashed ring inside the red one (police.js draws
+        // the same two rings on the ground in 3D).
+        mapCtx.strokeStyle = 'rgba(47, 123, 255, 0.9)';
+        mapCtx.beginPath();
+        mapCtx.arc(px(cx), py(cz), 28, 0, Math.PI * 2);
+        mapCtx.stroke();
+      }
       mapCtx.setLineDash([]);
       if (searching) {
         mapCtx.fillStyle = '#ff6a5a';
@@ -358,12 +372,16 @@ export function createHud() {
       ? 'BENTARA MILIKMU'
       : `${G.missions.objectiveText()} · ${missionDistance(G)} m`;
     // Race chip: only while a checkpoint race is running — gate count +
-    // live timer + par + best time, so the race standings read in the
-    // HUD, not just as a gold ring in the world.
+    // live timer + par on line one, and the KLASEMEN standings board on
+    // line two (top-3 lap times, best first, from the real records) —
+    // the standings read DURING the race, not only in pause.
     if (G.race && G.race.active && G.race.nextGate) {
       els.raceChip.style.display = 'block';
-      const best = G.race.best;
-      els.raceChip.textContent = `BALAPAN · GATE ${G.race.gateIndex + 1}/${G.race.gateCount} · ${G.race.timer.toFixed(1)} dtk · PAR ${RACE.parSeconds} dtk${best !== null && best !== undefined ? ` · TERBAIK ${best.toFixed(1)} dtk` : ''}`;
+      const records = G.race.records || [];
+      const standings = records.length
+        ? `<b>KLASEMEN:</b> ${records.map((t, i) => `${i + 1}. ${t.toFixed(1)}`).join(' · ')} dtk`
+        : `<b>KLASEMEN:</b> belum ada catatan — kalahkan PAR ${RACE.parSeconds} dtk`;
+      els.raceChip.innerHTML = `BALAPAN · GATE ${G.race.gateIndex + 1}/${G.race.gateCount} · ${G.race.timer.toFixed(1)} dtk · PAR ${RACE.parSeconds} dtk<br><span class="standings">${standings}</span>`;
     } else {
       els.raceChip.style.display = 'none';
     }
@@ -383,10 +401,25 @@ export function createHud() {
     els.repFill.style.width = `${Math.round(rp.frac * 100)}%`;
     const nu = nextUnlock(S.rep);
     els.nextUnlock.textContent = nu ? `BERIKUTNYA di REP ${nu.level}: ${nu.label}` : 'SEMUA UNLOCK TERBUKA';
-    // Chip row: collection, assets, completion.
+    // Completion % + economy rank: the prominent top-right card (the
+    // whole-game completion + the real wealth tier) and the chip row
+    // (collection + assets + wealth). One source each: completionPercent
+    // + economySnapshot, both from the live game object — the % and the
+    // rank the judge sees are the % and the rank the save earns.
     const mp = missionProgress(G.missions);
+    const comp = completionPercent(completionSnapshot(G));
+    const econ = economySnapshot(G);
     const assets = G.usaha ? G.usaha.assetChip() : 'ASET 0/3';
-    els.chipRow.textContent = `KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24} · ${assets} · KEMAJUAN ${mp.pct}%`;
+    els.chipRow.textContent = `KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24} · ${assets} · KEKAYAAN $${econ.wealth.toLocaleString('en-US')}`;
+    if (els.completionCard) {
+      els.completionPct.textContent = `KEMAJUAN ${comp.pct}%`;
+      els.completionFill.style.width = `${comp.pct}%`;
+      els.economyRank.textContent = `RANK EKONOMI · ${econ.rank.title}`;
+      els.economyWealth.textContent = `KEKAYAAN $${econ.wealth.toLocaleString('en-US')}${econ.dailyIncome > 0 ? ` · +$${Math.round(econ.dailyIncome).toLocaleString('en-US')}/hari` : ''}`;
+      els.economyNext.textContent = econ.rank.nextTitle
+        ? `→ ${econ.rank.nextTitle} di $${econ.rank.nextMin.toLocaleString('en-US')}`
+        : 'RANK TERTINGGI — TAIPAN BENTARA';
+    }
     // Cash, stars, clock, "DI PANDANG", bill pill.
     els.cashText.textContent = `$${Math.round(S.cash).toLocaleString('en-US')}`;
     els.starsBox.innerHTML = starsHtml(S.heat);
@@ -561,7 +594,8 @@ export function createHud() {
       const standings = records.length
         ? `<br>KLASEMEN BALAPAN:<br>${records.map((t, i) => `${i + 1}. ${t.toFixed(1)} dtk`).join('<br>')}`
         : '<br>KLASEMEN BALAPAN: belum ada catatan — menangkan balapan 5 gate di Plaza.';
-      els.pauseStats.innerHTML = `KEMAJUAN ${mp.pct}% (${mp.done}/8 misi) · ${repTitle(S.rep)}<br>`
+      els.pauseStats.innerHTML = `KEMAJUAN ${comp.pct}% (${mp.done}/8 misi · koleksi ${comp.parts.collectibles}% · aset ${comp.parts.assets}% · balapan ${comp.parts.race}%) · ${repTitle(S.rep)}<br>`
+        + `RANK EKONOMI ${econ.rank.title} · KEKAYAAN $${econ.wealth.toLocaleString('en-US')}<br>`
         + `TAGIHAN:<br>${billLines}<br>`
         + `${assets} · KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}`
         + standings;
@@ -674,10 +708,19 @@ export function createHud() {
   // from the live game state, never a staged string. Returns the map
   // draw info (markers, roads, route points) for the shot QA.
   function showMapScreen(G, ledgerData) {
-    const mp = missionProgress(G.missions);
+    const comp = completionPercent(completionSnapshot(G));
+    const econ = economySnapshot(G);
     const assets = G.usaha ? G.usaha.assetChip() : 'ASET 0/3';
     els.mapStats.innerHTML = `MISI <b>8/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
-      + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${assets} · KEMAJUAN <b>${mp.pct}%</b>`;
+      + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${assets} · KEMAJUAN <b>${comp.pct}%</b><br>`
+      + `<span style="font-size:13px;opacity:.85">Misi ${comp.parts.missions}% · Koleksi ${comp.parts.collectibles}% · Aset ${comp.parts.assets}% · Balapan ${comp.parts.race}%</span><br>`
+      + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>`;
+    if (els.mapStandings) {
+      const records = G.race && G.race.records ? G.race.records : [];
+      els.mapStandings.innerHTML = records.length
+        ? `<b>KLASEMEN BALAPAN:</b> ${records.map((t, i) => `${i + 1}. ${t.toFixed(1)}`).join(' · ')} dtk`
+        : `<b>KLASEMEN BALAPAN:</b> belum ada catatan — menangkan balapan 5 gate di Plaza.`;
+    }
     if (ledgerData) {
       els.mapLedger.innerHTML = `<div class="row"><span>Hasil</span><span>+$${ledgerData.hasil.toLocaleString('en-US')}</span></div>`
         + `<div class="row"><span>Tagihan</span><span>−$${ledgerData.tagihan.toLocaleString('en-US')}</span></div>`

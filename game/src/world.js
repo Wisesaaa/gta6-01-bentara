@@ -11,15 +11,17 @@
 import * as THREE from 'three';
 import { CITY, PALETTE, SUN, SUN_COLOR, SUN_INTENSITY } from './config.js';
 import { roadLines } from './city.js';
-import { createGoldenHour, applyGoldenHour } from './lighting.js';
+import { applyGoldenHour } from './lighting.js';
 import { makeGlowSprite } from './effects.js';
-import { createPostFx } from './postfx.js';
+import { createRenderer3d } from './render3d/renderer3d.js';
+import { WATER_VERT, WATER_FRAG } from './render3d/shaders.js';
 import { createChaseCamera } from './chaseCamera.js';
 
 // Marina water (shader-dev water-ocean): exp(sin) wave stack, Schlick
 // Fresnel (F0 0.04), sun glint — cheap on purpose: 3 sine octaves in the
 // fragment shader, no FFT, no ray march. Fog is applied by hand (the
 // Exp2 formula) because a raw ShaderMaterial skips the fog chunk.
+// GLSL lives in render3d/shaders.js (the pipeline library) — one copy.
 function waterMaterial() {
   const sunDir = new THREE.Vector3(SUN.x, SUN.y, SUN.z).normalize();
   return new THREE.ShaderMaterial({
@@ -33,59 +35,8 @@ function waterMaterial() {
       uFogColor: { value: new THREE.Color(0xe0c8a8) },
       uFogDensity: { value: 0.006 },
     },
-    vertexShader: `
-      varying vec3 vWorld;
-      varying float vFogDepth;
-      void main() {
-        vec4 wp = modelMatrix * vec4(position, 1.0);
-        vWorld = wp.xyz;
-        vec4 mv = viewMatrix * wp;
-        vFogDepth = -mv.z;
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader: `
-      uniform float uTime;
-      uniform vec3 uSunDir;
-      uniform vec3 uDeep;
-      uniform vec3 uShallow;
-      uniform vec3 uSky;
-      uniform vec3 uSunColor;
-      uniform vec3 uFogColor;
-      uniform float uFogDensity;
-      varying vec3 vWorld;
-      varying float vFogDepth;
-      // One exp(sin) wave: sharp crest, broad trough (water-ocean).
-      float wave(vec2 p, vec2 dir, float freq, float speed) {
-        float x = dot(dir, p) * freq + uTime * speed;
-        return exp(sin(x) - 1.0);
-      }
-      float heightAt(vec2 p) {
-        return wave(p, vec2(0.8, 0.6), 1.0, 0.9)
-             + 0.5 * wave(p, vec2(-0.6, 0.8), 2.1, 1.4)
-             + 0.25 * wave(p, vec2(0.3, -0.9), 3.7, 2.1);
-      }
-      void main() {
-        vec2 p = vWorld.xz * 0.08;
-        float e = 0.6;
-        float hC = heightAt(p);
-        float hX = heightAt(p + vec2(e, 0.0));
-        float hZ = heightAt(p + vec2(0.0, e));
-        vec3 n = normalize(vec3(-(hX - hC) * 0.35, 1.0, -(hZ - hC) * 0.35));
-        vec3 viewDir = normalize(cameraPosition - vWorld);
-        // Schlick Fresnel, F0 0.04: grazing angles mirror the pale sky —
-        // kept at 0.55 so the water still reads as dusty teal, not haze.
-        float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, viewDir), 0.0), 5.0);
-        vec3 col = mix(mix(uDeep, uShallow, hC * 0.4), uSky, fres * 0.55);
-        // Sun glint: tight specular off the wave normals.
-        vec3 refl = reflect(-viewDir, n);
-        float glint = pow(max(dot(refl, uSunDir), 0.0), 240.0);
-        col += uSunColor * glint * 2.2;
-        col += uSunColor * pow(max(dot(refl, uSunDir), 0.0), 24.0) * 0.12;
-        // Exp2 haze, same density as the scene fog.
-        float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * vFogDepth * vFogDepth);
-        col = mix(col, uFogColor, clamp(fogFactor, 0.0, 1.0));
-        gl_FragColor = vec4(col, 1.0);
-      }`,
+    vertexShader: WATER_VERT,
+    fragmentShader: WATER_FRAG,
   });
 }
 
@@ -1382,17 +1333,6 @@ export function createView(canvas, city) {
   // the staged shots all dodge buildings through one owner.
   const chase = createChaseCamera(city);
 
-  // PostFx composer (shader-dev + threejs-webgl): the real pipeline —
-  // bloom, ACES, vignette, CA, grain — on THREE core only, because the
-  // vendored tree ships no postprocessing addons. If construction ever
-  // fails, render() falls back to the direct path, never a black frame.
-  let postfx = null;
-  try {
-    postfx = createPostFx(renderer, scene, camera);
-  } catch (e) {
-    postfx = null;
-  }
-
   // Golden-hour light rig: a low warm sun with long shadows, and a warm
   // hemisphere so the shadow side is amber, not dead grey.
   const hemi = new THREE.HemisphereLight(0xffc98a, 0x8a6a4a, 0.95);
@@ -1413,9 +1353,13 @@ export function createView(canvas, city) {
   buildGround(scene);
   buildRoads(scene);
   buildStreetGrammar(scene);
-  // Golden hour AFTER the street grammar: the lamp positions the glow
-  // sprites need are only known once the lamps are placed.
-  const golden = createGoldenHour(scene, city, rng, { sun, hemi });
+  // The render3d pipeline (lit -> water -> sky -> post), created AFTER
+  // the street grammar: the golden-hour rig's lamp glow sprites need
+  // the lamp positions, which are only known once the lamps are placed.
+  // It owns the post composer, the sky rig and the wet-road sheen.
+  const renderer3d = createRenderer3d({ renderer, scene, camera, city, rng, lights: { sun, hemi } });
+  const golden = renderer3d.golden;
+  const postfx = renderer3d.postfx;
   buildBuildings(scene, city);
   buildFacades(scene, city);
   buildSigns(scene);
@@ -1438,18 +1382,11 @@ export function createView(canvas, city) {
   let lastRenderNow = 0;
 
   function resize(width, height) {
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    if (postfx) {
-      const s = new THREE.Vector2();
-      renderer.getDrawingBufferSize(s);
-      postfx.resize(s.x, s.y);
-    }
+    renderer3d.resize(width, height);
   }
 
   return {
-    renderer, scene, camera, sun, golden, mural, resize, postfx,
+    renderer, scene, camera, sun, golden, mural, resize, postfx, renderer3d,
     addTrauma(a) { trauma = Math.min(1, trauma + a); },
     setTrauma(a) { trauma = Math.min(1, Math.max(0, a)); },
     get trauma() { return trauma; },
@@ -1465,9 +1402,6 @@ export function createView(canvas, city) {
       const now = performance.now();
       const realDt = lastRenderNow ? Math.min((now - lastRenderNow) / 1000, 0.1) : 1 / 60;
       lastRenderNow = now;
-      // Water + dust time advance with the render clock.
-      const wm = scene.userData.waterMat;
-      if (wm) wm.uniforms.uTime.value += realDt;
       // Trauma decay in real time (game-feel gotcha: scaled dt would
       // freeze the shake off-centre during a hit-stop).
       if (trauma > 0) {
@@ -1481,8 +1415,9 @@ export function createView(canvas, city) {
       camera.rotateZ(roll);
       camera.translateX(ox);
       camera.translateY(oy);
-      if (postfx) postfx.render();
-      else renderer.render(scene, camera);
+      // The render3d pipeline: water time + the post composite (or the
+      // direct render if the composer failed — never a black frame).
+      renderer3d.render(realDt);
       camera.translateY(-oy);
       camera.translateX(-ox);
       camera.rotateZ(-roll);

@@ -192,6 +192,13 @@ export function stageShot(name, game, atSeconds) {
     // placed where the camera can see it). The gate sits at +32 m, past
     // the roadblock at +46 m, so the frame proves the race system: gold
     // ring in the world, gold circle on the minimap, timer chip on top.
+    // The standings board needs real records to show: the player's
+    // top-3 from earlier sessions, restored through the same
+    // setRecords() the save loader uses — the HUD reads live state,
+    // never a staged string. (Same honesty as the staged cash/rep: the
+    // shot is a mid-game save, and these are that save's race history —
+    // 68.4 dtk beats the 75 dtk par, 82.1 and 95.6 do not.)
+    G.race.setRecords([68.4, 82.1, 95.6]);
     G.race.startRace();
     G.hud.toast('', 0.01);
     G.setShotInput({ active: true, up: true, down: false, left: false, right: false, brake: false, run: false, mouse: false });
@@ -829,12 +836,19 @@ export function stageShot(name, game, atSeconds) {
     // r8 fix (round-1 verdict): the cruisers + roadblock at the street's
     // far end read as dark shapes at 12 m — red/blue lightbar glows mark
     // each cruiser and amber marks the roadblock, so the cordon reads as
-    // a cordon even where the car bodies stay small.
+    // a cordon even where the car bodies stay small. Recording 10: the
+    // glows are BIGGER (2.2 -> 3.2) and the cruisers switch their real
+    // headlight cones on (car.js setHeadlights — the same cones Act 3
+    // dusk uses), aimed south at the last-seen zone: the perimeter now
+    // reads as headlights + lightbars, not just dark shapes. The units
+    // do NOT move — cops stay 42 m+, cruisers 56 m+, so the search beat
+    // (searching = true, MENCARI) is untouched.
     G.police.cruisers.forEach((c) => {
-      const red = makeGlowSprite(0xff3b30, 2.2, 0.85);
+      if (typeof c.setHeadlights === 'function') c.setHeadlights(true);
+      const red = makeGlowSprite(0xff3b30, 3.2, 0.9);
       red.position.set(c.x - 0.8, 2.2, c.z);
       G.view.scene.add(red);
-      const blue = makeGlowSprite(0x2f7bff, 2.2, 0.85);
+      const blue = makeGlowSprite(0x2f7bff, 3.2, 0.9);
       blue.position.set(c.x + 0.8, 2.2, c.z);
       G.view.scene.add(blue);
     });

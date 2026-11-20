@@ -69,17 +69,39 @@ export function createPolice(scene, city, rng) {
   let searchingNow = false;
   let searchTime = 0;
 
-  // "ZONA PENCARIAN" — the ring on the ground where police last saw the
-  // player. It only shows while the player is out of sight with heat on
-  // the board, and it grows as the search drags on.
+  // "ZONA PENCARIAN" — the rings on the ground where police last saw the
+  // player. They only show while the player is out of sight with heat on
+  // the board, and they grow as the search drags on. Recording 10: the
+  // perimeter reads red-blue, not just red — a thick red outer ring + a
+  // blue inner ring (the same two rings the minimap draws) — plus a
+  // faint vertical beam pillar over the last-seen spot, so the zone has
+  // a vertical marker a camera 40 m away can actually see. The old
+  // single 0.6 m annulus at opacity ~0.5 was invisible in the foot
+  // frame; the rings + pillar are the cordon made visible. The search
+  // LOGIC is untouched (see-distances, lastSeen, searching flag).
   const searchRing = new THREE.Mesh(
-    new THREE.RingGeometry(9.4, 10, 48),
-    new THREE.MeshBasicMaterial({ color: 0xff6a5a, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
+    new THREE.RingGeometry(8.5, 11, 48),
+    new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
   );
   searchRing.rotation.x = -Math.PI / 2;
   searchRing.position.y = 0.09;
   searchRing.visible = false;
   scene.add(searchRing);
+  const searchRingBlue = new THREE.Mesh(
+    new THREE.RingGeometry(6.5, 8.5, 48),
+    new THREE.MeshBasicMaterial({ color: 0x2f7bff, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  searchRingBlue.rotation.x = -Math.PI / 2;
+  searchRingBlue.position.y = 0.09;
+  searchRingBlue.visible = false;
+  scene.add(searchRingBlue);
+  const searchBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.6, 2.4, 30, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xff8a7a, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  searchBeam.position.y = 15;
+  searchBeam.visible = false;
+  scene.add(searchBeam);
 
   function spawnCruiser(name) {
     const car = new Car(scene, rng, { isCop: true, name, x: rr(rng, -60, 60), z: rr(rng, -60, 60) });
@@ -389,11 +411,18 @@ export function createPolice(scene, city, rng) {
     }
     // Search ring: visible only while the player is unseen with heat on.
     searchRing.visible = searching;
+    searchRingBlue.visible = searching;
+    searchBeam.visible = searching;
     if (searching) {
       searchRing.position.set(lastSeen.x, 0.09, lastSeen.z);
+      searchRingBlue.position.set(lastSeen.x, 0.09, lastSeen.z);
+      searchBeam.position.set(lastSeen.x, 15, lastSeen.z);
       const grow = Math.min(2, 1 + (step._searchTime || 0) * 0.05);
       searchRing.scale.setScalar(grow);
-      searchRing.material.opacity = 0.5 + Math.sin(t * 3) * 0.2;
+      searchRingBlue.scale.setScalar(grow);
+      searchRing.material.opacity = 0.7 + Math.sin(t * 3) * 0.15;
+      searchRingBlue.material.opacity = 0.55 + Math.sin(t * 3 + 1.2) * 0.15;
+      searchBeam.material.opacity = 0.2 + Math.sin(t * 3) * 0.05;
     }
     // Roadblock beacons blink twice a second on sim time.
     const beaconOn = Math.floor(t * 2) % 2 === 0;
@@ -428,5 +457,5 @@ export function createPolice(scene, city, rng) {
     return list;
   }
 
-  return { step, anyoneSees, units, despawnAll, stealCruiser, cruisers, cops, get heli() { return heli; }, get roadblock() { return roadblock; }, get lastSeen() { return lastSeen; }, get searching() { return searchingNow; }, get searchTime() { return searchTime; } };
+  return { step, anyoneSees, units, despawnAll, stealCruiser, cruisers, cops, cordon: { ring: searchRing, blue: searchRingBlue, beam: searchBeam }, get heli() { return heli; }, get roadblock() { return roadblock; }, get lastSeen() { return lastSeen; }, get searching() { return searchingNow; }, get searchTime() { return searchTime; } };
 }
