@@ -364,7 +364,11 @@ export function createOjek(scene, city, rng, hooks = {}) {
       // + TIP on one line instead of wrapping mid-word.
       return scratched ? `${base} · TIP hilang — ada goresan` : `${base} · TIP ×2`;
     }
-    return `${base} · motor meluncur…`;
+    return base;
+    // (No status phrase here: the drive-box meter is one line and
+    // "· motor meluncur…" pushed it past the ellipsis — the coordinator
+    // flagged the truncated ojek line in the drive frame. The bike's
+    // approach already reads from the prompt + the minimap dot.)
   }
 
   function nearPickup(px, pz) {

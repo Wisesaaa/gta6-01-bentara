@@ -86,9 +86,12 @@ function driveEast(game, dt, laneZ, targetSpeed) {
 }
 
 // Move one uncollected item to an exact roadside spot so it reads in frame.
-// The item stays live: drive over it and it really collects.
-function stageCollectible(game, x, z) {
-  const item = game.collectibles.remaining()[0];
+// The item stays live: drive over it and it really collects. `kind`
+// picks the first remaining item of that kind — a tape, so its popup
+// names the real track it carries.
+function stageCollectible(game, x, z, kind) {
+  const remaining = game.collectibles.remaining();
+  const item = (kind ? remaining.find((i) => i.kind === kind) : null) || remaining[0];
   if (!item) return null;
   item.x = x;
   item.z = z;
@@ -115,6 +118,9 @@ export function stageShot(name, game, atSeconds) {
 
   if (name === 'drive') {
     G.hud.setHudProfile('drive');
+    // Radio on: the drive frame's radio widget shows the synth's real
+    // now-playing + the equalizer, driven by the track's pattern.
+    G.audio.setRadio(true);
     G.missions.setIndex(1);
     // The M2 intro (Letkol Rahmat) would sit over the frame for its 7 s
     // lifetime; the drive shot is a chase, not a conversation.
@@ -289,6 +295,9 @@ export function stageShot(name, game, atSeconds) {
     return { name, seconds, steps };
   } else if (name === 'heat') {
     G.hud.setHudProfile('heat');
+    // Radio on: the cover's radio widget shows the synth's real
+    // now-playing + the equalizer, driven by the track's pattern.
+    G.audio.setRadio(true);
     // Mission 3 RAMPOKAN KECIL: its objective is "Pergi ke Kawasan
     // Industri", so the mission panel matches the district in frame, and a
     // robbery at 4.2 stars is the chase the cover is supposed to show.
@@ -524,9 +533,14 @@ export function stageShot(name, game, atSeconds) {
     G.hud.popups.clear();
     // The mission stinger, held for the capture too.
     G.hud.stinger('MISI 3/8 — RAMPOKAN KECIL', 'Kawasan Industri', 60);
-    // Radio as ONE ticker line (r8 de-clutter: the radio card is gone
-    // from the cover — the song still reads, as a single line).
-    G.hud.ticker('RADIO KEMARAU 92.4 · Musim Kering — Senja Bentara', 60);
+    // Dispatch ticker, not the radio track: the drive-box radio widget
+    // already shows the now-playing song, so putting the same sentence
+    // in the centre ticker duplicated it in the cover frame (the
+    // coordinator flagged the doubled radio line). The ticker is the
+    // DISPATCH feed — it carries the police line for this beat, the
+    // same GARUDA-1 line the police system itself fires at heat >= 4
+    // (police.js), which fits the heli overhead.
+    G.hud.ticker('POLISI: GARUDA-1 sudah di udara — kejar dari atas!', 60);
     // Frozen drift dust: the slide really laid smoke during the sim, but
     // the sim's puffs faded before the freeze — re-fire four big dust
     // puffs along the car's trail, frozen at full opacity for the
@@ -553,16 +567,20 @@ export function stageShot(name, game, atSeconds) {
     // street, not a conversation.
     G.hud.hideDialogue();
     G.hud.setHudProfile('foot');
+    // Radio on: the foot frame's radio widget shows the synth's real
+    // now-playing + the equalizer, driven by the track's pattern.
+    G.audio.setRadio(true);
     G.state.cash = 19600;
     G.state.rep = 1960;
-    // WANTED on foot (r8): heat 4.0 before the sim, so 2 foot cops + 3
-    // cruisers + the roadblock + the HELI spawn and close in — the frame's
-    // story is the cordon, not a firefight with attackers (those are
-    // gone). 4 stars (brief allows 3–4); the heli's spotlight cone +
-    // pool fall on the player's ground, which is what finally lights
-    // this shaded market street — without it the player and the cops
-    // read as dark figures on dark asphalt.
-    G.state.heat = 4.0;
+    // WANTED on foot (r9): heat 3.0 before the sim, so 2 foot cops + 3
+    // cruisers + the roadblock spawn and close in — but NO heli (the
+    // heli spawns at heat 4 and always sees the player, so a search
+    // state could never freeze). The frame's story is the SEARCH: the
+    // player has just slipped the cordon and is hiding at the market's
+    // south edge while the police sweep the last-seen zone. 3 stars; the
+    // shaded market street is lit by the shot-local fill + hemisphere
+    // below, not by the heli's spotlight.
+    G.state.heat = 3.0;
     const L = loc('northRowStall');
     G.player.setPos(44, 104, -2.85);
     G.player.weapon = 'pistol';
@@ -636,13 +654,14 @@ export function stageShot(name, game, atSeconds) {
       p.target = { x: pedSpots[k][0] + 8, z: pedSpots[k][1] - 12 };
       p.fleeTimer = 0;
     });
-    // A gold item staged on the player's walking line (heading -2.85
+    // A gold TAPE staged on the player's walking line (heading -2.85
     // drifts him north-west as he walks): he walks over it during the
-    // sim, so the collect is real — popup, cash, and the counter. Keep
-    // the staged item: the re-shown popup must carry ITS real kind and
-    // value (the first take claimed IDOL +$60 while the item actually
-    // collected was a TAPE +$25).
-    const stagedItem = stageCollectible(G, 43, 99);
+    // sim, so the collect is real — popup, cash, and the counter. A tape
+    // on purpose: its popup names the real track it carries. Keep the
+    // staged item: the re-shown popup must carry ITS real kind, value
+    // and track (the first take claimed IDOL +$60 while the item
+    // actually collected was a TAPE +$25).
+    const stagedItem = stageCollectible(G, 43, 99, 'tape');
     // No shots during the sim: the player's sim fire hit a parked car in
     // the first take (an SMG drop + a collect popup the frame never meant
     // to show). The firefight is staged after the sim — frozen tracers,
@@ -751,28 +770,32 @@ export function stageShot(name, game, atSeconds) {
     // 2 s sim — dispose any that appeared, so the frame holds only cops
     // and civilians (an attacker would read as a third faction).
     for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
-    // The cordon, re-staged to exact spots after the sim (the sim's walk
-    // may have scattered them): 2 foot cops CLOSE to the player — 4–5 m
-    // off, flanking him left-front and right-front, facing him, guns on
-    // him. Take 1 staged them 6–8 m off and they vanished into the dark
-    // street at 12 m from the lens; at 4–5 m they are ~110 px tall, the
-    // tracers between them and the player are short and bright, and the
-    // frame reads as a cordon that has him cornered. 3 cruisers hold the
-    // street's north end beside the roadblock, lights on the player, none
-    // of them between the camera and the player. The roadblock sits
-    // across the street at (40,118).
+    // The cordon, re-staged to exact spots after the sim — and the
+    // player, re-staged to his hiding spot. The search beat (r9): the
+    // player has slipped the cordon and hides at the market's south edge
+    // (40,88), behind a staged stall, hunched. The cordon holds the
+    // street's FAR north end, sweeping the last-seen zone around
+    // (40,92): 2 foot cops at (38,130)/(44,132), 3 cruisers at
+    // (33,144)/(47,148)/(52,146), the roadblock across the street at
+    // (40,152). The distances are the whole point: cops 42–44 m and
+    // cruisers 56–60 m from the player, all past the see-distance
+    // (40 m foot cops, 55 m cruisers), with no heli at heat 3 — so the
+    // police step genuinely computes searching = true, the search ring
+    // centres on the last-seen spot, and the LOS chip counts the
+    // search-zone timer down. The cops face south, toward the
+    // last-seen zone; the cruisers face south too, lightbars on.
     const cops = (G.police.cops || []).filter((c) => c.alive);
-    // r8 fix (round-1 verdict): the cops read as shadows at 12 m — 2 m
-    // closer to the lens and 20% bigger, so the uniform + green cap read
-    // at full-frame size without zooming.
-    const copSpots = [[38, 86], [44, 88]];
+    // 20% bigger, so the uniform + green cap read at full-frame size
+    // without zooming (r8 fix, kept: at 42 m they would otherwise
+    // vanish into the dark street).
+    const copSpots = [[38, 130], [44, 132]];
     cops.forEach((c, k) => {
       const s = copSpots[k % copSpots.length];
       c.setPos(s[0], s[1]);
-      c.face(Math.atan2(G.player.x - s[0], G.player.z - s[1]));
+      c.face(Math.atan2(40 - s[0], 92 - s[1]));
       c.group.scale.setScalar(1.2);
     });
-    const cruiserSpots = [[33, 108], [47, 112], [52, 106]];
+    const cruiserSpots = [[33, 144], [47, 148], [52, 146]];
     G.police.cruisers.forEach((c, k) => {
       const s = cruiserSpots[k % cruiserSpots.length];
       c.x = s[0];
@@ -784,10 +807,24 @@ export function stageShot(name, game, atSeconds) {
     const rb = G.police.roadblock;
     if (rb) {
       rb.x = 40;
-      rb.z = 118;
+      rb.z = 152;
       rb.heading = Math.PI / 2;
       rb.speed = 0;
       rb.sync();
+    }
+    // The player slips south to (40,88) and hides behind a staged
+    // market stall NORTH of him at (41,91) — between him and the cordon,
+    // so the hiding reads visually too. (South of him would put the
+    // stall between the player and the CAMERA and hide him from the
+    // frame.) The stall is a real prop, picked by kind and never one of
+    // the six market props above.
+    G.player.setPos(40, 88, -2.85);
+    const cover = G.props.props.find((pp) => !pp.broken && pp.kind === 'stall' && !usedProps.has(pp));
+    if (cover) {
+      cover.x = 41;
+      cover.z = 91;
+      cover.mesh.position.x = 41;
+      cover.mesh.position.z = 91;
     }
     // r8 fix (round-1 verdict): the cruisers + roadblock at the street's
     // far end read as dark shapes at 12 m — red/blue lightbar glows mark
@@ -806,87 +843,66 @@ export function stageShot(name, game, atSeconds) {
       amber.position.set(rb.x, 2.4, rb.z);
       G.view.scene.add(amber);
     }
+    // The search has already been running for 4 s (staged, so the timer
+    // reads mid-countdown, not the full 11 s): the heat-decay clock
+    // counts down from 11 s, and this frame freezes it at 0:07.
+    G.state.seenTimer = 4;
     // One extra 1/60 s step AFTER the re-stage: the police step now sees
-    // the cops 6-8 m from the player (anyoneSees < 40 m), so the LOS chip
-    // flips from HILANG to TERLIHAT and the search ring hides — the frame
-    // reads as a cordon that HAS him, not one still looking. One step
-    // moves nobody more than a few centimetres, so the staged spots hold.
-    // The M2 survive step could spawn one more attacker on this step —
+    // NOBODY within see-distance (cops 42 m+, cruisers 56 m+, no heli),
+    // so searching = true, the search ring centres on the last-seen spot
+    // and the LOS chip flips to HILANG with the countdown. One step moves
+    // nobody more than a few centimetres, so the staged spots hold. The
+    // M2 survive step could spawn one more attacker on this step —
     // dispose again, same as above.
     G.step(1 / 60);
     for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
+    // Hunched behind the stall, AFTER the step: the walk cycle would
+    // overwrite the pose if it ran first. Torso forward, legs braced.
+    if (G.player.body) {
+      G.player.body.torso.rotation.x = 0.3;
+      G.player.body.legL.rotation.x = 0.5;
+      G.player.body.legR.rotation.x = -0.5;
+    }
     // The taxi/ojek toast re-fired during the sim — clear it so the
     // centre holds only the warung prompt and the idol popup, not a
     // third stacked line.
     G.hud.toast('', 0.01);
     // Re-show the popup the walk really earned, with the STAGED item's
-    // real kind and value and a 60 s lifetime, for the same slow-capture
-    // reason as the cover's drift popup. Clear first: the live collect
-    // already left one popup, and re-showing without clearing stacks a
-    // duplicate "KASET +$25" that collides with the panel edge.
+    // real kind, value AND track name (a tape's popup names the song)
+    // and a 60 s lifetime, for the same slow-capture reason as the
+    // cover's drift popup. Clear first: the live collect already left
+    // one popup, and re-showing without clearing stacks a duplicate
+    // "KASET +$25" that collides with the panel edge.
     const itemValue = stagedItem
       ? (stagedItem.kind === 'idol' ? COLLECTIBLES.idolValue : COLLECTIBLES.tapeValue)
       : 25;
     G.hud.popups.clear();
-    G.hud.popups.collect(itemValue, stagedItem ? stagedItem.kind : 'tape', 60);
+    G.hud.popups.collect(itemValue, stagedItem ? stagedItem.kind : 'tape', 60, stagedItem ? stagedItem.track : null);
     G.setShotInput({ active: false });
-    // Foot camera: (38, 4, 76) looking almost due south at the
-    // player's END position (40, 2.5, 96) — ~12 m from the player.
-    // Take 2 tried (38, 3.2, 82), 10 m: TOO CLOSE — the near cop sat
-    // 4.5 m from the lens, so his tracer crossed the frame as a giant
-    // white beam, his muzzle flash filled the bottom-right as a gold
-    // sun, and the low lens put a near-black road slab over the bottom
-    // 40%. At 12 m the cops + crossfire + flash read at honest size
-    // and the market fills the frame. Aimed south, not south-east: the
-    // east tower's west face (x 48.8) filled the left ~35% from the
-    // (46, 94) aim — the southerly aim pushes its north corner out of
-    // frame and the KEDAI KOPI / TOKO KELONTONG signs break what is
-    // left of it. The two foot cops stand between the camera and the
-    // player, the player stands centre, the pasar tents fill the left
-    // of the frame, and the cordon closes the street behind him.
+    // Foot camera: (38, 4, 78) looking almost due north at the
+    // player's hiding spot (40, 2, 92) — ~10 m from the player, so the
+    // hunched figure reads as the hero of the frame, not one more
+    // market shape. Take 2 tried (38, 3.2, 82), 10 m: TOO CLOSE — the
+    // near cop sat 4.5 m from the lens, so his tracer crossed the frame
+    // as a giant white beam, his muzzle flash filled the bottom-right
+    // as a gold sun, and the low lens put a near-black road slab over
+    // the bottom 40%. At 10 m with the lens at 4 m (and no near cop in
+    // the search beat) the player reads at honest size and the market
+    // fills the frame. Aimed north, not north-east: the east tower's
+    // west face (x 48.8) filled the left ~35% from the (46, 94) aim —
+    // the northerly aim pushes its north corner out of frame and the
+    // KEDAI KOPI / TOKO KELONTONG signs break what is left of it. The
+    // player hides in the foreground, hunched behind his stall; the
+    // market fills the mid-ground; the cordon with its lightbar glows
+    // holds the street's far north end behind him.
     const cam = G.view.camera;
-    cam.position.set(38, 4, 76);
-    cam.lookAt(40, 2.5, 96);
-    G.view.keepClear(cam, 40, 2.5, 96);
-    // Frozen cordon fire: CROSSFIRE from both foot cops toward the player
-    // — two tracers converging on him read as a cordon shooting, where
-    // one thin tracer read as a scratch. combat.shoot only draws the
-    // visuals; damage stays in the game's own shot handler, so no staged
-    // body changes state. The second cop aims 1 m past the player, so
-    // its tracer crosses the first near him instead of doubling it.
-    if (cops.length > 0) {
-      const near = cops[0];
-      const origin = new THREE.Vector3(near.x, 1.4, near.z);
-      const dir = new THREE.Vector3(G.player.x - near.x, 1.2 - 1.4, G.player.z - near.z).normalize();
-      G.player.combat.shoot(origin, dir, 'pistol', { humans: [], cars: [] });
-      // Muzzle flash: a bright additive glow at the near cop's muzzle,
-      // frozen for the capture — the gunshot reads even at a glance.
-      const ndx = G.player.x - near.x;
-      const ndz = G.player.z - near.z;
-      const nd = Math.hypot(ndx, ndz) || 1;
-      // Scale 1.4: take 2's 2.0 read as a gold sun from the close lens.
-      const flash = makeGlowSprite(0xffd75e, 1.4, 0.9);
-      flash.position.set(near.x + (ndx / nd) * 1.2, 1.4, near.z + (ndz / nd) * 1.2);
-      G.view.scene.add(flash);
-    }
-    if (cops.length > 1) {
-      const second = cops[1];
-      const origin2 = new THREE.Vector3(second.x, 1.4, second.z);
-      const dir2 = new THREE.Vector3(G.player.x + 1 - second.x, 1.2 - 1.4, G.player.z + 1 - second.z).normalize();
-      G.player.combat.shoot(origin2, dir2, 'pistol', { humans: [], cars: [] });
-    }
-    // Frozen muzzle smoke + impact sparks: the tracer is frozen at full
-    // opacity, but its smoke faded — re-fire one FAINT puff at the cop's
-    // muzzle (offset 1.2 m toward the player, so it never veils the cop)
-    // and a spark burst where the tracer meets the player.
-    if (cops.length > 0) {
-      const near = cops[0];
-      const ndx = G.player.x - near.x;
-      const ndz = G.player.z - near.z;
-      const nd = Math.hypot(ndx, ndz) || 1;
-      G.effects.smoke(near.x + (ndx / nd) * 1.2, near.z + (ndz / nd) * 1.2, false, true);
-      G.effects.sparks(G.player.x - (ndx / nd) * 1.5, G.player.z - (ndz / nd) * 1.5);
-    }
+    cam.position.set(38, 4, 78);
+    cam.lookAt(40, 2, 92);
+    G.view.keepClear(cam, 40, 2, 92);
+    // No gunfire in this frame: the search beat is a cordon SWEEPING, not
+    // shooting — the cops are 42 m off and out of shooting range (26 m),
+    // so tracers would be dishonest. The tension reads from the search
+    // ring, the HILANG chip with its countdown, and the MENCARI pills.
     // r8 fix (round-1 verdict): the market street's near half read as a
     // black void — a warm fill from the camera side lifts the road, the
     // stalls and the cops' fronts. Shot-local staging lights: they live
@@ -901,9 +917,9 @@ export function stageShot(name, game, atSeconds) {
     G.view.scene.add(footFill.target);
     const footHemi = new THREE.HemisphereLight(0xffe0b8, 0x6a5a48, 0.55);
     G.view.scene.add(footHemi);
-    // Frozen cordon trauma: a cop tracer is crossing the frame, so the
-    // camera leans into the exchange — combat depth you can see.
-    G.view.setTrauma(0.3);
+    // A faint unease lean for the search beat — the frame is tense and
+    // quiet, not a firefight, so the trauma stays low (0.12).
+    G.view.setTrauma(0.12);
     G.view.render();
     window.__shotReady = true;
     return { name, seconds, steps };

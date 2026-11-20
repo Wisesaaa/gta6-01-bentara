@@ -2,11 +2,17 @@
 // sidewalks. Walk or drive over one to collect it — cash plus REP, with a
 // HUD counter. The cheapest real depth in the game: a reason to explore
 // every street, visible in the source outline and in the screenshots.
+// Every tape carries one real track from the radio stations — a physical
+// copy of a song the radio plays, named in the pickup popup.
 import * as THREE from 'three';
 import { COLLECTIBLES } from './config.js';
 import { pick, rr } from './rng.js';
 import { roadLines, LOCATIONS } from './city.js';
 import { dist } from './mathx.js';
+import { STATIONS } from './radioStations.js';
+
+// All radio tracks, flat: a tape is one of these six songs.
+const ALL_TRACKS = STATIONS.flatMap((s) => s.tracks.map((t) => ({ title: t.title, artist: t.artist, station: s.name })));
 
 const IDOL_COLOR = 0xffd75e;
 const TAPE_COLOR = 0x1f6b74;
@@ -67,7 +73,9 @@ export function createCollectibles(scene, city, rng, hooks) {
     g.add(ring);
     g.position.set(x, 0, z);
     group.add(g);
-    return { kind, x, z, mesh: g, taken: false, bob: rr(rng, 0, Math.PI * 2) };
+    // A tape is a physical copy of one real radio track (deterministic
+    // from the seeded rng, so the same seed deals the same tapes).
+    return { kind, x, z, mesh: g, taken: false, bob: rr(rng, 0, Math.PI * 2), track: kind === 'tape' ? pick(rng, ALL_TRACKS) : null };
   }
 
   for (let i = 0; i < COLLECTIBLES.count; i += 1) {

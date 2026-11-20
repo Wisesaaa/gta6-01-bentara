@@ -13,6 +13,7 @@ import { CAR, PLAYER, WEAPONS, STUNTS } from './config.js';
 import { clamp, damp, dist, wrapAngle } from './mathx.js';
 import { hitsSolid, clampToCity } from './city.js';
 import { createCombat } from './combat.js';
+import { createChaseCamera } from './chaseCamera.js';
 
 export function createPlayer(ctx) {
   const { scene, city, view, input, rng } = ctx;
@@ -190,19 +191,20 @@ export function createPlayer(ctx) {
     combat.step(dt);
   }
 
+  // Chase camera (chaseCamera.js): one owner for the follow + keepClear
+  // rule, so the live camera dodges buildings exactly like the staged
+  // shot cameras do — never inside a wall on a tight street.
+  const chase = createChaseCamera(city);
+
   function placeCamera() {
     if (p.onFoot) {
-      const behind = 4.2;
-      const bx = p.x - Math.sin(p.camHeading) * behind + Math.cos(p.camHeading) * 0.8;
-      const bz = p.z - Math.cos(p.camHeading) * behind - Math.sin(p.camHeading) * 0.8;
-      view.camera.position.set(bx, 2.4, bz);
-      view.camera.lookAt(p.x + Math.sin(p.heading) * 6, 1.4, p.z + Math.cos(p.heading) * 6);
+      chase.followFoot(view.camera, p.x, p.z, p.camHeading, p.heading);
     } else {
       // Low and close: 5.0 m back, 1.9 m up. The car is the hero of the
       // frame — bottom-centre, a quarter to a third of the width — and the
       // street ahead still reads over its roof. (Pulled in from
       // 6.2 m / 2.1 m, where the car read as a small red box.)
-      view.placeCamera(p.x, p.z, p.heading, 5.0, 1.9, 10);
+      chase.followCar(view.camera, p.x, p.z, p.heading);
     }
   }
 

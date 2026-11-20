@@ -136,10 +136,35 @@ export function drawMap(canvas, G) {
   ctx.fillStyle = '#ffd75e';
   ctx.font = 'bold 16px system-ui, sans-serif';
   ctx.fillText('N', W - 24, 22);
-  // Legend, bottom-left: what the gold means.
+  // Legend, top-left: a boxed two-column key for everything the map
+  // shows — mission numbers, the gold M8 route, safehouse / shop /
+  // garage dots, owned-property $ blips, the player arrow. The top-left
+  // corner is clear of every marker and label (the nearest is marker 8
+  // at canvas ~(279,105) with its plate starting at x ~219); the
+  // bottom-left would cover marker 5 (shophouseRow) and its DERET RUKO
+  // plate.
+  const legend = [
+    ['●', '#ffd75e', '1–8 MISI'], ['─', '#ffd75e', 'RUTE M8'],
+    ['●', '#2fbf71', 'SAFEHOUSE'], ['●', '#4a90d9', 'TOKO SENJATA'],
+    ['●', '#c0392b', 'BENGKEL'], ['$', '#ffd75e', 'PROPERTI'],
+    ['➤', '#ffffff', 'KAMU'],
+  ];
+  const lw = 195;
+  const lh = 4 * 17 + 12;
+  ctx.fillStyle = 'rgba(10,15,20,0.85)';
+  ctx.fillRect(10, 10, lw, lh);
+  ctx.font = 'bold 11px system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#ffd75e';
-  ctx.font = 'bold 12px system-ui, sans-serif';
-  ctx.fillText('● 1–8 MISI', 14, H - 14);
+  ctx.textBaseline = 'middle';
+  const colX = [22, 122];
+  legend.forEach(([sym, color, label], i) => {
+    const col = i < 4 ? 0 : 1;
+    const row = i % 4;
+    const y = 10 + 18 + row * 17;
+    ctx.fillStyle = color;
+    ctx.fillText(sym, colX[col], y);
+    ctx.fillStyle = '#f3e6c8';
+    ctx.fillText(label, colX[col] + 14, y);
+  });
   return { markers: MARKERS.length, roads: roadLines().length, routePoints: route.length };
 }

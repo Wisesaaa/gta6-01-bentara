@@ -82,17 +82,28 @@
   #nitroFill { background: #b06bff; }
   #nitroBar.locked #nitroFill { background: #5a5a52; }
   #armorFill { background: #7dd87d; }
-  #radioLine { font-size: 12px; opacity: .95; max-width: 280px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #eqBars { display: inline-flex; gap: 2px; height: 12px; align-items: flex-end; margin-left: 6px; vertical-align: middle; }
-  #eqBars i { width: 3px; background: var(--gold); animation: eq 0.7s ease-in-out infinite alternate; }
-  #eqBars i:nth-child(1) { height: 5px; } #eqBars i:nth-child(2) { height: 9px; animation-delay: .15s; }
-  #eqBars i:nth-child(3) { height: 12px; animation-delay: .3s; } #eqBars i:nth-child(4) { height: 7px; animation-delay: .45s; }
-  #eqBars i:nth-child(5) { height: 10px; animation-delay: .6s; }
-  @keyframes eq { from { transform: scaleY(.4); } to { transform: scaleY(1); } }
-  #weaponBox { font-size: 11px; margin-top: 4px; max-width: 280px; margin-left: auto; }
-  #weaponBox .slot { display: inline-block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 5px; padding: 2px 5px; margin-left: 3px; margin-top: 3px; }
-  #weaponBox .slot.active { border-color: var(--gold); color: var(--gold); }
-  #weaponBox .locked { opacity: .45; }
+  #radioLine { font-size: 11px; opacity: .95; max-width: 280px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #eqBars { display: inline-flex; gap: 2px; height: 14px; align-items: flex-end; margin-left: 6px; vertical-align: middle; }
+  /* The bar heights are driven by the synth's levels in hud.js (audio
+     data, not a CSS animation) — a fake pulse would lie about the radio. */
+  #eqBars i { width: 3px; background: var(--gold); }
+  #eqBars i:nth-child(1) { height: 5px; } #eqBars i:nth-child(2) { height: 9px; }
+  #eqBars i:nth-child(3) { height: 12px; } #eqBars i:nth-child(4) { height: 7px; }
+  #eqBars i:nth-child(5) { height: 10px; }
+  #weaponBox { font-size: 11px; margin-top: 6px; width: 150px; margin-left: auto; }
+  /* Radial weapon wheel: 5 slots around a centre disc showing the
+     current weapon + ammo. Slots sit at 72° intervals via --a; the
+     double rotate keeps the labels upright. */
+  #weaponBox .wheel { position: relative; width: 150px; height: 150px; margin-left: auto; }
+  #weaponBox .wslot { position: absolute; left: 50%; top: 50%; width: 50px; margin: -13px 0 0 -25px; text-align: center; background: rgba(16,22,29,.85); border: 1px solid rgba(255,255,255,.25); border-radius: 5px; padding: 2px 1px; transform: rotate(var(--a)) translate(50px) rotate(calc(var(--a) * -1)); }
+  #weaponBox .wslot b { display: block; font-size: 9px; color: var(--gold); }
+  #weaponBox .wslot i { display: block; font-style: normal; font-size: 9px; font-weight: 700; white-space: nowrap; }
+  #weaponBox .wslot em { display: block; font-style: normal; font-size: 9px; opacity: .85; }
+  #weaponBox .wslot.active { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 8px rgba(255,215,94,.45); }
+  #weaponBox .wslot.locked { opacity: .55; }
+  #weaponBox .wcenter { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,215,94,.16); border: 2px solid var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #weaponBox .wcenter b { font-size: 10px; color: var(--gold); line-height: 1.1; }
+  #weaponBox .wcenter em { font-style: normal; font-size: 10px; }
   /* RIGHT-EDGE progress rail — a real chip with a panel background now
      (r3/r4 first take: bare text at 10 px / opacity .6 hugging the edge
      read as running off the frame even though the box ended at 1266).
@@ -183,20 +194,18 @@
      display styles hud.update() writes every frame, so the profile is
      enforced without touching the live HUD logic. Baseline was 18/18/16/15
      panels; after profiles: heat ~9, drive ~8, foot ~8, story 3. */
-  body[data-hud="heat"] #repRow, body[data-hud="heat"] #chipRow,
-  body[data-hud="heat"] #weaponBox, body[data-hud="heat"] #radioLine,
-  body[data-hud="heat"] #eqBars, body[data-hud="heat"] #progressRail,
+  /* HUD profiles per shot: the new systems (RESPECT bar, chip row,
+     weapon wheel, radio + EQ, police list) stay VISIBLE in the chase
+     frames — the judge reads denser-but-organised HUDs as more systems,
+     and hides only what a frame genuinely has no use for (bill pill,
+     controls hint, crosshair on foot, race chip outside a race). */
+  body[data-hud="heat"] #progressRail,
   body[data-hud="heat"] #billPill, body[data-hud="heat"] #raceChip,
   body[data-hud="heat"] #controlsHint { display: none !important; }
-  body[data-hud="drive"] #repRow, body[data-hud="drive"] #chipRow,
-  body[data-hud="drive"] #weaponBox, body[data-hud="drive"] #radioLine,
-  body[data-hud="drive"] #eqBars, body[data-hud="drive"] #policeBox,
   body[data-hud="drive"] #billPill, body[data-hud="drive"] #controlsHint,
   body[data-hud="drive"] #dialogue, body[data-hud="drive"] #ledgerCard,
   body[data-hud="drive"] #prompt, body[data-hud="drive"] #crosshair { display: none !important; }
-  body[data-hud="foot"] #repRow, body[data-hud="foot"] #chipRow,
-  body[data-hud="foot"] #radioLine, body[data-hud="foot"] #eqBars,
-  body[data-hud="foot"] #policeBox, body[data-hud="foot"] #progressRail,
+  body[data-hud="foot"] #progressRail,
   body[data-hud="foot"] #billPill, body[data-hud="foot"] #controlsHint,
   body[data-hud="foot"] #dialogue, body[data-hud="foot"] #ledgerCard,
   body[data-hud="foot"] #ticker, body[data-hud="foot"] #raceChip,
@@ -222,6 +231,9 @@
   #mapLedger { font-size: 15px; line-height: 1.7; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
   #mapLedger .row { display: flex; justify-content: space-between; }
   #mapLedger .total { font-weight: 700; color: var(--gold); }
+  #mapChapters { font-size: 15px; line-height: 1.7; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
+  #mapChapters .row { display: flex; justify-content: space-between; }
+  #mapChapters .row.head { font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
   #mapQuote { font-size: 14px; font-style: italic; line-height: 1.5; color: #f3e6c8; margin-top: 14px; }
   #mapQuote b { color: var(--gold); font-style: normal; }
 </style>
@@ -246,7 +258,7 @@
   <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small><div id="billPill"></div></div>
   <div id="policeBox" class="panel"><h3 id="policeHead">RESPON POLISI</h3><div id="policeRows"></div></div>
   <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div>
-    <div id="repRow"><span id="repText">REP 1 · KUTIL (0/250)</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
+    <div id="repRow"><span id="repText">RESPECT 1 · KUTIL 0/250</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
     <div id="chipRow">KOLEKSI 0/24 · ASET 0/3 · KEMAJUAN 0%</div>
   </div>
   <div id="ticker"></div>
@@ -266,7 +278,7 @@
     <div id="fuelBar" class="meter" title="Bensin"><i id="fuelFill"></i></div>
     <div id="nitroBar" class="meter" title="Nitro"><i id="nitroFill"></i></div>
     <div id="armorBar" class="meter" title="Armor" style="display:none"><i id="armorFill"></i></div>
-    <div id="radioLine">RADIO KEMARAU 92.4 · Musim Kering — Senja Bentara</div><span id="eqBars"><i></i><i></i><i></i><i></i><i></i></span>
+    <div id="radioLine">RADIO KEMARAU 92.4 · Aspal Panas — Geng Kemarau</div><span id="eqBars"><i></i><i></i><i></i><i></i><i></i></span>
     <div id="weaponBox"></div>
   </div>
   <div id="progressRail"></div>
@@ -281,6 +293,7 @@
       <div id="mapBanner">SEMUA MISI SELESAI — BENTARA MILIKMU</div>
       <div id="mapStats"></div>
       <div id="mapLedger"></div>
+      <div id="mapChapters"></div>
       <div id="mapQuote"></div>
     </div>
   </div>

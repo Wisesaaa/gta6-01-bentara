@@ -4,31 +4,25 @@
 // LEFT-MID: police response list, max 5 rows + "+N unit lagi", status
 // pills (KEJAR / MENABRAK / IKAT JALAN / SOROT / MENCARI).
 // TOP-RIGHT: green cash, stars, day/time, one-line bill pill.
-// BOTTOM-LEFT: circular radar minimap + GPS route + region plate + REP
-// row + chip row (KOLEKSI / ASET / KEMAJUAN %).
-// BOTTOM-RIGHT: vehicle card (gauge, fuel, nitro, armor) + 5-slot weapon
-// rail with 2 LOCKED slots. CENTRE: tiered feedback + dispatch ticker.
+// BOTTOM-LEFT: circular radar minimap + GPS route + region plate + RESPECT
+// bar + chip row (KOLEKSI / ASET / KEMAJUAN %).
+// BOTTOM-RIGHT: vehicle card (gauge, fuel, nitro, armor) + radial weapon
+// wheel (5 slots, mag/reserve, LOCKED pads with the real price / REP
+// gate) + live radio widget (now-playing + equalizer from the synth).
+// CENTRE: tiered feedback + dispatch ticker. The search-zone timer lives
+// in the LOS chip while the police sweep the last-seen zone.
 // RIGHT EDGE: progress rail (owned cars). The bill list collapses to one
 // pill and only expands on the pause screen. Everything reads from the
 // real game state — never a string set by a shot script.
 import { LOCATIONS, roadLines } from './city.js';
 import { routeWaypoints } from './gpsRoute.js';
 import { drawMap } from './mapScreen.js';
-import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS } from './config.js';
+import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS, RACE } from './config.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
 import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress } from './progress.js';
 
 export { repLevel, repTitle };
-
-const SONGS = [
-  'Musim Kering — Senja Bentara',
-  'Senja di Aspal',
-  'Debu Arteri — Kijang Liar',
-  'Debu Kota',
-  'Angin Timur — Ruko Blues',
-  'Plaza 16:00 — Matahari Retak',
-];
 
 // Status -> [pill text, css class].
 const STATUS_PILL = {
@@ -92,7 +86,7 @@ export function createHud() {
     crosshair: $('crosshair'), screen: $('screen'), status: $('status'),
     pauseStats: $('pauseStats'),
     mapScreen: $('mapScreen'), mapCanvas: $('mapCanvas'), mapBanner: $('mapBanner'),
-    mapStats: $('mapStats'), mapLedger: $('mapLedger'), mapQuote: $('mapQuote'),
+    mapStats: $('mapStats'), mapLedger: $('mapLedger'), mapQuote: $('mapQuote'), mapChapters: $('mapChapters'),
   };
   const mapCtx = els.minimap.getContext('2d');
   const gaugeCtx = els.gauge.getContext('2d');
@@ -100,7 +94,7 @@ export function createHud() {
   let billTimer = 0;
   let toastTimer = 0;
   let dialogueTimer = 0;
-  let songIndex = 0;
+  let radioMode = 0;
   let songTimer = 24;
   let djIndex = 0;
   let stingerTimer = 0;
@@ -364,11 +358,12 @@ export function createHud() {
       ? 'BENTARA MILIKMU'
       : `${G.missions.objectiveText()} · ${missionDistance(G)} m`;
     // Race chip: only while a checkpoint race is running — gate count +
-    // live timer, so the race system is visible in the HUD, not just as
-    // a gold ring in the world.
+    // live timer + par + best time, so the race standings read in the
+    // HUD, not just as a gold ring in the world.
     if (G.race && G.race.active && G.race.nextGate) {
       els.raceChip.style.display = 'block';
-      els.raceChip.textContent = `BALAPAN · GATE ${G.race.gateIndex + 1}/${G.race.gateCount} · ${G.race.timer.toFixed(1)} dtk`;
+      const best = G.race.best;
+      els.raceChip.textContent = `BALAPAN · GATE ${G.race.gateIndex + 1}/${G.race.gateCount} · ${G.race.timer.toFixed(1)} dtk · PAR ${RACE.parSeconds} dtk${best !== null && best !== undefined ? ` · TERBAIK ${best.toFixed(1)} dtk` : ''}`;
     } else {
       els.raceChip.style.display = 'none';
     }
@@ -380,9 +375,11 @@ export function createHud() {
     // Stage bar + NEXT chip.
     els.missionStageFill.style.width = `${Math.round(G.missions.stageFrac() * 100)}%`;
     els.missionNext.textContent = G.missions.done ? 'NEXT: —' : `NEXT▸ ${G.missions.nextText().replace(/^NEXT:\s*/, '')}`;
-    // REP row + next unlock.
+    // RESPECT bar + next unlock: the labeled rank ladder (KUTIL -> BOS
+    // KECIL -> RAJA JALANAN -> LEGENDA BENTARA), progress to the next
+    // rank, and the unlock that rank opens.
     const rp = repProgress(S.rep);
-    els.repText.textContent = `REP ${rp.level} · ${rp.title} ${Math.round(rp.into)}/${rp.need || '—'}`;
+    els.repText.textContent = `RESPECT ${rp.level} · ${rp.title} ${Math.round(rp.into)}/${rp.need || '—'}`;
     els.repFill.style.width = `${Math.round(rp.frac * 100)}%`;
     const nu = nextUnlock(S.rep);
     els.nextUnlock.textContent = nu ? `BERIKUTNYA di REP ${nu.level}: ${nu.label}` : 'SEMUA UNLOCK TERBUKA';
@@ -397,12 +394,20 @@ export function createHud() {
     els.clockText.textContent = `HARI ${S.day} · ${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')} · MUSIM KEMARAU`;
     // LOS chip: two states, always visible while wanted — TERLIHAT (red,
     // blinking, the search zone follows the player) or HILANG (amber, the
-    // police are sweeping the last-seen zone).
+    // police are sweeping the last-seen zone) with the search-zone
+    // timer: seconds until the next star drops, from the real heat-decay
+    // clock (11 s, 5.5 s with the es teh buff).
     if (els.seenFlash) {
       if (S.heat >= 1 && G.police) {
         const seen = G.police.anyoneSees(P.x, P.z);
         els.seenFlash.style.display = 'block';
-        els.seenFlash.textContent = seen ? '● TERLIHAT — ZONA MENGIKUTIMU' : '○ HILANG — ZONA PENCARIAN';
+        if (seen) {
+          els.seenFlash.textContent = '● TERLIHAT — ZONA MENGIKUTIMU';
+        } else {
+          const decay = S.esTehTimer > 0 ? 5.5 : 11;
+          const left = Math.max(0, Math.ceil(decay - (S.seenTimer || 0)));
+          els.seenFlash.textContent = `○ HILANG — ZONA PENCARIAN · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+        }
         els.seenFlash.classList.toggle('lost', !seen);
       } else {
         els.seenFlash.style.display = 'none';
@@ -472,36 +477,51 @@ export function createHud() {
     } else {
       els.armorBar.style.display = 'none';
     }
-    // Radio: a song every 24 s, a DJ line in between, EQ bars pulsing.
+    // Radio: the real procedural synth's now-playing (station · track —
+    // artist · bpm), a DJ line every other 24 s; the EQ bars are driven
+    // by the synth's levels, not a CSS animation. Written every frame,
+    // so a screenshot always shows the real station + track.
     songTimer -= dt;
     if (songTimer <= 0) {
       songTimer = 24;
-      songIndex = (songIndex + 1) % SONGS.length;
-      if (songIndex % 2 === 1) {
-        djIndex = (djIndex + 1) % DJ_LINES.length;
-        els.radioLine.textContent = `RADIO KEMARAU 92.4 · ${DJ_LINES[djIndex]}`;
-      } else {
-        els.radioLine.textContent = `RADIO KEMARAU 92.4 · ${SONGS[songIndex]}`;
+      radioMode = (radioMode + 1) % 2;
+      if (radioMode === 1) djIndex = (djIndex + 1) % DJ_LINES.length;
+    }
+    if (G.audio && typeof G.audio.nowPlaying === 'function') {
+      const now = G.audio.nowPlaying();
+      els.radioLine.textContent = radioMode === 1
+        ? `${now.station} · ${DJ_LINES[djIndex]}`
+        : `${now.station} · ${now.track} — ${now.artist}`;
+    }
+    if (els.eqBars && G.audio && typeof G.audio.eqLevels === 'function') {
+      const levels = G.audio.eqLevels();
+      const bars = els.eqBars.children;
+      for (let i = 0; i < bars.length; i += 1) {
+        const v = levels[Math.floor((i * levels.length) / bars.length)] || 0;
+        bars[i].style.height = `${Math.round(3 + v * 11)}px`;
       }
     }
-    // Weapon rail: 5 slots, mag/reserve counts, LOCKED pads for depth.
-    const slots = WEAPON_SLOTS.map((id, i) => {
+    // Weapon wheel: a radial wheel around the current weapon — 5 slots
+    // at 72° intervals, mag/reserve counts, LOCKED pads with the real
+    // price / REP gate. The wheel is the HUD proof the weapon rack is a
+    // real system with gated slots, not a flat list.
+    const MAG_KEY = { shotgun: 'shellMag', smg: 'smgMag', bedil: 'bedilMag', pelontar: 'pelontarMag' };
+    const HAS_KEY = { shotgun: 'hasShotgun', smg: 'hasSmg', bedil: 'hasBedil', pelontar: 'hasPelontar' };
+    const wheelSlots = WEAPON_SLOTS.map((id, i) => {
       const w = WEAPONS[id];
-      const hasKey = { shotgun: 'hasShotgun', smg: 'hasSmg', bedil: 'hasBedil', pelontar: 'hasPelontar' }[id];
-      const magKey = { shotgun: 'shellMag', smg: 'smgMag', bedil: 'bedilMag', pelontar: 'pelontarMag' }[id];
-      const resKey = w.reserveField;
-      const owned = id === 'pistol' || (hasKey && P[hasKey]);
+      const owned = id === 'pistol' || (HAS_KEY[id] && P[HAS_KEY[id]]);
+      const angle = -90 + i * 72;
+      const cls = `wslot${P.weapon === id ? ' active' : ''}${owned ? '' : ' locked'}`;
       if (!owned) {
-        // Rail stays compact: name + padlock only. The price / REP
-        // requirement lives in the shop panel — the rail only advertises
-        // that the slot exists. (r3 showed "$120"/"REP 4" blowing the
-        // rail to ~640 px wide.)
-        return `<span class="slot locked">${i + 1} ${w.name} · 🔒</span>`;
+        const gate = w.repNeeded ? `REP ${w.repNeeded}` : `$${w.price}`;
+        return `<span class="${cls}" style="--a:${angle}deg"><b>${i + 1}</b><i>${w.name}</i><em>🔒 ${gate}</em></span>`;
       }
-      const ammo = id === 'pistol' ? '∞' : `${P[magKey] ?? 0}/${P[resKey] ?? 0}`;
-      return `<span class="slot${P.weapon === id ? ' active' : ''}">${i + 1} ${w.name} · ${ammo}</span>`;
+      const ammo = id === 'pistol' ? '∞' : `${P[MAG_KEY[id]] ?? 0}/${P[w.reserveField] ?? 0}`;
+      return `<span class="${cls}" style="--a:${angle}deg"><b>${i + 1}</b><i>${w.name}</i><em>${ammo}</em></span>`;
     }).join('');
-    els.weaponBox.innerHTML = slots;
+    const curW = WEAPONS[P.weapon] || WEAPONS.pistol;
+    const curAmmo = P.weapon === 'pistol' ? '∞' : `${P[MAG_KEY[P.weapon]] ?? 0}/${P[curW.reserveField] ?? 0}`;
+    els.weaponBox.innerHTML = `<div class="wheel">${wheelSlots}<span class="wcenter"><b>${curW.name}</b><em>${curAmmo}</em></span></div>`;
     // Progress rail (right edge): owned cars, current one highlighted.
     if (G.garage) {
       const owned = G.garage.ownedList();
@@ -535,9 +555,16 @@ export function createHud() {
       const billLines = G.bill.lines.length > 0
         ? G.bill.lines.map((l) => `${l.label} ×${l.count} — $${l.amount}`).join('<br>')
         : 'Tidak ada tagihan.';
+      // Race standings: the top-3 lap times, best first, from the real
+      // records (persisted in the save across sessions).
+      const records = G.race && G.race.records ? G.race.records : [];
+      const standings = records.length
+        ? `<br>KLASEMEN BALAPAN:<br>${records.map((t, i) => `${i + 1}. ${t.toFixed(1)} dtk`).join('<br>')}`
+        : '<br>KLASEMEN BALAPAN: belum ada catatan — menangkan balapan 5 gate di Plaza.';
       els.pauseStats.innerHTML = `KEMAJUAN ${mp.pct}% (${mp.done}/8 misi) · ${repTitle(S.rep)}<br>`
         + `TAGIHAN:<br>${billLines}<br>`
-        + `${assets} · KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}`;
+        + `${assets} · KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}`
+        + standings;
     }
   }
 
@@ -660,6 +687,21 @@ export function createHud() {
       els.mapLedger.innerHTML = '';
     }
     els.mapQuote.innerHTML = `<b>PAK ASKA · PENERIMA MARINA</b><br>“Barang sampai, uang jalan. Marina tidak pernah tidur — dan sekarang kota ini tahu namamu.”`;
+    // Chapter list: the 3 acts with their mission ranges, from the real
+    // mission data — done / in progress / locked. The map screen is the
+    // completion screen, so the whole journey reads at a glance.
+    if (els.mapChapters) {
+      const doneIdx = G.missions.done ? 8 : G.missions.index;
+      const chapterHtml = [1, 2, 3].map((a) => {
+        const idxs = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => actForMission(i) === a);
+        const first = idxs[0] + 1;
+        const last = idxs[idxs.length - 1] + 1;
+        const doneCount = idxs.filter((i) => i < doneIdx).length;
+        const state = doneCount === idxs.length ? 'SELESAI' : doneCount > 0 ? 'BERJALAN' : 'TERKUNCI';
+        return `<div class="row"><span>${actNameForMission(idxs[0])} · MISI ${first}–${last}</span><span>${doneCount}/${idxs.length} · ${state}</span></div>`;
+      }).join('');
+      els.mapChapters.innerHTML = `<div class="row head"><span>BABAK</span><span>STATUS</span></div>${chapterHtml}`;
+    }
     const info = drawMap(els.mapCanvas, G);
     els.mapScreen.classList.add('show');
     return info;

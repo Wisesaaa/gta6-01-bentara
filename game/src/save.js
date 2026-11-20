@@ -40,6 +40,7 @@ export function buildSnapshot(data) {
     collected: Math.max(0, data.collected ?? 0),
     taxiTrips: Math.max(0, data.taxiTrips ?? 0),
     raceBest: data.raceBest ?? null,
+    raceRecords: Array.isArray(data.raceRecords) ? data.raceRecords.filter((n) => typeof n === 'number').slice(0, 3) : [],
     garage: data.garage && typeof data.garage === 'object' ? data.garage : null,
     usaha: data.usaha && typeof data.usaha === 'object' ? data.usaha : null,
     savedAt: new Date().toISOString(),
@@ -66,6 +67,7 @@ function validate(data) {
     if (data[f] !== undefined && typeof data[f] !== 'boolean') return null;
   }
   if (data.raceBest !== undefined && data.raceBest !== null && typeof data.raceBest !== 'number') return null;
+  if (data.raceRecords !== undefined && data.raceRecords !== null && !Array.isArray(data.raceRecords)) return null;
   if (data.garage !== undefined && data.garage !== null && typeof data.garage !== 'object') return null;
   if (data.usaha !== undefined && data.usaha !== null && typeof data.usaha !== 'object') return null;
   return { ...DEFAULTS, ...data, version: 1 };

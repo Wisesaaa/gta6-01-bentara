@@ -10,10 +10,11 @@
 // its own meshes, so a lighting change never re-opens the whole city.
 import * as THREE from 'three';
 import { CITY, PALETTE, SUN, SUN_COLOR, SUN_INTENSITY } from './config.js';
-import { roadLines, hitsSolid } from './city.js';
+import { roadLines } from './city.js';
 import { createGoldenHour, applyGoldenHour } from './lighting.js';
 import { makeGlowSprite } from './effects.js';
 import { createPostFx } from './postfx.js';
+import { createChaseCamera } from './chaseCamera.js';
 
 // Marina water (shader-dev water-ocean): exp(sin) wave stack, Schlick
 // Fresnel (F0 0.04), sun glint — cheap on purpose: 3 sine octaves in the
@@ -322,6 +323,21 @@ function buildRoads(scene) {
   streak2.position.set(111, 0.06, 85);
   streak2.userData.isSunStreak = true;
   scene.add(streak2);
+  // Third streak, down the market street (x=40, north-south): the foot
+  // frame looks north up that street, so the gold band runs straight at
+  // the foot camera — the wet road reads in the on-foot frame too, not
+  // only on the two arterials.
+  const streak3 = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, 5),
+    new THREE.MeshBasicMaterial({
+      map: streakTex, transparent: true, opacity: 0.35,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }),
+  );
+  streak3.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+  streak3.position.set(40, 0.06, 95);
+  streak3.userData.isSunStreak = true;
+  scene.add(streak3);
 }
 
 function buildStreetGrammar(scene) {
@@ -1361,6 +1377,11 @@ export function createView(canvas, city) {
 
   const camera = new THREE.PerspectiveCamera(62, 1280 / 720, 0.1, 2000);
 
+  // Chase camera (chaseCamera.js): the follow + keepClear logic lives
+  // there; the view only exposes it, so the live loop, the player and
+  // the staged shots all dodge buildings through one owner.
+  const chase = createChaseCamera(city);
+
   // PostFx composer (shader-dev + threejs-webgl): the real pipeline —
   // bloom, ACES, vignette, CA, grain — on THREE core only, because the
   // vendored tree ships no postprocessing addons. If construction ever
@@ -1432,41 +1453,13 @@ export function createView(canvas, city) {
     addTrauma(a) { trauma = Math.min(1, trauma + a); },
     setTrauma(a) { trauma = Math.min(1, Math.max(0, a)); },
     get trauma() { return trauma; },
+    // Chase camera (chaseCamera.js owns the follow + keepClear rule):
+    // placeCamera is the live follow, keepClear the staged-shot rule.
     placeCamera(x, z, heading, behind, up, lookAhead = 8) {
-      const bx = x - Math.sin(heading) * behind;
-      const bz = z - Math.cos(heading) * behind;
-      camera.position.set(bx, up, bz);
-      camera.lookAt(x + Math.sin(heading) * lookAhead, 1.6, z + Math.cos(heading) * lookAhead);
-      // keepClear: if a building stands between the camera and the player,
-      // pull the camera forward past the obstruction (first clear sample
-      // after the blocked stretch), then re-aim. The chase camera never
-      // ends up inside a wall on a tight street.
-      const dx = x - bx, dz = z - bz;
-      let blocked = false;
-      for (let s = 0.05; s <= 1; s += 0.05) {
-        const inSolid = !!hitsSolid(city, bx + dx * s, bz + dz * s, 1.5);
-        if (inSolid) blocked = true;
-        else if (blocked) {
-          camera.position.set(bx + dx * s, up + (1.6 - up) * s, bz + dz * s);
-          camera.lookAt(x + Math.sin(heading) * lookAhead, 1.6, z + Math.cos(heading) * lookAhead);
-          break;
-        }
-      }
+      chase.place(camera, x, z, heading, behind, up, lookAhead);
     },
-    // Same rule for a staged shot camera: move it toward its look target
-    // until the segment is clear of buildings. Returns the camera.
     keepClear(cam, tx, ty, tz) {
-      const dx = tx - cam.position.x, dy = ty - cam.position.y, dz = tz - cam.position.z;
-      let blocked = false;
-      for (let s = 0.05; s <= 1; s += 0.05) {
-        const inSolid = !!hitsSolid(city, cam.position.x + dx * s, cam.position.z + dz * s, 1.5);
-        if (inSolid) blocked = true;
-        else if (blocked) {
-          cam.position.set(cam.position.x + dx * s, cam.position.y + dy * s, cam.position.z + dz * s);
-          return cam;
-        }
-      }
-      return cam;
+      return chase.keepClear(cam, tx, ty, tz);
     },
     render() {
       const now = performance.now();

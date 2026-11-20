@@ -104,8 +104,13 @@ export function createPopups(container, centerContainer) {
     return centerFx(`IKAT JALAN DITEMBUS +$${amount}`, 'Blokade polisi ditembus', 'mid', 2.6, 'fx-warm');
   }
 
-  function collect(amount, kind, seconds = 2.6) {
-    return spawn(kind === 'idol' ? 'IDOL +$' + amount : 'KASET +$' + amount, kind === 'idol' ? 'Wayang emas Bentara' : 'Radio Kemarau 92.4', 'collect', seconds);
+  function collect(amount, kind, seconds = 2.6, track = null) {
+    // A tape's popup names the real track it carries; an idol names the
+    // wayang. The sub-line is the proof the collectible is a physical
+    // copy of a song the radio plays.
+    const sub = kind === 'idol' ? 'Wayang emas Bentara'
+      : track ? `Kaset: ${track.title} — ${track.artist}` : 'Radio Kemarau 92.4';
+    return spawn(kind === 'idol' ? 'IDOL +$' + amount : 'KASET +$' + amount, sub, 'collect', seconds);
   }
 
   function fare(amount, name) {

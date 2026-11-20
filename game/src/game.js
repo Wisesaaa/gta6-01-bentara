@@ -168,7 +168,9 @@ export function createGame(canvas, seed = 7) {
       // hit-stop + burst), a plain hit medium, a miss just the small
       // muzzle kick. The frame shows the burst, not a static pose.
       if (result) {
-        const t = result.human || result.car;
+        // A building hit ('solid') has no human/car — the impact point
+        // is the feedback position for every hit type.
+        const t = result.human || result.car || result.at;
         const big = (result.hit === 'human' && result.human.health <= 0)
           || (result.hit === 'car' && result.car.health <= 0);
         fireFeedback(big ? 'large' : 'medium', t.x, t.z);
@@ -217,7 +219,9 @@ export function createGame(canvas, seed = 7) {
     onCollect: (item, value) => {
       state.cash += value;
       state.rep += COLLECTIBLES.repPer;
-      hud.popups.collect(value, item.kind);
+      // A tape's popup names the real track it carries — the collectible
+      // is a physical copy of a song the radio plays.
+      hud.popups.collect(value, item.kind, 2.6, item.track);
       audio.collect();
       fireFeedback('small', player.x, player.z);
       if (collectibles.collected % 6 === 0) hud.toast(`Koleksi ${collectibles.collected}/${collectibles.total} — kota ini menyimpan banyak rahasia.`, 4);
@@ -630,7 +634,7 @@ export function createGame(canvas, seed = 7) {
       hasBedil: player.hasBedil, bedilAmmo: player.bedilAmmo,
       hasPelontar: player.hasPelontar, pelontarAmmo: player.pelontarAmmo,
       armor: player.armor,
-      collected: collectibles.collected, taxiTrips: taxi.trips, raceBest: race.best,
+      collected: collectibles.collected, taxiTrips: taxi.trips, raceBest: race.best, raceRecords: race.records,
       garage: garage.serialize(), usaha: usaha.serialize(),
     };
   }
@@ -654,6 +658,10 @@ export function createGame(canvas, seed = 7) {
     player.armor = data.armor ?? 0;
     if (player.hasShotgun) player.weapon = 'shotgun';
     else if (player.hasSmg) player.weapon = 'smg';
+    // Race standings: restore the top-3 lap times (old saves carry only
+    // raceBest, which becomes a one-row table).
+    if (data.raceRecords) race.setRecords(data.raceRecords);
+    else if (typeof data.raceBest === 'number') race.setRecords([data.raceBest]);
     if (data.garage) garage.restore(data.garage);
     if (data.usaha) usaha.restore(data.usaha);
     missions.setIndex(data.missionIndex || 0);

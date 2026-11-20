@@ -1,7 +1,9 @@
 // Checkpoint race: five gates around the grid, start at Plaza Menara.
 // Drive through each gold ring in order against the clock; beat par and
 // the payout doubles. A second side activity on top of taxi fares, built
-// on the same beacon-and-radius shape as the missions.
+// on the same beacon-and-radius shape as the missions. The standings
+// (top-3 lap times, best first) persist in the save, so a rival can chase
+// them across sessions.
 import * as THREE from 'three';
 import { RACE } from './config.js';
 import { rr } from './rng.js';
@@ -15,6 +17,7 @@ export function createRace(scene, city, rng, hooks) {
   let timer = 0;
   let best = null;
   let runs = 0;
+  let records = [];
 
   const start = loc('towerConcourse');
 
@@ -79,7 +82,11 @@ export function createRace(scene, city, rng, hooks) {
     runs += 1;
     const beatPar = timer <= RACE.parSeconds;
     const paid = beatPar ? RACE.reward * 2 : RACE.reward;
-    if (best === null || timer < best) best = timer;
+    // Standings: top-3 lap times, best first, kept across sessions.
+    records.push(timer);
+    records.sort((a, b) => a - b);
+    records = records.slice(0, 3);
+    best = records[0];
     gates.forEach((g) => { g.ring.visible = false; g.post.visible = false; g.post2.visible = false; });
     if (hooks.onFinish) hooks.onFinish({ time: timer, paid, beatPar });
     return paid;
@@ -118,6 +125,13 @@ export function createRace(scene, city, rng, hooks) {
     get timer() { return timer; },
     get best() { return best; },
     get runs() { return runs; },
+    get records() { return records.slice(); },
+    // Restore the standings from a save (validated: finite numbers, top 3).
+    setRecords(arr) {
+      if (!Array.isArray(arr)) return;
+      records = arr.filter((n) => typeof n === 'number' && Number.isFinite(n)).sort((a, b) => a - b).slice(0, 3);
+      best = records.length ? records[0] : null;
+    },
     get start() { return start; },
   };
 }

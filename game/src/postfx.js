@@ -10,8 +10,9 @@
 //
 // Chain (per frame):
 //   scene -> HDR target -> bright-pass + downsample (1/4) -> blur H -> blur V
-//   -> composite: bloom add + ACES tone map + bleached grade + vignette +
-//   chromatic aberration + film grain + Bayer dither -> screen.
+//   -> composite: bloom add + anamorphic streak + ghost flares (lens
+//   glows, read from the bloom texture) + ACES tone map + bleached grade
+//   + vignette + chromatic aberration + film grain + Bayer dither -> screen.
 // Cost: one fullscreen composite + three quarter-res passes. Bloom at 1/4
 // res, CA first to go if the frame rate ever dips — never the frame rate.
 // Tone mapping lives ONLY here: the renderer is switched to NoToneMapping
@@ -70,6 +71,7 @@ const COMPOSITE_FRAG = `
   uniform sampler2D tScene;
   uniform sampler2D tBloom;
   uniform float uBloomStrength;
+  uniform float uLensStrength;
   uniform float uExposure;
   uniform float uCaStrength;
   uniform float uTime;
@@ -107,6 +109,27 @@ const COMPOSITE_FRAG = `
     col.b = texture2D(tScene, uv - dir * ca).b;
     // Bloom in HDR space, then the grade.
     col += texture2D(tBloom, uv).rgb * uBloomStrength;
+    // Lens glows (shader-dev post-processing): an anamorphic horizontal
+    // streak + two ghost flares, both read from the bloom texture — the
+    // sun disc, lightbars and lit windows throw real lens artefacts, the
+    // way a camera at golden hour does. The streak samples the bloom
+    // along the row, so it only lights up where a bright source sits on
+    // that row; the ghosts are scaled copies toward the centre, one warm,
+    // one flipped teal.
+    vec3 streak = vec3(0.0);
+    streak += texture2D(tBloom, uv + vec2(0.02, 0.0)).rgb * 0.20;
+    streak += texture2D(tBloom, uv - vec2(0.02, 0.0)).rgb * 0.20;
+    streak += texture2D(tBloom, uv + vec2(0.05, 0.0)).rgb * 0.14;
+    streak += texture2D(tBloom, uv - vec2(0.05, 0.0)).rgb * 0.14;
+    streak += texture2D(tBloom, uv + vec2(0.10, 0.0)).rgb * 0.09;
+    streak += texture2D(tBloom, uv - vec2(0.10, 0.0)).rgb * 0.09;
+    streak += texture2D(tBloom, uv + vec2(0.18, 0.0)).rgb * 0.05;
+    streak += texture2D(tBloom, uv - vec2(0.18, 0.0)).rgb * 0.05;
+    col += streak * vec3(1.0, 0.85, 0.6) * uLensStrength * 0.35;
+    vec2 g1 = 0.5 + (uv - 0.5) * 0.55;
+    vec2 g2 = 0.5 - (uv - 0.5) * 0.35;
+    col += texture2D(tBloom, g1).rgb * vec3(1.0, 0.8, 0.5) * uLensStrength * 0.12;
+    col += texture2D(tBloom, g2).rgb * vec3(0.5, 0.75, 0.9) * uLensStrength * 0.08;
     // Punchy grade (r8): the old bleached grade (8% toward luma) is what
     // the judge read as "low-contrast mush" — desaturation is cut to 2%
     // and the warmth stays, so the dry-season gold holds without washing
@@ -200,6 +223,7 @@ export function createPostFx(renderer, scene, camera) {
       tScene: { value: sceneRT.texture },
       tBloom: { value: bloomA.texture },
       uBloomStrength: { value: 0.45 },
+      uLensStrength: { value: 0.8 },
       uExposure: { value: 1.3 },
       uCaStrength: { value: 0.0035 },
       uTime: { value: 0 },
@@ -231,6 +255,7 @@ export function createPostFx(renderer, scene, camera) {
       compMat.uniforms.uCaStrength.value = caEnabled ? 0.0035 : 0.0;
     },
     setBloomStrength(v) { compMat.uniforms.uBloomStrength.value = v; },
+    setLensStrength(v) { compMat.uniforms.uLensStrength.value = v; },
     setExposure(v) { compMat.uniforms.uExposure.value = v; },
     render() {
       time += 1 / 60;
