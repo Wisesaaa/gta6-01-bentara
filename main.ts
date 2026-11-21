@@ -1,66 +1,103 @@
-// BENTARA: DRY SEASON — a three.js open-world crime game for the gta6-01
-// "Make GTA 6" bounty. The game is this directory's game/ folder, plain
-// static files a desktop browser loads offline (game/index.html and its ES
-// modules, three.js vendored under game/vendor/, no network request), and
-// the program hands it in: it copies game/ and screenshots/ from beside
-// this file to /output and writes /output/dossier.json, the summary the
-// judge reads, with the vendored make.fun library.
+// Entry point for the BENTARA: DRY SEASON submission.
 //
-// Serve it locally with `node serve.ts`, then open http://localhost:8080.
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
+// What this script does, end to end: it takes the playable game that lives
+// next to this file (the game/ directory, static files only) plus the
+// screenshots/ renders, checks them against the bounty limits, copies both
+// directories into the output directory, and finally asks the vendored
+// make.fun helper to describe the finished entry in dossier.json.
+//
+// Run it locally like this:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// The grader runs the same file with MAKEFUN_OUTPUT_DIR pointing at /output.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
-const gameDir = join(here, 'game');
-const shotsDir = join(here, 'screenshots');
+const rootDir = fileURLToPath(new URL('./', import.meta.url));
+const destination = process.env.MAKEFUN_OUTPUT_DIR || '/output';
+const gameSource = join(rootDir, 'game');
+const shotsSource = join(rootDir, 'screenshots');
 
-// Preflight: refuse to build an entry the scorer would refuse — no game
-// folder, no screenshots, the wrong number of them, or one over 256 KiB.
-// The first screenshot by name is the cover.
-if (!existsSync(gameDir)) {
-  throw new Error(`game/ folder missing at ${gameDir}`);
+const MAX_SHOT_BYTES = 262144;
+const MIN_SHOTS = 3;
+const MAX_SHOTS = 4;
+
+function abort(reason: string): never {
+  throw new Error(reason);
 }
-if (!existsSync(join(gameDir, 'index.html'))) {
-  throw new Error('game/index.html missing — the entry has no entrypoint');
-}
-if (!existsSync(shotsDir)) {
-  throw new Error(`screenshots/ folder missing at ${shotsDir}`);
-}
-const shotFiles = readdirSync(shotsDir).filter((f) => /\.(png|jpe?g)$/i.test(f)).sort();
-if (shotFiles.length < 3 || shotFiles.length > 4) {
-  throw new Error(`expected 3–4 screenshots, found ${shotFiles.length}: ${shotFiles.join(', ')}`);
-}
-for (const f of shotFiles) {
-  const size = statSync(join(shotsDir, f)).size;
-  if (size > 262144) {
-    throw new Error(`screenshot ${f} is ${size} bytes, over the 256 KiB cap`);
+
+function requireFolder(path: string, label: string): void {
+  if (existsSync(path) === false) {
+    abort(`${label} not found: ${path}`);
   }
 }
-console.log(`BENTARA preflight ok — cover ${shotFiles[0]}, ${shotFiles.length} screenshots`);
 
-mkdirSync(out, { recursive: true });
-cpSync(gameDir, join(out, 'game'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-cpSync(shotsDir, join(out, 'screenshots'), { recursive: true });
+function requireFile(path: string, label: string): void {
+  if (existsSync(path) === false) {
+    abort(`${label} not found: ${path}`);
+  }
+}
 
-// The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
-// scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in game/ or 48 MiB of game
-// files, in all, or a path under game/ over 1000 bytes: game/ counts beside /output's own 1000-entry cap, its
-// screenshots/ and dossier.json).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    game_max_files: 993,
-    game_max_bytes: 50331648,
-    game_path_max_bytes: 1000,
-  }),
-);
-console.log(`BENTARA dossier written to ${join(out, 'dossier.json')}`);
+function collectShots(folder: string): string[] {
+  const entries = readdirSync(folder);
+  const images = entries.filter((name) => {
+    return /\.(png|jpg|jpeg)$/i.test(name);
+  });
+  images.sort();
+  return images;
+}
+
+function runPreflight(): string[] {
+  requireFolder(gameSource, 'game folder');
+  requireFile(join(gameSource, 'index.html'), 'game entrypoint');
+  requireFolder(shotsSource, 'screenshots folder');
+
+  const shots = collectShots(shotsSource);
+  if (shots.length < MIN_SHOTS || shots.length > MAX_SHOTS) {
+    abort(
+      `need ${MIN_SHOTS}-${MAX_SHOTS} screenshots, got ${shots.length} (${shots.join(', ')})`,
+    );
+  }
+
+  for (const name of shots) {
+    const bytes = statSync(join(shotsSource, name)).size;
+    if (bytes > MAX_SHOT_BYTES) {
+      abort(`screenshot ${name} is ${bytes} bytes, above the ${MAX_SHOT_BYTES} byte limit`);
+    }
+  }
+
+  return shots;
+}
+
+function copyTree(source: string, target: string): void {
+  mkdirSync(target, { recursive: true });
+  cpSync(source, target, { recursive: true });
+}
+
+const shotList = runPreflight();
+const coverName = shotList[0];
+console.log(`preflight passed: cover is ${coverName}, ${shotList.length} screenshots ready`);
+
+copyTree(gameSource, join(destination, 'game'));
+copyTree(shotsSource, join(destination, 'screenshots'));
+
+const limits = {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  game_max_files: 993,
+  game_max_bytes: 50331648,
+  game_path_max_bytes: 1000,
+};
+
+const dossierPath = join(destination, 'dossier.json');
+writeFileSync(dossierPath, buildDossier(destination, limits));
+console.log(`dossier written: ${dossierPath}`);
