@@ -127,6 +127,7 @@ export function createPlayer(ctx) {
     if (!car) return;
     const throttle = (input.up() ? 1 : 0) - (input.down() ? 0.7 : 0);
     const steer = (input.left() ? 1 : 0) - (input.right() ? 1 : 0);
+    p.steer = steer; // exposed for the camera's steer roll (r11).
     // Nitro: Shift while a TURBO upgrade is fitted burns the boost meter
     // (the REP 2 gate is enforced at purchase, not at the pedal).
     car.boosting = input.run() && car.turboLevel > 0 && car.boost > 0;
@@ -250,6 +251,7 @@ export function createPlayer(ctx) {
     set armor(v) { p.armor = v; },
     reload,
     get speedKmh() { return p.speedKmh; },
+    get steer() { return p.steer || 0; },
     get moving() { return p.moving; },
     get drifting() { return p.drifting; },
     nearestCar, enterCar, exitCar, step, placeCamera,

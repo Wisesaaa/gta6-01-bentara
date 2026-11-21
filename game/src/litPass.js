@@ -43,7 +43,7 @@ export function createLitBodyMaterial(hex) {
       uRimColor: { value: new THREE.Color(0xff6a3d) },
       uHazeColor: { value: new THREE.Color(0xe0c8a8) },
       uFogColor: { value: new THREE.Color(0xe0c8a8) },
-      uFogDensity: { value: 0.004 },
+      uFogDensity: { value: 0.0016 },
     },
     vertexShader: LIT_VERT,
     fragmentShader: LIT_FRAG,

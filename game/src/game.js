@@ -901,6 +901,9 @@ export function createGame(canvas, seed = 7) {
 
   function draw() {
     player.placeCamera();
+    // Speed lines + steer roll (r11): the view reads the live speed and
+    // the player's current steer every frame.
+    if (view.setSpeed) view.setSpeed(player.speedKmh || 0, player.onFoot ? 0 : (player.steer || 0));
     view.render();
   }
 

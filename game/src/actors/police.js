@@ -448,12 +448,12 @@ export function createPolice(scene, city, rng) {
 
   function units(px, pz) {
     const list = [];
-    for (const c of cruisers) list.push({ name: c.unitName, dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, cond: unitCond(c), x: c.x, z: c.z });
+    for (const c of cruisers) list.push({ name: c.unitName, type: 'CRUISER', dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, cond: unitCond(c), x: c.x, z: c.z });
     for (const c of cops) {
-      if (c.alive) list.push({ name: c.unitName, dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, cond: 'SIAP', x: c.x, z: c.z });
+      if (c.alive) list.push({ name: c.unitName, type: 'POLISI', dist: Math.round(dist(c.x, c.z, px, pz)), status: c.status, cond: 'SIAP', x: c.x, z: c.z });
     }
-    if (heli) list.push({ name: heli.unitName, dist: Math.round(dist(heli.group.position.x, heli.group.position.z, px, pz)), status: heli.status, cond: 'SIAP', x: heli.group.position.x, z: heli.group.position.z });
-    if (roadblock) list.push({ name: 'BLOKADE', dist: Math.round(dist(roadblock.x, roadblock.z, px, pz)), status: 'ROADBLOCK', cond: 'SIAP', x: roadblock.x, z: roadblock.z });
+    if (heli) list.push({ name: heli.unitName, type: 'HELI', dist: Math.round(dist(heli.group.position.x, heli.group.position.z, px, pz)), status: heli.status, cond: 'SIAP', x: heli.group.position.x, z: heli.group.position.z });
+    if (roadblock) list.push({ name: 'BLOKADE', type: 'BLOKADE', dist: Math.round(dist(roadblock.x, roadblock.z, px, pz)), status: 'ROADBLOCK', cond: 'SIAP', x: roadblock.x, z: roadblock.z });
     return list;
   }
 

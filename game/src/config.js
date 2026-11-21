@@ -19,7 +19,7 @@ export const CITY = {
 // still throw long shadows east across the road and the facades catch a
 // warm edge. Far enough south (high z) that the disc clears the mission
 // stinger at the top of the cover frame.
-export const SUN = { x: 230, y: 100, z: 150 };
+export const SUN = { x: 230, y: 74, z: 150 };
 export const SUN_COLOR = 0xffc890;
 export const SUN_INTENSITY = 3.0;
 // Pale 4pm sky: bleached horizon, pale blue-grey top — not a red sunset.

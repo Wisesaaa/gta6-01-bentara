@@ -321,18 +321,25 @@ export const SKY_FRAG = `
     col = mix(col, hazeCol, clamp(hazeAmt, 0.0, 1.0) * 0.28);
 
     // --- sun disc + halo glow ------------------------------------------
-    // Disc: smoothstep on the cosine, ~4.5 degrees across (bright core).
+    // Disc: smoothstep on the cosine, ~5.6 degrees across (bright core).
     // Round-1 verdict: the ~3.4-degree disc read ~30px and too faint.
     // A 5-degree disc is ~70px at 1280 wide — the "sun at the end of the
     // avenue" reads clearly. The disc is a deeper gold now, so it holds
     // against the pale sky instead of washing into it. R8: the edge is
     // HARDER (0.9986–0.9993, ~0.7° of falloff instead of 1.5°) and the
     // colour deeper orange (1.0, 0.55, 0.10) — Yiro's bar is a SHARP
-    // sun that reads at a glance, not a soft pale blob. The halo is
-    // masked by (1 - disc) so it surrounds the sun instead of painting
-    // pale wash OVER it (that wash + ACES is what turned the disc to
-    // cream in every probe before this fix).
-    float disc = smoothstep(0.9986, 0.9993, cosTheta);
+    // sun that reads at a glance, not a soft pale blob. Ronde 2: the
+    // disc grows to ~5.6° (0.9978–0.9988) and the halo doubles, so the
+    // sun reads as a disc + glare at dossier size instead of a pale
+    // glow — the cover's disc sits behind the (74,134) roofline, so the
+    // halo + Mie on the clear sky beside it carry the read (measured:
+    // the sun ray hits that building at 27.9 m; a true disc needs the
+    // sun's azimuth moved or the chase moved off the arterial — flagged
+    // for ronde 3, not faked here). The halo is masked by (1 - disc) so
+    // it surrounds the sun instead of painting pale wash OVER it (that
+    // wash + ACES is what turned the disc to cream in every probe
+    // before this fix).
+    float disc = smoothstep(0.9978, 0.9988, cosTheta);
     // Disc colour: a DEEP orange-gold (1.0, 0.55, 0.10). The first gold
     // (1.0, 0.80, 0.42) plus the halo blew the sun region past ACES
     // saturation into pale cream — the probe proved the shader IS live,
@@ -344,8 +351,11 @@ export const SKY_FRAG = `
     // the disc, because halo + disc + Mie together blew past ACES into
     // white. The disc is the sun; the halo is a whisper around it.
     // Masked by (1 - disc): the halo never paints over the disc itself.
-    col += sunWarm * pow(sunAmt, 350.0) * 0.15 * (1.0 - disc);
-    col += sunWarm * pow(sunAmt, 24.0) * 0.12 * (1.0 - disc);
+    // Ronde 2: doubled (0.15 -> 0.30, 0.12 -> 0.22) so the glare reads
+    // at dossier size where the disc itself is roofed — still far below
+    // the x0.5 that washed the disc out.
+    col += sunWarm * pow(sunAmt, 350.0) * 0.30 * (1.0 - disc);
+    col += sunWarm * pow(sunAmt, 24.0) * 0.22 * (1.0 - disc);
 
     // --- thin clouds: drifting FBM wisps -------------------------------
     // Plane projection of the view direction, so the wisps sit on the
@@ -493,13 +503,22 @@ export const POST_COMPOSITE_FRAG = `
     // tone map + sRGB conversion in the chain).
     col = acesTonemap(col * uExposure);
     col = pow(col, vec3(1.0 / 2.2));
-    // Saturation up + a stronger S-curve for contrast: the shadow side of
-    // a facade must fall to a real dark, not a pale wash. Blacks deepen,
-    // colours punch — the grade reads as golden hour, not haze.
+    // Saturation +25% and a stronger S-curve for contrast (r11 grade
+    // targets: sat 1.25, S-curve 0.54 — up from r10's 1.12 / 0.45): the
+    // shadow side of a facade must fall to a real dark, not a pale wash.
+    // Blacks deepen, colours punch — the grade reads as golden hour,
+    // not haze. Then the split tone: teal shadows, amber highlights.
     float l2 = dot(col, vec3(0.299, 0.587, 0.114));
-    col = mix(vec3(l2), col, 1.12);
+    col = mix(vec3(l2), col, 1.25);
     col = clamp(col, 0.0, 1.0);
-    col = mix(col, col * col * (3.0 - 2.0 * col), 0.45);
+    col = mix(col, col * col * (3.0 - 2.0 * col), 0.54);
+    // Split tone (r11): shadows toward teal, highlights toward amber —
+    // the dry-season grade reads warm in the light and cool in the
+    // shade, so the frame never washes to a single pale tone.
+    float lum = dot(col, vec3(0.299, 0.587, 0.114));
+    vec3 shadowTint = vec3(0.90, 1.02, 1.08);
+    vec3 highTint = vec3(1.07, 1.00, 0.86);
+    col *= mix(shadowTint, highTint, smoothstep(0.12, 0.85, lum));
     // Vignette (post-processing option A) — light, so frame edges keep
     // their HUD and buildings readable.
     vec2 q = uv;

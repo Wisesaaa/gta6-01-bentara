@@ -47,7 +47,7 @@ function createRoadWater(scene) {
       uSky: { value: new THREE.Color(0xecc9a0) },
       uSunColor: { value: new THREE.Color(0xffc890) },
       uFogColor: { value: new THREE.Color(0xe0c8a8) },
-      uFogDensity: { value: 0.004 },
+      uFogDensity: { value: 0.0016 },
       uStrength: { value: 0.9 },
     },
     vertexShader: ROAD_WATER_VERT,

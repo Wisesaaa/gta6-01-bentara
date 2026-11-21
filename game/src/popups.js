@@ -8,9 +8,10 @@
 // A drift chain builds a combo (×2 -> ×5, white -> amber -> red): two
 // slides within 4 s of each other count as one chain, and the popup
 // shows the chain, not a lonely slide.
-export function createPopups(container, centerContainer) {
+export function createPopups(container, centerContainer, worldContainer) {
   const live = [];
   const centerLive = [];
+  const worldLive = [];
   let combo = 0;
   let comboSince = 0;
   let pulsePending = 0;
@@ -100,6 +101,42 @@ export function createPopups(container, centerContainer) {
     return centerFx(`NYARIS! +$${amount}`, 'Nyaris tabrakan di kecepatan penuh', 'mid', 2.6);
   }
 
+  // World-space label (r11): a +Rp popup pinned to a 3D position — the
+  // vector is projected through the camera to screen pixels (the
+  // vlm-frame-composition technique), so the label sits ON the drift
+  // smoke / the near-miss car, not in the centre band. The amount is
+  // always the real earned one; a shot stage re-shows it at the real
+  // anchor after the sim, with a long lifetime for the slow capture.
+  function worldLabel(text, sub, vec3, camera, seconds = 60) {
+    if (!worldContainer || !vec3 || !camera) return null;
+    // The camera's matrices go stale after a lookAt/position change
+    // until the next render — project() would read the OLD camera and
+    // park the label thousands of pixels off-screen (r11 take 3:
+    // left -13219px). Refresh first; auditShot does the same.
+    camera.updateMatrixWorld();
+    const v = vec3.clone().project(camera);
+    if (v.z > 1) return null; // behind the camera — never label it
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    const el = document.createElement('div');
+    el.className = 'wlabel';
+    el.innerHTML = `<b>${text}</b>${sub ? `<span>${sub}</span>` : ''}`;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    worldContainer.appendChild(el);
+    const item = { el };
+    worldLive.push(item);
+    window.setTimeout(() => {
+      el.classList.add('popup-out');
+      window.setTimeout(() => {
+        el.remove();
+        const i = worldLive.indexOf(item);
+        if (i >= 0) worldLive.splice(i, 1);
+      }, 400);
+    }, seconds * 1000);
+    return item;
+  }
+
   function roadblock(amount) {
     return centerFx(`IKAT JALAN DITEMBUS +$${amount}`, 'Blokade polisi ditembus', 'mid', 2.6, 'fx-warm');
   }
@@ -124,10 +161,11 @@ export function createPopups(container, centerContainer) {
   function clear() {
     for (const item of live.splice(0)) item.el.remove();
     for (const item of centerLive.splice(0)) item.el.remove();
+    for (const item of worldLive.splice(0)) item.el.remove();
     if (pulseTimer) { window.clearTimeout(pulseTimer); pulseTimer = null; }
     pulsePending = 0;
     combo = 0;
   }
 
-  return { spawn, drift, nearMiss, roadblock, collect, fare, raceGate, clear, big, mid, pulse };
+  return { spawn, drift, nearMiss, roadblock, collect, fare, raceGate, clear, big, mid, pulse, worldLabel };
 }

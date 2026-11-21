@@ -46,11 +46,13 @@
   #completionBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
   #completionFill { height: 100%; width: 0%; background: var(--gold); }
   #economyRank { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+  #progressChapter { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--gold); margin-top: 2px; }
   #economyWealth { font-size: 12px; opacity: .9; margin-top: 2px; }
   #economyNext { font-size: 11px; color: var(--gold); margin-top: 2px; }
   /* TOP-RIGHT cash + stars + bill pill. */
   #cashBox { position: absolute; top: 12px; right: 12px; font-size: 26px; font-weight: 700; text-align: right; }
   #cashBox small { display: block; font-size: 12px; font-weight: 400; opacity: .85; }
+  #rankChip { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: var(--gold); border: 1px solid var(--gold); border-radius: 10px; padding: 1px 8px; margin-top: 4px; }
   #cashText { color: var(--green); }
   #starsBox { font-size: 24px; letter-spacing: 4px; color: var(--gold); }
   #starsBox .off { color: rgba(255,255,255,.35); }
@@ -64,9 +66,10 @@
   #policeBox .unit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
   #policeBox .unit b { color: var(--gold); }
   #policeBox .cond { font-size: 10px; opacity: .75; }
+  #policeBox .type { font-size: 10px; opacity: .75; letter-spacing: 1px; }
   #policeBox .pill { font-size: 10px; font-weight: 800; letter-spacing: 1px; padding: 1px 7px; border-radius: 10px; color: #140a08; }
   .pill-kejar { background: #ffd75e; } .pill-tabrak { background: #ff3b2e; color: #fff; }
-  .pill-blokade { background: #b06bff; color: #fff; } .pill-sorot { background: #2fd8c8; }
+  .pill-blokade { background: #b06bff; color: #fff; } .pill-sorot { background: #f5f2e8; }
   .pill-cari { background: #8a8a80; color: #fff; }
   #policeBox .more { font-size: 11px; opacity: .8; margin-top: 2px; }
   /* BOTTOM-LEFT minimap + REP + chips. */
@@ -84,6 +87,14 @@
      radio on one ellipsised line, so the whole cluster is ~300 px wide. */
   #driveBox { position: absolute; bottom: 34px; right: 12px; text-align: right; min-width: 0; width: 300px; padding: 6px 10px; }
   #gauge { display: block; margin-left: auto; width: 104px; height: 104px; }
+  /* Big speed number (r11 cover + drive): one big number per frame,
+     40–60 px — hidden in live play, shown by the cover/drive profiles. */
+  #bigSpeed { display: none; text-align: right; }
+  #bigSpeed b { font-size: 56px; font-weight: 800; line-height: 1; color: #fff; letter-spacing: 1px; }
+  #bigSpeed span { font-size: 14px; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-left: 6px; }
+  #bigSpeedCar { font-size: 13px; letter-spacing: 2px; color: var(--gold); font-weight: 700; margin-top: 2px; }
+  #bigSpeedCond { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 0 auto; width: 130px; overflow: hidden; }
+  #bigSpeedCond i { display: block; height: 100%; background: #7dd87d; }
   #vehicleName { font-size: 13px; letter-spacing: 1px; color: var(--gold); }
   #vehiclePlate { font-size: 11px; letter-spacing: 1px; opacity: .85; }
   #vehicleCond { font-size: 12px; letter-spacing: 1px; font-weight: 700; color: #7dd87d; }
@@ -117,6 +128,14 @@
   #weaponBox .wcenter { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,215,94,.16); border: 2px solid var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   #weaponBox .wcenter b { font-size: 10px; color: var(--gold); line-height: 1.1; }
   #weaponBox .wcenter em { font-style: normal; font-size: 10px; }
+  /* Compact weapon strip (r11 foot frame): current + next owned weapon
+     with ammo — hidden in live play, shown by the foot profile. */
+  #weaponStrip { display: none; position: absolute; bottom: 34px; right: 12px; text-align: right; font-size: 12px; }
+  #weaponStrip span { display: inline-block; background: var(--panel); border: 2px solid var(--panel-line); border-radius: 8px; padding: 5px 10px; margin-left: 6px; }
+  #weaponStrip .wstrip-cur { border-color: var(--gold); }
+  #weaponStrip .wstrip-next.locked { opacity: .6; }
+  #weaponStrip b { color: var(--gold); margin-right: 6px; }
+  #weaponStrip em { font-style: normal; opacity: .9; }
   /* RIGHT-EDGE progress rail — a real chip with a panel background now
      (r3/r4 first take: bare text at 10 px / opacity .6 hugging the edge
      read as running off the frame even though the box ended at 1266).
@@ -151,7 +170,9 @@
      TOP-LEFT, below the act label — the hero car owns the bottom-centre,
      the minimap + rep + chip row own the bottom-left, and the mission
      card owns the top-centre, so top-left is the only clear corner. */
-  body.cover-shot #dialogue { width: 400px; top: 95px; bottom: auto; left: 16px; transform: none; padding: 6px 10px; }
+  /* r11: the cover dialogue sits BOTTOM-CENTRE (the study's 5th cover
+     element) as a compact strip under the hero car — not top-left. */
+  body.cover-shot #dialogue { width: 440px; top: auto; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 6px 10px; }
   body.cover-shot #portraitCanvas { width: 48px; height: 48px; }
   body.cover-shot #dialogueLine { font-size: 12px !important; }
   /* Character portrait + dialogue, bottom-centre, 24px safe margins.
@@ -182,6 +203,13 @@
   .popup-fare b { color: var(--teal); }
   .popup-race b { color: #ff9d5c; }
   .popup-out { opacity: 0; transform: translateY(-14px); }
+  /* World-space labels (r11): +Rp popups pinned to a 3D position via
+     vector.project — absolutely positioned at the projected screen point,
+     centred on it. The layer covers the screen but takes no pointer. */
+  #worldLabels { position: absolute; inset: 0; pointer-events: none; }
+  .wlabel { position: absolute; transform: translate(-50%, -50%); text-align: center; }
+  .wlabel b { display: block; font-size: 24px; letter-spacing: 1px; color: var(--gold); text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  .wlabel span { font-size: 12px; opacity: .9; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
   #prompt { position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); font-size: 15px; background: rgba(20,18,12,.65); padding: 6px 14px; border-radius: 20px; display: none; }
   #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 12px; opacity: .85; white-space: nowrap; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; display: none; }
@@ -207,27 +235,72 @@
   #screen .key { color: var(--gold); font-weight: 700; }
   #screen.hidden { display: none; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  /* HUD profiles (r8 de-clutter — judge: "a dozen panels"): one focus
-     cluster per frame, the rest hidden. CSS !important beats the inline
-     display styles hud.update() writes every frame, so the profile is
-     enforced without touching the live HUD logic. Baseline was 18/18/16/15
-     panels; after profiles: heat ~9, drive ~8, foot ~8, story 3. */
-  /* HUD profiles per shot: the new systems (RESPECT bar, chip row,
-     weapon wheel, radio + EQ, police list) stay VISIBLE in the chase
-     frames — the judge reads denser-but-organised HUDs as more systems,
-     and hides only what a frame genuinely has no use for (bill pill,
-     controls hint, crosshair on foot, race chip outside a race). */
-  body[data-hud="heat"] #progressRail,
-  body[data-hud="heat"] #billPill, body[data-hud="heat"] #raceChip,
-  body[data-hud="heat"] #controlsHint { display: none !important; }
-  body[data-hud="drive"] #billPill, body[data-hud="drive"] #controlsHint,
-  body[data-hud="drive"] #dialogue, body[data-hud="drive"] #ledgerCard,
-  body[data-hud="drive"] #prompt, body[data-hud="drive"] #crosshair { display: none !important; }
-  body[data-hud="foot"] #progressRail,
-  body[data-hud="foot"] #billPill, body[data-hud="foot"] #controlsHint,
-  body[data-hud="foot"] #dialogue, body[data-hud="foot"] #ledgerCard,
-  body[data-hud="foot"] #ticker, body[data-hud="foot"] #raceChip,
-  body[data-hud="foot"] #ojekMeter { display: none !important; }
+  /* HUD profiles (r11 — frames first, max 3 panels per 256x144 frame):
+     one focus cluster per frame, the rest hidden. CSS !important beats
+     the inline display styles hud.update() writes every frame, so the
+     profile is enforced without touching the live HUD logic.
+     COVER (heat): exactly 5 elements — mission banner top-left,
+     money + stars + JURAGAN chip top-right, ONE chase panel left,
+     Sari dialogue bottom-centre, big speed bottom-right.
+     DRIVE: minimap (with the respect ring) + ONE chase panel + big speed.
+     FOOT: mission banner top-left + 2 weapon icons + ammo + money.
+     STORY: the title card only — everything else hidden. */
+  /* Cover: the mission stinger docks TOP-LEFT (the act chip goes — the
+     chapter lives in the PROGRES card, not in this frame). */
+  body[data-hud="heat"] #missionStinger { left: 12px; transform: none; text-align: left; min-width: 0; max-width: 560px; }
+  body[data-hud="heat"] #actChip, body[data-hud="heat"] #actPips,
+  body[data-hud="heat"] #clockText, body[data-hud="heat"] #billPill,
+  body[data-hud="heat"] #seenFlash, body[data-hud="heat"] #completionCard,
+  body[data-hud="heat"] #mapWrap, body[data-hud="heat"] #ticker,
+  body[data-hud="heat"] #raceChip, body[data-hud="heat"] #centerFx,
+  body[data-hud="heat"] #ledgerCard, body[data-hud="heat"] #toast,
+  body[data-hud="heat"] #popups, body[data-hud="heat"] #prompt,
+  body[data-hud="heat"] #progressRail, body[data-hud="heat"] #crosshair,
+  body[data-hud="heat"] #controlsHint, body[data-hud="heat"] #mapScreen,
+  body[data-hud="heat"] #titleCard, body[data-hud="heat"] #weaponStrip,
+  body[data-hud="heat"] #gauge, body[data-hud="heat"] #vehicleName,
+  body[data-hud="heat"] #vehiclePlate, body[data-hud="heat"] #vehicleCond,
+  body[data-hud="heat"] #ojekMeter, body[data-hud="heat"] #fuelBar,
+  body[data-hud="heat"] #nitroBar, body[data-hud="heat"] #armorBar,
+  body[data-hud="heat"] #radioLine, body[data-hud="heat"] #eqBars,
+  body[data-hud="heat"] #weaponBox { display: none !important; }
+  body[data-hud="heat"] #bigSpeed { display: block !important; }
+  /* Drive: minimap + chase panel + big speed. The race chip, ticker and
+     radio go — the race gate still reads on the minimap (gold circle). */
+  body[data-hud="drive"] #missionStinger, body[data-hud="drive"] #actChip,
+  body[data-hud="drive"] #actPips, body[data-hud="drive"] #cashBox,
+  body[data-hud="drive"] #completionCard, body[data-hud="drive"] #ticker,
+  body[data-hud="drive"] #raceChip, body[data-hud="drive"] #centerFx,
+  body[data-hud="drive"] #ledgerCard, body[data-hud="drive"] #dialogue,
+  body[data-hud="drive"] #toast, body[data-hud="drive"] #popups,
+  body[data-hud="drive"] #prompt, body[data-hud="drive"] #progressRail,
+  body[data-hud="drive"] #crosshair, body[data-hud="drive"] #controlsHint,
+  body[data-hud="drive"] #mapScreen, body[data-hud="drive"] #titleCard,
+  body[data-hud="drive"] #weaponStrip, body[data-hud="drive"] #repRow,
+  body[data-hud="drive"] #chipRow, body[data-hud="drive"] #gauge,
+  body[data-hud="drive"] #vehicleName, body[data-hud="drive"] #vehiclePlate,
+  body[data-hud="drive"] #vehicleCond, body[data-hud="drive"] #ojekMeter,
+  body[data-hud="drive"] #fuelBar, body[data-hud="drive"] #nitroBar,
+  body[data-hud="drive"] #armorBar, body[data-hud="drive"] #radioLine,
+  body[data-hud="drive"] #eqBars, body[data-hud="drive"] #weaponBox,
+  body[data-hud="drive"] #worldLabels { display: none !important; }
+  body[data-hud="drive"] #bigSpeed { display: block !important; }
+  /* Foot: mission banner top-left + money + the compact weapon strip. */
+  body[data-hud="foot"] #missionStinger { left: 12px; transform: none; text-align: left; min-width: 0; max-width: 560px; }
+  body[data-hud="foot"] #actChip, body[data-hud="foot"] #actPips,
+  body[data-hud="foot"] #clockText, body[data-hud="foot"] #billPill,
+  body[data-hud="foot"] #seenFlash, body[data-hud="foot"] #rankChip,
+  body[data-hud="foot"] #completionCard, body[data-hud="foot"] #policeBox,
+  body[data-hud="foot"] #mapWrap, body[data-hud="foot"] #ticker,
+  body[data-hud="foot"] #raceChip, body[data-hud="foot"] #centerFx,
+  body[data-hud="foot"] #ledgerCard, body[data-hud="foot"] #dialogue,
+  body[data-hud="foot"] #toast, body[data-hud="foot"] #popups,
+  body[data-hud="foot"] #prompt, body[data-hud="foot"] #driveBox,
+  body[data-hud="foot"] #progressRail, body[data-hud="foot"] #crosshair,
+  body[data-hud="foot"] #controlsHint, body[data-hud="foot"] #mapScreen,
+  body[data-hud="foot"] #titleCard, body[data-hud="foot"] #worldLabels { display: none !important; }
+  body[data-hud="foot"] #weaponStrip { display: block !important; }
+  /* Story: the title card only. */
   body[data-hud="story"] #missionStinger, body[data-hud="story"] #actChip,
   body[data-hud="story"] #actPips, body[data-hud="story"] #mapWrap,
   body[data-hud="story"] #cashBox, body[data-hud="story"] #driveBox,
@@ -237,7 +310,13 @@
   body[data-hud="story"] #popups, body[data-hud="story"] #prompt,
   body[data-hud="story"] #crosshair, body[data-hud="story"] #controlsHint,
   body[data-hud="story"] #vignette, body[data-hud="story"] #completionCard,
-  body[data-hud="story"] #policeBox { display: none !important; }
+  body[data-hud="story"] #policeBox, body[data-hud="story"] #mapScreen,
+  body[data-hud="story"] #weaponStrip, body[data-hud="story"] #worldLabels,
+  body[data-hud="story"] #centerFx { display: none !important; }
+  /* Ronde 2: the story card carries FEWER, BIGGER lines at dossier
+     size — the radio line (the smallest, 14 px) drops from the story
+     frame; the radio still shows in the chase frames. */
+  body[data-hud="story"] #titleRadio { display: none !important; }
   /* Full city map + completion screen (r8 frame 4): the map is the
      dominant element, stats + ledger + one dialogue line beside it. */
   #mapScreen { position: fixed; inset: 0; display: none; flex-direction: row; align-items: center; justify-content: center; gap: 28px; background: rgba(13,18,24,.96); z-index: 4; padding: 20px; box-sizing: border-box; }
@@ -257,6 +336,18 @@
   #mapStandings b { color: var(--gold); }
   #mapQuote { font-size: 14px; font-style: italic; line-height: 1.5; color: #f3e6c8; margin-top: 14px; }
   #mapQuote b { color: var(--gold); font-style: normal; }
+  /* Title card (r11 frame 4): the story frame is a title screen, not a
+     map — wordmark ~50% of the width over a dimmed live street. Hidden
+     until showTitleCard adds .show (the story profile hides the rest). */
+  #titleCard { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 4; pointer-events: none; background: linear-gradient(rgba(13,18,24,.25), rgba(13,18,24,.55)); text-align: center; }
+  #titleCard.show { display: flex; }
+  #titleWordmark { font-size: 110px; font-weight: 800; letter-spacing: 12px; line-height: 1; color: var(--gold); text-shadow: 0 4px 24px rgba(0,0,0,.85); }
+  #titleSub { font-size: 28px; letter-spacing: 10px; font-weight: 400; color: #f3e6c8; margin-top: 6px; text-shadow: 0 2px 10px rgba(0,0,0,.85); }
+  #titleChapter { font-size: 30px; font-weight: 700; letter-spacing: 2px; color: var(--gold); border: 1px solid var(--gold); border-radius: 16px; padding: 8px 20px; margin-top: 22px; background: rgba(20,10,8,.6); }
+  #titlePassed { font-size: 30px; font-weight: 700; letter-spacing: 1px; color: #fff; margin-top: 14px; text-shadow: 0 2px 8px rgba(0,0,0,.85); }
+  #titleSave { font-size: 28px; margin-top: 14px; }
+  #titleContinue { font-size: 32px; font-weight: 800; letter-spacing: 2px; color: var(--gold); margin-top: 18px; text-shadow: 0 2px 8px rgba(0,0,0,.85); }
+  #titleRadio { font-size: 14px; letter-spacing: 1px; opacity: .9; margin-top: 14px; text-shadow: 0 1px 4px rgba(0,0,0,.85); }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -276,8 +367,8 @@
     <div id="missionStage"><div id="missionStageFill"></div></div>
     <span id="missionNext">NEXT▸ Antar paket ke Kios Baris Utara</span>
   </div>
-  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small><div id="billPill"></div></div>
-  <div id="completionCard" class="panel"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK EKONOMI · KAKI LIMA</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
+  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small><div id="billPill"></div></div>
+  <div id="completionCard" class="panel"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK EKONOMI · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
   <div id="policeBox" class="panel"><h3 id="policeHead">RESPON POLISI</h3><div id="policeRows"></div></div>
   <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div>
     <div id="repRow"><span id="repText">RESPECT 1 · KUTIL 0/250</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
@@ -290,9 +381,11 @@
   <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="64" height="64"></canvas><div id="dialogueText"><b id="dialogueName">PAK WIRA</b><span id="dialogueRole">BOS MARINA</span><span id="dialogueLine"></span></div></div>
   <div id="toast"></div>
   <div id="popups"></div>
+  <div id="worldLabels"></div>
   <div id="prompt"></div>
   <div id="driveBox" class="panel">
     <canvas id="gauge" width="150" height="150"></canvas>
+    <div id="bigSpeed"><b id="bigSpeedNum">0</b><span>KM/H</span><div id="bigSpeedCar">CEMPAKA GT</div><div id="bigSpeedCond"><i id="bigSpeedCondFill"></i></div></div>
     <div id="vehicleName">CEMPAKA GT</div>
     <div id="vehiclePlate"></div>
     <div id="vehicleCond"></div>
@@ -303,6 +396,7 @@
     <div id="radioLine">RADIO KEMARAU 92.4 · Aspal Panas — Geng Kemarau</div><span id="eqBars"><i></i><i></i><i></i><i></i><i></i></span>
     <div id="weaponBox"></div>
   </div>
+  <div id="weaponStrip"></div>
   <div id="progressRail"></div>
   <div id="crosshair"></div>
   <div id="controlsHint">WASD jalan/mengemudi · SPACE rem tangan · SHIFT nitro · F masuk/curi mobil · E interaksi · T tidur di safehouse · Q isi ulang · B sogok · KLIK tembak · 1–5 senjata · R radio · P jeda</div>
@@ -319,6 +413,15 @@
       <div id="mapStandings"></div>
       <div id="mapQuote"></div>
     </div>
+  </div>
+  <div id="titleCard">
+    <div id="titleWordmark">BENTARA</div>
+    <div id="titleSub">DRY SEASON</div>
+    <div id="titleChapter">BABAK 1 — KENALAN · MISI 3/8</div>
+    <div id="titlePassed">MISI 3/8 SELESAI · +$300 · +200 REP — TERBUKA: PAKET RUKO</div>
+    <div id="titleSave" class="panel">Bank $18,292 · 3 usaha dimiliki</div>
+    <div id="titleContinue">LANJUTKAN → MISI 4/8 PAKET RUKO</div>
+    <div id="titleRadio">RADIO KEMARAU 92.4</div>
   </div>
 </div>
 <div id="screen"></div>

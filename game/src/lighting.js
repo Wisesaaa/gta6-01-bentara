@@ -22,21 +22,21 @@ const PRESETS = {
   1: {
     sun: 0xffc890, sunIntensity: 3.0,
     hemiSky: 0xfff0d8, hemiGround: 0x8a7a68, hemiIntensity: 1.05,
-    fogColor: 0xe0c8a8, fogDensity: 0.004, exposure: 1.3,
+    fogColor: 0xe0c8a8, fogDensity: 0.0016, exposure: 1.3,
     skyBottom: 0xffe0b8, skyMid: 0xecc9a0, skyTop: 0x9ab0c4,
     lampGlow: 0.4, litOpacity: 0.85,
   },
   2: {
     sun: 0xffc890, sunIntensity: 3.2,
     hemiSky: 0xfff0d8, hemiGround: 0x8a7a68, hemiIntensity: 1.1,
-    fogColor: 0xe4ccac, fogDensity: 0.0035, exposure: 1.32,
+    fogColor: 0xe4ccac, fogDensity: 0.0014, exposure: 1.32,
     skyBottom: 0xffe8c0, skyMid: 0xeed0a8, skyTop: 0xa0b4c8,
     lampGlow: 0.35, litOpacity: 0.8,
   },
   3: {
     sun: 0xff9a5a, sunIntensity: 2.6,
     hemiSky: 0xf8d0a8, hemiGround: 0x6a4a3a, hemiIntensity: 0.85,
-    fogColor: 0xd8a888, fogDensity: 0.006, exposure: 1.25,
+    fogColor: 0xd8a888, fogDensity: 0.0024, exposure: 1.25,
     skyBottom: 0xf0b088, skyMid: 0xd88a68, skyTop: 0x7a5a6a,
     lampGlow: 0.8, litOpacity: 1.0,
   },
@@ -63,7 +63,7 @@ export function applyGoldenHour(renderer, scene) {
   renderer.toneMappingExposure = 1.3;
   // The dome covers the sky; this is only the fallback behind it.
   scene.background = new THREE.Color(0xecc9a0);
-  scene.fog = new THREE.FogExp2(0xe0c8a8, 0.004);
+  scene.fog = new THREE.FogExp2(0xe0c8a8, 0.0016);
 }
 
 export function createGoldenHour(scene, city, rng, lights = {}) {
@@ -75,14 +75,15 @@ export function createGoldenHour(scene, city, rng, lights = {}) {
   // shader. It replaces the old preset dome + mesh sun disc: one sky
   // system, no double sun. Per-act grades flow through setGrade().
   const sky = createSkyAndSun(scene);
-  sky.setGrade(preset.skyTop, preset.skyMid, preset.skyBottom, preset.sun, 0.38);
+  sky.setGrade(preset.skyTop, preset.skyMid, preset.skyBottom, preset.sun, 0.15);
 
   // --- haze band: a translucent cylinder hugging the horizon. Opacity
-  // 0.22 (was 0.4): the judge read the old band as low-contrast mush.
+  // 0.09 (was 0.22 in r10, 0.4 before that): the fog −60% grade for r11 —
+  // the judge read the old band as low-contrast mush.
   const haze = new THREE.Mesh(
     new THREE.CylinderGeometry(860, 860, 70, 48, 1, true),
     new THREE.MeshBasicMaterial({
-      map: hazeBandTexture(), transparent: true, opacity: 0.22,
+      map: hazeBandTexture(), transparent: true, opacity: 0.09,
       side: THREE.BackSide, depthWrite: false, fog: false,
     }),
   );
@@ -187,7 +188,7 @@ export function createGoldenHour(scene, city, rng, lights = {}) {
     const renderer = scene.userData.renderer;
     if (renderer) renderer.toneMappingExposure = p.exposure;
     // Per-act grade flows into the sky shader (dusk runs thicker haze).
-    sky.setGrade(p.skyTop, p.skyMid, p.skyBottom, p.sun, act === 3 ? 0.5 : 0.38);
+    sky.setGrade(p.skyTop, p.skyMid, p.skyBottom, p.sun, act === 3 ? 0.2 : 0.15);
     for (const g of lampGlows) g.material.opacity = p.lampGlow;
     // Act 3 dusk: the lit windows burn brighter.
     scene.traverse((o) => {

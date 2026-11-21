@@ -33,7 +33,7 @@ function waterMaterial() {
       uSky: { value: new THREE.Color(0xecc9a0) },
       uSunColor: { value: new THREE.Color(0xffc890) },
       uFogColor: { value: new THREE.Color(0xe0c8a8) },
-      uFogDensity: { value: 0.006 },
+      uFogDensity: { value: 0.0024 },
     },
     vertexShader: WATER_VERT,
     fragmentShader: WATER_FRAG,
@@ -1328,6 +1328,26 @@ export function createView(canvas, city) {
 
   const camera = new THREE.PerspectiveCamera(62, 1280 / 720, 0.1, 2000);
 
+  // Speed lines (r11, game-feel): 6 thin white streaks at the frame
+  // edges, visible above 80 km/h — the chase reads as speed, not a parked
+  // pose. The quads are children of the camera (radial streaks, long axis
+  // pointing outward from the centre); one shared material drives the
+  // opacity from the live speed. The camera joins the scene so its
+  // children render.
+  const speedLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, depthTest: false });
+  for (let k = 0; k < 6; k += 1) {
+    const ang = (k / 6) * Math.PI * 2 + 0.35;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.55), speedLineMat);
+    m.position.set(Math.cos(ang) * 1.35, Math.sin(ang) * 0.8, -1.6);
+    m.rotation.z = ang - Math.PI / 2;
+    m.renderOrder = 999;
+    camera.add(m);
+  }
+  scene.add(camera);
+  // Live speed + steer, for the lines and the roll below.
+  let speedKmh = 0;
+  let steerRoll = 0;
+
   // Chase camera (chaseCamera.js): the follow + keepClear logic lives
   // there; the view only exposes it, so the live loop, the player and
   // the staged shots all dodge buildings through one owner.
@@ -1390,6 +1410,15 @@ export function createView(canvas, city) {
     addTrauma(a) { trauma = Math.min(1, trauma + a); },
     setTrauma(a) { trauma = Math.min(1, Math.max(0, a)); },
     get trauma() { return trauma; },
+    // Speed lines + steer roll (r11): speedKmh drives the streak opacity
+    // (0 below 80 km/h, up to 0.45 at 160+); steer -1..1 leans the camera
+    // a touch into a turn (max ~0.03 rad). Called every frame by
+    // game.draw(), and once by a shot stage before its final render.
+    setSpeed(kmh, steer) {
+      speedKmh = kmh || 0;
+      steerRoll = Math.max(-0.03, Math.min(0.03, (steer || 0) * 0.03));
+    },
+    get speedLineOpacity() { return speedLineMat.opacity; },
     // Chase camera (chaseCamera.js owns the follow + keepClear rule):
     // placeCamera is the live follow, keepClear the staged-shot rule.
     placeCamera(x, z, heading, behind, up, lookAhead = 8) {
@@ -1409,7 +1438,9 @@ export function createView(canvas, city) {
         traumaT += realDt * 30;
       }
       const shake = trauma * trauma;
-      const roll = 0.05 * shake * Math.sin(traumaT * 1.1);
+      const roll = 0.05 * shake * Math.sin(traumaT * 1.1) + steerRoll;
+      // Speed lines fade in above 80 km/h (game-feel: 6 white quads).
+      speedLineMat.opacity = Math.max(0, Math.min(0.45, ((speedKmh - 80) / 80) * 0.45));
       const ox = 0.35 * shake * Math.sin(traumaT * 1.7);
       const oy = 0.25 * shake * Math.sin(traumaT * 2.3);
       camera.rotateZ(roll);

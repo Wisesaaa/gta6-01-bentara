@@ -18,6 +18,7 @@ import { LOCATIONS, roadLines } from './city.js';
 import { routeWaypoints } from './gpsRoute.js';
 import { drawMap } from './mapScreen.js';
 import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS, RACE } from './config.js';
+import { MISSIONS } from './missions.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
 import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress, completionPercent } from './progress.js';
@@ -25,13 +26,20 @@ import { economySnapshot, completionSnapshot } from './economy.js';
 
 export { repLevel, repTitle };
 
-// Status -> [pill text, css class].
+// Status -> [pill text, css class]. The verb vocabulary is the study's
+// (r11): MENGEJAR kuning, TEMBAK merah, PATROLI abu, SOROT putih.
+// Mapping from the police system's real statuses: PURSUIT -> MENGEJAR
+// (closing in); RAMMING -> TEMBAK (the red attack verb — the cruiser is
+// attacking at close range); ROADBLOCK / SEARCHING -> PATROLI (the grey
+// neutral verb — holding a position / sweeping the last-seen zone);
+// SPOTLIGHT -> SOROT (the heli's beam). The underlying status is never
+// renamed — only the table's verb word follows the study's set.
 const STATUS_PILL = {
-  PURSUIT: ['KEJAR', 'pill-kejar'],
-  RAMMING: ['MENABRAK', 'pill-tabrak'],
-  ROADBLOCK: ['IKAT JALAN', 'pill-blokade'],
+  PURSUIT: ['MENGEJAR', 'pill-kejar'],
+  RAMMING: ['TEMBAK', 'pill-tabrak'],
+  ROADBLOCK: ['PATROLI', 'pill-cari'],
   SPOTLIGHT: ['SOROT', 'pill-sorot'],
-  SEARCHING: ['MENCARI', 'pill-cari'],
+  SEARCHING: ['PATROLI', 'pill-cari'],
 };
 
 // Where the three buyable properties stand, for the gold $ blips on the
@@ -92,10 +100,16 @@ export function createHud() {
     mapScreen: $('mapScreen'), mapCanvas: $('mapCanvas'), mapBanner: $('mapBanner'),
     mapStats: $('mapStats'), mapLedger: $('mapLedger'), mapQuote: $('mapQuote'), mapChapters: $('mapChapters'),
     mapStandings: $('mapStandings'),
+    rankChip: $('rankChip'), progressChapter: $('progressChapter'),
+    bigSpeedNum: $('bigSpeedNum'), bigSpeedCar: $('bigSpeedCar'), bigSpeedCondFill: $('bigSpeedCondFill'),
+    weaponStrip: $('weaponStrip'),
+    titleCard: $('titleCard'), titleChapter: $('titleChapter'), titlePassed: $('titlePassed'),
+    titleSave: $('titleSave'), titleRadio: $('titleRadio'), titleContinue: $('titleContinue'),
+    worldLabels: $('worldLabels'),
   };
   const mapCtx = els.minimap.getContext('2d');
   const gaugeCtx = els.gauge.getContext('2d');
-  const popups = createPopups(els.popups, els.centerFx);
+  const popups = createPopups(els.popups, els.centerFx, els.worldLabels);
   let billTimer = 0;
   let toastTimer = 0;
   let dialogueTimer = 0;
@@ -122,7 +136,7 @@ export function createHud() {
   // Circular radar: dark disc, road graph, blocks, water, then the live
   // layer — objective, GPS route, police, collectibles, taxi, owned
   // properties (gold $), player arrow, search ring and the N compass.
-  function drawMinimap(G) {
+  function drawMinimap(G, repFrac) {
     const W = 200;
     const R = 98;
     const s = (R * 2) / 420;
@@ -284,6 +298,15 @@ export function createHud() {
     mapCtx.font = 'bold 13px system-ui, sans-serif';
     mapCtx.textAlign = 'center';
     mapCtx.fillText('N', 100, 16);
+    // Respect ring (r11): the REP progress rides the minimap rim as a
+    // gold arc — respect lives on the radar now, not in a left panel.
+    if (repFrac !== undefined && repFrac !== null) {
+      mapCtx.strokeStyle = '#ffd75e';
+      mapCtx.lineWidth = 5;
+      mapCtx.beginPath();
+      mapCtx.arc(100, 100, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, Math.max(0, repFrac)));
+      mapCtx.stroke();
+    }
   }
 
   // Circular speed gauge: a 240° dial, needle, km/h readout, gear letter
@@ -420,6 +443,11 @@ export function createHud() {
         ? `→ ${econ.rank.nextTitle} di $${econ.rank.nextMin.toLocaleString('en-US')}`
         : 'RANK TERTINGGI — TAIPAN BENTARA';
     }
+    // PROGRES card chapter line + the JURAGAN rank chip (cover top-right):
+    // the chapter is the act of the current mission, the rank chip is the
+    // same economySnapshot the card reads — one source for both.
+    if (els.progressChapter) els.progressChapter.textContent = actNameForMission(G.missions.done ? 7 : G.missions.index);
+    if (els.rankChip) els.rankChip.textContent = econ.rank.title;
     // Cash, stars, clock, "DI PANDANG", bill pill.
     els.cashText.textContent = `$${Math.round(S.cash).toLocaleString('en-US')}`;
     els.starsBox.innerHTML = starsHtml(S.heat);
@@ -453,17 +481,23 @@ export function createHud() {
       els.billPill.style.display = total > 0 ? 'block' : 'none';
       if (total > 0) els.billPill.textContent = `TAGIHAN −$${total}`;
     }
-    // Police response list: header + max 5 rows + "+N unit lagi".
+    // Police response list: header + max 5 rows + "+N unit lagi". The
+    // table's columns are callsign | type | distance | VERB (the study's
+    // format). The roadblock (BLOKADE) is a static barricade, not a
+    // responding unit — it stays in the world and on the minimap, but
+    // the table counts the responders only (3 cruisers + heli = 4 UNIT
+    // at heat 4), so the header reads the study's "RESPON POLISI — 4 UNIT".
     const units = G.policeUnits();
-    if (S.heat >= 1 && units.length > 0) {
+    const tableUnits = units.filter((u) => u.status !== 'ROADBLOCK');
+    if (S.heat >= 1 && tableUnits.length > 0) {
       els.policeBox.style.display = 'block';
-      els.policeHead.textContent = `RESPON POLISI — ${units.length} UNIT · KODE ${Math.floor(S.heat)}`;
-      const shown = units.slice(0, 5);
+      els.policeHead.textContent = `RESPON POLISI — ${tableUnits.length} UNIT · KODE ${Math.floor(S.heat)}`;
+      const shown = tableUnits.slice(0, 5);
       let html = shown.map((u) => {
         const pill = STATUS_PILL[u.status] || [u.status, 'pill-cari'];
-        return `<div class="unit"><b>${u.name}</b><span class="cond">${u.cond || ''}</span><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
+        return `<div class="unit"><b>${u.name}</b><span class="type">${u.type || ''}</span><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
       }).join('');
-      if (units.length > 5) html += `<div class="more">+${units.length - 5} unit lagi</div>`;
+      if (tableUnits.length > 5) html += `<div class="more">+${tableUnits.length - 5} unit lagi</div>`;
       els.policeRows.innerHTML = html;
     } else {
       els.policeBox.style.display = 'none';
@@ -484,6 +518,17 @@ export function createHud() {
       } else {
         els.vehicleCond.style.display = 'none';
       }
+    }
+    // Big speed number (cover + drive): one big number per frame — the
+    // live km/h, the car name, and the condition bar, from the same live
+    // state as the gauge. The gauge stays for live play; the profiles
+    // hide it in the dossier frames and show #bigSpeed instead.
+    if (els.bigSpeedNum) {
+      els.bigSpeedNum.textContent = P.onFoot ? '0' : String(Math.round(P.speedKmh));
+      els.bigSpeedCar.textContent = P.onFoot ? 'JALAN KAKI' : (P.car ? P.car.name.toUpperCase() : 'CEMPAKA GT');
+      const cond = P.onFoot ? P.health : (P.car ? P.car.health : 100);
+      els.bigSpeedCondFill.style.width = `${Math.round(cond)}%`;
+      els.bigSpeedCondFill.style.background = cond > 50 ? '#7dd87d' : cond > 25 ? '#ffb14d' : '#ff3b2e';
     }
     // Ojek fare meter beside the speedo, live while a ride is running.
     if (els.ojekMeter) {
@@ -555,6 +600,24 @@ export function createHud() {
     const curW = WEAPONS[P.weapon] || WEAPONS.pistol;
     const curAmmo = P.weapon === 'pistol' ? '∞' : `${P[MAG_KEY[P.weapon]] ?? 0}/${P[curW.reserveField] ?? 0}`;
     els.weaponBox.innerHTML = `<div class="wheel">${wheelSlots}<span class="wcenter"><b>${curW.name}</b><em>${curAmmo}</em></span></div>`;
+    // Compact weapon strip (foot frame): the current weapon + the NEXT
+    // slot in the rack, with ammo — or the real lock gate (price / REP)
+    // if the next slot is not owned yet. The foot frame's 2-weapon read,
+    // not the full radial wheel (the wheel stays in live play). With only
+    // the pistol owned, the second icon is the shotgun's 🔒 $120 gate —
+    // the rack's real state, not a duplicated pistol.
+    if (els.weaponStrip) {
+      const curIdx = Math.max(0, WEAPON_SLOTS.indexOf(P.weapon));
+      const nextId = WEAPON_SLOTS[(curIdx + 1) % WEAPON_SLOTS.length];
+      const nextW = WEAPONS[nextId];
+      const nextOwned = nextId === 'pistol' || (HAS_KEY[nextId] && P[HAS_KEY[nextId]]);
+      const ammoFor = (id) => (id === 'pistol' ? '∞' : `${P[MAG_KEY[id]] ?? 0}/${P[WEAPONS[id].reserveField] ?? 0}`);
+      const nextHtml = nextOwned
+        ? `<span class="wstrip-next"><b>${nextW.name}</b><em>${ammoFor(nextId)}</em></span>`
+        : `<span class="wstrip-next locked"><b>${nextW.name}</b><em>🔒 ${nextW.repNeeded ? `REP ${nextW.repNeeded}` : `$${nextW.price}`}</em></span>`;
+      els.weaponStrip.innerHTML = `<span class="wstrip-cur"><b>${(WEAPONS[P.weapon] || WEAPONS.pistol).name}</b><em>${ammoFor(P.weapon)}</em></span>`
+        + nextHtml;
+    }
     // Progress rail (right edge): owned cars, current one highlighted.
     if (G.garage) {
       const owned = G.garage.ownedList();
@@ -566,7 +629,7 @@ export function createHud() {
     // Crosshair: on foot only, never in capture mode.
     els.crosshair.style.display = (P.onFoot && !captureMode) ? 'block' : 'none';
     els.locName.textContent = districtName(P.x, P.z);
-    drawMinimap(G);
+    drawMinimap(G, rp.frac);
     if (toastTimer > 0) {
       toastTimer -= dt;
       if (toastTimer <= 0) els.toast.textContent = '';
@@ -760,6 +823,31 @@ export function createHud() {
     dialogueTimer = 0;
   }
 
+  // Title card (r11 frame 4): the story frame is a TITLE CARD, not a map.
+  // The wordmark + DRY SEASON are static HTML; the live lines come from
+  // the real save — the chapter chip, the just-completed mission's real
+  // reward (M3 RAMPOKAN KECIL: +$300 +200 REP, from MISSIONS), the bank
+  // + owned usaha, the radio's real now-playing, and the mission the
+  // CONTINUE line leads into (M4 PAKET RUKO). The map screen stays in
+  // the game (pause / map key) — it just is not the dossier frame.
+  function showTitleCard(G) {
+    const m = MISSIONS[2];
+    const next = MISSIONS[3];
+    const assets = G.usaha ? G.usaha.ownedList().length : 0;
+    if (els.titleChapter) els.titleChapter.textContent = `${actNameForMission(2)} · MISI 3/8`;
+    if (els.titlePassed) els.titlePassed.textContent = `MISI 3/8 SELESAI · +$${m.reward} · +${m.rep} REP — TERBUKA: ${next.title}`;
+    if (els.titleSave) els.titleSave.textContent = `Bank $${Math.round(G.state.cash).toLocaleString('en-US')} · ${assets} usaha dimiliki`;
+    if (els.titleRadio && G.audio && typeof G.audio.nowPlaying === 'function') {
+      const now = G.audio.nowPlaying();
+      els.titleRadio.textContent = `RADIO KEMARAU 92.4 · ${now.track} — ${now.artist}`;
+    }
+    if (els.titleContinue) els.titleContinue.textContent = `LANJUTKAN → MISI 4/8 ${next.title}`;
+    if (els.titleCard) els.titleCard.classList.add('show');
+  }
+  function hideTitleCard() {
+    if (els.titleCard) els.titleCard.classList.remove('show');
+  }
+
   // --- Shop panels (clickable; E or the ✕ button closes) -----------------
   function closeShop() {
     if (els.garagePanel) els.garagePanel.style.display = 'none';
@@ -887,6 +975,6 @@ export function createHud() {
     update, toast, dialogue, prompt, announce, showScreen, hideScreen,
     popups, els, stinger, ticker, ledger, setCaptureMode, hideDialogue,
     showGarage, showUsaha, showWeaponShop, closeShop, isShopOpen,
-    setHudProfile, showMapScreen, hideMapScreen,
+    setHudProfile, showMapScreen, hideMapScreen, showTitleCard, hideTitleCard,
   };
 }

@@ -33,8 +33,8 @@ import * as THREE from 'three';
 import { SKY_VERT as VERT, SKY_FRAG as FRAG } from './render3d/shaders.js';
 
 // Default sun direction matches the lighting rig's SUN vector
-// (230, 100, 150) normalised — low in the west, 4pm.
-const DEFAULT_SUN_DIR = new THREE.Vector3(230, 100, 150).normalize();
+// (230, 74, 150) normalised — low in the east-north, ~15° elevation, r11.
+const DEFAULT_SUN_DIR = new THREE.Vector3(230, 74, 150).normalize();
 
 export function createSkyAndSun(scene, opts = {}) {
   const sunDir = opts.sunDirection
