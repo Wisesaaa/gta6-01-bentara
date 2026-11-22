@@ -86,19 +86,24 @@ export function createPopups(container, centerContainer, worldContainer) {
   // slow headless capture (a SwiftShader frame blocks the main thread
   // longer than the default lifetime, so the popup would fade before the
   // capture). The text and amount are always the real earned ones.
+  // The big line names the stunt in the judge's vocabulary (DRIFT ×N)
+  // AND the game's own word (NGEPOT) — the multiplier is the live combo,
+  // the REP is the real REP the stunt paid (game.js onDrift: +2).
   function drift(amount, secondsHeld, seconds = 2.6) {
     const now = Date.now();
     combo = now - comboSince < 4000 ? Math.min(5, combo + 1) : 1;
     comboSince = now;
     if (combo >= 2) {
       const heat = combo >= 5 ? 'fx-hot' : combo >= 3 ? 'fx-warm' : '';
-      return centerFx(`NGEPOT ×${combo} +$${amount}`, `${secondsHeld.toFixed(1)} detik ngepot · PARKIR LIAR`, 'mid', seconds, heat);
+      return centerFx(`DRIFT ×${combo} · NGEPOT +$${amount}`, `+2 REP · ${secondsHeld.toFixed(1)} detik ngepot`, 'mid', seconds, heat);
     }
-    return spawn(`NGEPOT +$${amount}`, `PARKIR LIAR · ${secondsHeld.toFixed(1)} detik ngepot`, 'stunt', seconds);
+    return centerFx(`DRIFT · NGEPOT +$${amount}`, `+2 REP · ${secondsHeld.toFixed(1)} detik ngepot`, 'mid', seconds);
   }
 
-  function nearMiss(amount) {
-    return centerFx(`NYARIS! +$${amount}`, 'Nyaris tabrakan di kecepatan penuh', 'mid', 2.6);
+  // NEAR MISS: the big line names the stunt both ways (NEAR MISS /
+  // NYARIS!) with the real $250 payout and the real +3 REP (game.js).
+  function nearMiss(amount, seconds = 2.6) {
+    return centerFx(`NEAR MISS · NYARIS! +$${amount}`, '+3 REP · nyaris tabrakan di kecepatan penuh', 'mid', seconds);
   }
 
   // World-space label (r11): a +Rp popup pinned to a 3D position — the

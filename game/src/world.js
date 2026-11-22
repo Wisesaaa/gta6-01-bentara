@@ -1355,7 +1355,7 @@ export function createView(canvas, city) {
 
   // Golden-hour light rig: a low warm sun with long shadows, and a warm
   // hemisphere so the shadow side is amber, not dead grey.
-  const hemi = new THREE.HemisphereLight(0xffc98a, 0x8a6a4a, 0.95);
+  const hemi = new THREE.HemisphereLight(0xffbe78, 0x8a6a48, 0.95);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(SUN_COLOR, SUN_INTENSITY);
   sun.position.set(SUN.x, SUN.y, SUN.z);

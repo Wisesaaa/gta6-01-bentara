@@ -18,7 +18,10 @@ import { createChaseCamera } from './chaseCamera.js';
 export function createPlayer(ctx) {
   const { scene, city, view, input, rng } = ctx;
   const body = new Human(scene, rng, 'ped');
-  body.torso.material.color.setHex(0xd8a03c);
+  // Recording 14 — the hero's jacket is VIVID ORANGE (was the same gold
+  // 0xd8a03c the NPC shirt palette also rolls, so the hero blended into
+  // the crowd at dossier size). No NPC shirt is this orange.
+  body.torso.material.color.setHex(0xff6a1f);
   const combat = createCombat(scene, city, rng);
 
   const p = {

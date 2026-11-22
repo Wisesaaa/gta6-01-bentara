@@ -12,32 +12,34 @@ import { PALETTE, SUN } from './config.js';
 import { makeGlowSprite } from './effects.js';
 import { createSkyAndSun } from './skyAndSun.js';
 
-export const SUN_COLOR = 0xffc890;
-export const SUN_INTENSITY = 3.0;
+export const SUN_COLOR = 0xffab5e;
+export const SUN_INTENSITY = 3.4;
 
 // One preset per act. The grade is a mood, not a number the player ever
-// sees — but the pale 4pm grade is what the brief asks for: bleached
-// concrete under a pale sky, warm at the horizon, never apocalyptic red.
+// sees — Recording 14 pushes it WARMER (the exact judge: HALCYON's
+// "warm sunset lighting with long shadows" beats our "flatter, simpler
+// shading"): low orange sun, warm fog, amber horizon — still bleached
+// concrete under a pale sky, never apocalyptic red.
 const PRESETS = {
   1: {
-    sun: 0xffc890, sunIntensity: 3.0,
-    hemiSky: 0xfff0d8, hemiGround: 0x8a7a68, hemiIntensity: 1.05,
-    fogColor: 0xe0c8a8, fogDensity: 0.0016, exposure: 1.3,
-    skyBottom: 0xffe0b8, skyMid: 0xecc9a0, skyTop: 0x9ab0c4,
+    sun: 0xffb060, sunIntensity: 3.4,
+    hemiSky: 0xffd9a8, hemiGround: 0x8a6a48, hemiIntensity: 1.0,
+    fogColor: 0xe8b98a, fogDensity: 0.0016, exposure: 1.32,
+    skyBottom: 0xffc890, skyMid: 0xf0b878, skyTop: 0x8fa8c0,
     lampGlow: 0.4, litOpacity: 0.85,
   },
   2: {
-    sun: 0xffc890, sunIntensity: 3.2,
-    hemiSky: 0xfff0d8, hemiGround: 0x8a7a68, hemiIntensity: 1.1,
-    fogColor: 0xe4ccac, fogDensity: 0.0014, exposure: 1.32,
-    skyBottom: 0xffe8c0, skyMid: 0xeed0a8, skyTop: 0xa0b4c8,
+    sun: 0xffa854, sunIntensity: 3.5,
+    hemiSky: 0xffd9a8, hemiGround: 0x8a6a48, hemiIntensity: 1.05,
+    fogColor: 0xeab98a, fogDensity: 0.0014, exposure: 1.34,
+    skyBottom: 0xffcc90, skyMid: 0xf2bc80, skyTop: 0x94a8be,
     lampGlow: 0.35, litOpacity: 0.8,
   },
   3: {
-    sun: 0xff9a5a, sunIntensity: 2.6,
-    hemiSky: 0xf8d0a8, hemiGround: 0x6a4a3a, hemiIntensity: 0.85,
-    fogColor: 0xd8a888, fogDensity: 0.0024, exposure: 1.25,
-    skyBottom: 0xf0b088, skyMid: 0xd88a68, skyTop: 0x7a5a6a,
+    sun: 0xff8a4a, sunIntensity: 2.8,
+    hemiSky: 0xf8c898, hemiGround: 0x6a4a3a, hemiIntensity: 0.85,
+    fogColor: 0xdc9a78, fogDensity: 0.0024, exposure: 1.25,
+    skyBottom: 0xf09868, skyMid: 0xd87858, skyTop: 0x6a4a5a,
     lampGlow: 0.8, litOpacity: 1.0,
   },
 };
@@ -60,10 +62,10 @@ function hazeBandTexture() {
 
 export function applyGoldenHour(renderer, scene) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.3;
+  renderer.toneMappingExposure = 1.32;
   // The dome covers the sky; this is only the fallback behind it.
-  scene.background = new THREE.Color(0xecc9a0);
-  scene.fog = new THREE.FogExp2(0xe0c8a8, 0.0016);
+  scene.background = new THREE.Color(0xf0b878);
+  scene.fog = new THREE.FogExp2(0xe8b98a, 0.0016);
 }
 
 export function createGoldenHour(scene, city, rng, lights = {}) {

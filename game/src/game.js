@@ -208,6 +208,7 @@ export function createGame(canvas, seed = 7) {
       state.cash += amount;
       state.rep += 2;
       hud.popups.drift(amount, secondsHeld);
+      hud.xpTick(2, 'DRIFT');
       audio.drift();
     },
   });
@@ -690,6 +691,7 @@ export function createGame(canvas, seed = 7) {
           state.cash += STUNTS.nearMiss;
           state.rep += 3;
           hud.popups.nearMiss(STUNTS.nearMiss);
+          hud.xpTick(3, 'NEAR MISS');
         }
       }
     }

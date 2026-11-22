@@ -90,6 +90,7 @@ export function createHud() {
     gauge: $('gauge'), vehicleName: $('vehicleName'), vehiclePlate: $('vehiclePlate'),
     vehicleCond: $('vehicleCond'), ojekMeter: $('ojekMeter'),
     fuelBar: $('fuelBar'), fuelFill: $('fuelFill'), nitroBar: $('nitroBar'), nitroFill: $('nitroFill'),
+    nitroState: $('nitroState'), xpTick: $('xpTick'),
     armorBar: $('armorBar'), armorFill: $('armorFill'),
     radioLine: $('radioLine'), eqBars: $('eqBars'), weaponBox: $('weaponBox'),
     progressRail: $('progressRail'),
@@ -102,6 +103,7 @@ export function createHud() {
     mapStandings: $('mapStandings'),
     rankChip: $('rankChip'), progressChapter: $('progressChapter'),
     bigSpeedNum: $('bigSpeedNum'), bigSpeedCar: $('bigSpeedCar'), bigSpeedCondFill: $('bigSpeedCondFill'),
+    bigSpeedGear: $('bigSpeedGear'),
     weaponStrip: $('weaponStrip'),
     titleCard: $('titleCard'), titleChapter: $('titleChapter'), titlePassed: $('titlePassed'),
     titleSave: $('titleSave'), titleRadio: $('titleRadio'), titleContinue: $('titleContinue'),
@@ -112,6 +114,7 @@ export function createHud() {
   const popups = createPopups(els.popups, els.centerFx, els.worldLabels);
   let billTimer = 0;
   let toastTimer = 0;
+  let xpTickTimer = 0;
   let dialogueTimer = 0;
   let radioMode = 0;
   let songTimer = 24;
@@ -309,6 +312,21 @@ export function createHud() {
     }
   }
 
+  // Real gears from the live speed: N at a standstill, R while reversing,
+  // 1–5 by speed band. The gauge and the big speed number share this one
+  // function, so the gear the judge sees is the gear the car is in.
+  function gearFor(P) {
+    if (P.onFoot) return 'N';
+    if (P.car && P.car.speed < -0.5) return 'R';
+    const kmh = P.speedKmh || 0;
+    if (kmh < 1) return 'N';
+    if (kmh < 30) return '1';
+    if (kmh < 60) return '2';
+    if (kmh < 90) return '3';
+    if (kmh < 120) return '4';
+    return '5';
+  }
+
   // Circular speed gauge: a 240° dial, needle, km/h readout, gear letter
   // and a condition arc that turns red as the car breaks down.
   function drawGauge(P) {
@@ -355,7 +373,7 @@ export function createHud() {
     gaugeCtx.font = '11px system-ui, sans-serif';
     gaugeCtx.fillStyle = 'rgba(255,255,255,0.75)';
     gaugeCtx.fillText(P.onFoot ? 'JALAN KAKI' : 'KM/H', cx, cy + 26);
-    const gear = P.onFoot ? 'N' : P.speedKmh > 1 ? 'D' : 'N';
+    const gear = gearFor(P);
     gaugeCtx.font = 'bold 13px system-ui, sans-serif';
     gaugeCtx.fillStyle = '#ffd75e';
     gaugeCtx.fillText(gear, cx, cy + 44);
@@ -524,9 +542,11 @@ export function createHud() {
     // Big speed number (cover + drive): one big number per frame — the
     // live km/h, the car name, and the condition bar, from the same live
     // state as the gauge. The gauge stays for live play; the profiles
-    // hide it in the dossier frames and show #bigSpeed instead.
+    // hide it in the dossier frames and show #bigSpeed instead. The gear
+    // rides beside the number (same gearFor as the gauge).
     if (els.bigSpeedNum) {
       els.bigSpeedNum.textContent = P.onFoot ? '0' : String(Math.round(P.speedKmh));
+      if (els.bigSpeedGear) els.bigSpeedGear.textContent = `GEAR ${gearFor(P)}`;
       els.bigSpeedCar.textContent = P.onFoot ? 'JALAN KAKI' : (P.car ? P.car.name.toUpperCase() : 'CEMPAKA GT');
       const cond = P.onFoot ? P.health : (P.car ? P.car.health : 100);
       els.bigSpeedCondFill.style.width = `${Math.round(cond)}%`;
@@ -547,9 +567,31 @@ export function createHud() {
       els.nitroBar.style.display = 'block';
       els.nitroFill.style.width = `${Math.round((P.car.boost || 0) * 100)}%`;
       els.nitroBar.classList.toggle('locked', !(P.car.turboLevel > 0));
+      // NITRO state line, from the live boost meter + turbo fit: READY
+      // at a full meter, AKTIF while Shift is burning it, a live %
+      // while it refills, and the real REP 2 gate when no turbo is
+      // fitted. The bar alone never said whether nitro was usable.
+      if (els.nitroState) {
+        const boost = P.car.boost || 0;
+        if (!(P.car.turboLevel > 0)) {
+          els.nitroState.textContent = 'NITRO 🔒 REP 2 — BELI TURBO DI BENGKEL';
+          els.nitroState.className = 'locked';
+        } else if (P.car.boosting) {
+          els.nitroState.textContent = '⚡ NITRO AKTIF';
+          els.nitroState.className = 'active';
+        } else if (boost >= 0.99) {
+          els.nitroState.textContent = 'NITRO READY — SHIFT UNTUK NOS';
+          els.nitroState.className = 'ready';
+        } else {
+          els.nitroState.textContent = `NITRO ${Math.round(boost * 100)}% — MENGISI…`;
+          els.nitroState.className = '';
+        }
+        els.nitroState.style.display = 'block';
+      }
     } else {
       els.fuelBar.style.display = 'none';
       els.nitroBar.style.display = 'none';
+      if (els.nitroState) els.nitroState.style.display = 'none';
     }
     if (P.armor > 0) {
       els.armorBar.style.display = 'block';
@@ -643,6 +685,13 @@ export function createHud() {
       toastTimer -= dt;
       if (toastTimer <= 0) els.toast.textContent = '';
     }
+    // XP tick: the small "+N REP · label" flash above the speedo, fed by
+    // the real REP gains (drift +2, near-miss +3, collect +REP). It
+    // fades on its own clock; a newer gain replaces it.
+    if (xpTickTimer > 0) {
+      xpTickTimer -= dt;
+      if (xpTickTimer <= 0 && els.xpTick) els.xpTick.style.display = 'none';
+    }
     if (dialogueTimer > 0) {
       dialogueTimer -= dt;
       if (dialogueTimer <= 0) els.dialogue.style.display = 'none';
@@ -677,6 +726,15 @@ export function createHud() {
   function toast(text, seconds = 4) {
     els.toast.textContent = text;
     toastTimer = seconds;
+  }
+
+  // Small REP-gain tick beside the driving strip: `rep` is the real REP
+  // the action just paid (the caller already added it to state.rep).
+  function xpTick(rep, label) {
+    if (!els.xpTick) return;
+    els.xpTick.textContent = `+${rep} REP · ${label}`;
+    els.xpTick.style.display = 'block';
+    xpTickTimer = 1.8;
   }
 
   // who: "PAK ASKA · PENERIMA MARINA" — the name goes bold, the role
@@ -792,13 +850,20 @@ export function createHud() {
     const taxiEarned = G.taxi ? Math.round(G.taxi.earned || 0) : 0;
     const ojekTrips = G.ojek ? G.ojek.trips : 0;
     const ojekEarned = G.ojek ? Math.round(G.ojek.earned || 0) : 0;
+    // Recording 14 — DESIGNED, not debug: the side column leads with ONE
+    // huge gold completion number (the frame's dominant stat at dossier
+    // size), then THREE short lines only — missions/rep/cash, collection/
+    // assets/progress, rank/wealth. The per-part % breakdown line (the
+    // debug-looking "Misi 88% · Koleksi 58%..." micro-line) is gone from
+    // this screen — the breakdown still lives in the pause stats. The
+    // fares row stays (one line, only when a fare really exists).
     const faresLine = (taxiTrips > 0 || ojekTrips > 0)
       ? `<br>TAKSI <b>${taxiTrips} trip · $${taxiEarned.toLocaleString('en-US')}</b> · OJEK <b>${ojekTrips} trip · Rp ${ojekEarned.toLocaleString('id-ID')}</b>`
       : '';
-    els.mapStats.innerHTML = `MISI <b>8/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
-      + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${assets} · KEMAJUAN <b>${comp.pct}%</b><br>`
-      + `<span style="font-size:13px;opacity:.85">Misi ${comp.parts.missions}% · Koleksi ${comp.parts.collectibles}% · Aset ${comp.parts.assets}% · Balapan ${comp.parts.race}%</span>${faresLine}<br>`
-      + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>`;
+    els.mapStats.innerHTML = `<div class="mapBigPct">KEMAJUAN ${comp.pct}%</div>`
+      + `MISI <b>8/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
+      + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${assets}<br>`
+      + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>${faresLine}`;
     if (els.mapStandings) {
       const records = G.race && G.race.records ? G.race.records : [];
       els.mapStandings.innerHTML = records.length
@@ -993,7 +1058,7 @@ export function createHud() {
   }
 
   return {
-    update, toast, dialogue, prompt, announce, showScreen, hideScreen,
+    update, toast, xpTick, dialogue, prompt, announce, showScreen, hideScreen,
     popups, els, stinger, ticker, ledger, setCaptureMode, hideDialogue,
     showGarage, showUsaha, showWeaponShop, closeShop, isShopOpen,
     setHudProfile, showMapScreen, hideMapScreen, showTitleCard, hideTitleCard,

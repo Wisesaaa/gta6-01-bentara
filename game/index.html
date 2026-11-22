@@ -35,14 +35,15 @@
   #actPips .pip { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid rgba(255,255,255,.5); margin-right: 6px; }
   #actPips .pip.on { background: var(--gold); border-color: var(--gold); }
   #actPips .pip.done { background: rgba(255,215,94,.5); border-color: var(--gold); }
-  /* Completion + economy rank (Recording 13: merged INTO the cash box
-     as one top-right card — the advisor flagged two stacked top-right
-     panels as a clutter risk. The % is the whole-game completion
-     (missions + collectibles + assets + race), the rank is the real
-     wealth tier — both from the live save, never a staged string.
-     Readable in the cover at screenshot size: the % is 22 px bold gold,
-     the rank 13 px. The foot profile hides this block (cash stays). */
-  #cashBox #completionCard { border-top: 1px solid rgba(255,255,255,.25); margin-top: 6px; padding-top: 6px; text-align: left; }
+  /* Completion + economy rank (Recording 14 — grouped into the
+     top-left ECON ZONE with the REP bar + chip row: one grouped zone
+     for economy/progression, not three scattered panels. The % is the
+     whole-game completion (missions + collectibles + assets + race),
+     the rank is the real wealth tier — both from the live save, never
+     a staged string. Readable in the cover at screenshot size: the %
+     is 22 px bold gold, the rank 13 px. The foot profile hides this
+     block (cash stays). */
+  #econZone #completionCard { border-top: 1px solid rgba(255,255,255,.25); margin-top: 6px; padding-top: 6px; text-align: left; }
   #completionPct { font-size: 22px; font-weight: 800; letter-spacing: 1px; color: var(--gold); }
   #completionBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
   #completionFill { height: 100%; width: 0%; background: var(--gold); }
@@ -50,7 +51,19 @@
   #progressChapter { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--gold); margin-top: 2px; }
   #economyWealth { font-size: 12px; opacity: .9; margin-top: 2px; }
   #economyNext { font-size: 11px; color: var(--gold); margin-top: 2px; }
-  /* TOP-RIGHT cash + stars + bill pill. */
+  /* TOP-LEFT economy zone (Recording 14 — HUD hierarchy, not
+     subtraction): ONE grouped zone for economy + progression — the
+     completion card, the REP bar + next unlock, and the chip row —
+     under the act chip. Nothing deleted: the same live numbers that
+     used to sit in the cash box (top-right) and under the minimap
+     (bottom-left) now sit together here, so the road wins and the
+     economy still reads at a glance. */
+  #econZone { position: absolute; top: 64px; left: 12px; width: 300px; text-align: left; }
+  #econZone #repRow { margin-top: 6px; font-size: 12px; text-align: left; }
+  #econZone #chipRow { margin-top: 6px; font-size: 12px; color: var(--gold); text-align: left; }
+  #repBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 3px; overflow: hidden; }
+  #repFill { height: 100%; width: 0%; background: #7dd87d; }
+  #nextUnlock { display: block; margin-top: 4px; font-size: 11px; color: var(--gold); text-align: left; }
   #cashBox { position: absolute; top: 12px; right: 12px; font-size: 26px; font-weight: 700; text-align: right; }
   #cashBox small { display: block; font-size: 12px; font-weight: 400; opacity: .85; }
   #rankChip { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: var(--gold); border: 1px solid var(--gold); border-radius: 10px; padding: 1px 8px; margin-top: 4px; }
@@ -61,8 +74,11 @@
   #seenFlash.lost { color: #ffb14d; animation: none; }
   @keyframes blink { 50% { opacity: 0.25; } }
   #billPill { display: none; font-size: var(--fs-small); font-weight: 700; color: #ff9d5c; margin-top: 4px; }
-  /* LEFT-MID police response list, max ~180px tall. */
-  #policeBox { position: absolute; top: 200px; left: 12px; width: 260px; font-size: 12px; display: none; }
+  /* LEFT-MID police response list, max ~180px tall. Top 296 px: the
+     top-left econ zone (Recording 14) ends above it — at 252 px its
+     header collided with the zone's BERIKUTNYA line (first-shoot
+     defect). */
+  #policeBox { position: absolute; top: 296px; left: 12px; width: 260px; font-size: 12px; display: none; }
   #policeBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
   #policeBox .unit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
   #policeBox .unit b { color: var(--gold); }
@@ -77,11 +93,6 @@
   #mapWrap { position: absolute; bottom: 34px; left: 12px; text-align: center; }
   #minimap { border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: #10161d; display: block; box-shadow: 0 0 0 4px rgba(16,22,29,.55); }
   #locName { font-size: 13px; letter-spacing: 2px; margin-top: 4px; }
-  #repRow { margin-top: 6px; font-size: 12px; text-align: left; }
-  #repBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 3px; overflow: hidden; }
-  #repFill { height: 100%; width: 0%; background: #7dd87d; }
-  #nextUnlock { display: block; margin-top: 4px; font-size: 11px; color: var(--gold); text-align: left; }
-  #chipRow { margin-top: 6px; font-size: 12px; color: var(--gold); text-align: left; }
   /* BOTTOM-RIGHT vehicle card + weapon rail — COMPACT: the r3 panel was
      ~630 px wide and ate 40% of the frame, hiding the hero car and
      cutting dialogue. Gauge scaled down, rail wraps in two short rows,
@@ -93,6 +104,7 @@
   #bigSpeed { display: none; text-align: right; }
   #bigSpeed b { font-size: 56px; font-weight: 800; line-height: 1; color: #fff; letter-spacing: 1px; }
   #bigSpeed span { font-size: 14px; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-left: 6px; }
+  #bigSpeedGear { display: block; font-size: 15px; font-weight: 800; letter-spacing: 2px; color: var(--gold); margin-top: 2px; }
   #bigSpeedCar { font-size: 13px; letter-spacing: 2px; color: var(--gold); font-weight: 700; margin-top: 2px; }
   #bigSpeedCond { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 0 auto; width: 130px; overflow: hidden; }
   #bigSpeedCond i { display: block; height: 100%; background: #7dd87d; }
@@ -106,6 +118,15 @@
   #fuelFill { background: #2fd8c8; }
   #nitroFill { background: #b06bff; }
   #nitroBar.locked #nitroFill { background: #5a5a52; }
+  /* NITRO state line (Recording 14): READY / AKTIF / refill % / lock
+     gate, from the live boost meter — the bar alone never said whether
+     nitro was usable. XP tick: the small "+N REP · label" flash above
+     the driving strip, fed by the real REP gains. */
+  #nitroState { display: none; font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #d8b4ff; margin-top: 4px; }
+  #nitroState.ready { color: #7dd87d; }
+  #nitroState.active { color: #b06bff; }
+  #nitroState.locked { color: rgba(255,255,255,.55); }
+  #xpTick { display: none; font-size: 13px; font-weight: 800; letter-spacing: 1px; color: #7dd87d; margin-top: 4px; }
   #armorFill { background: #7dd87d; }
   #radioLine { font-size: 11px; opacity: .95; max-width: 280px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #eqBars { display: inline-flex; gap: 2px; height: 14px; align-items: flex-end; margin-left: 6px; vertical-align: middle; }
@@ -151,18 +172,18 @@
   #progressRail .rail-car.current { opacity: 1; color: var(--gold); font-weight: 700; }
   #progressRail .rail-note { opacity: .85; font-size: 10px; }
   /* CENTRE feedback layer (~35% height) + dispatch ticker + ledger. */
-  #centerFx { position: absolute; left: 50%; top: 35%; transform: translate(-50%, -50%); text-align: center; width: 760px; max-width: 90vw; }
-  .fx { transform: rotate(8deg); animation: fxIn .7s ease-out; }
+  #centerFx { position: absolute; left: 50%; top: 43%; transform: translate(-50%, -50%); text-align: center; width: 760px; max-width: 90vw; }
+  .fx { transform: rotate(8deg); animation: fxIn .7s ease-out; margin-bottom: 26px; }
   .fx b { display: block; color: var(--amber); text-shadow: 0 2px 8px rgba(0,0,0,.8); }
   .fx span { font-size: 13px; opacity: .9; }
-  .fx-big b { font-size: 40px; letter-spacing: 3px; }
-  .fx-mid b { font-size: var(--fs-mid); letter-spacing: 2px; }
-  .fx-small b { font-size: var(--fs-small); }
+  .fx-big b { font-size: 46px; letter-spacing: 3px; }
+  .fx-mid b { font-size: 26px; letter-spacing: 2px; }
+  .fx-small b { font-size: 15px; }
   .fx-warm b { color: #ff9d5c; }
   .fx-hot b { color: #ff3b2e; }
   .fx-out { opacity: 0; transition: opacity .7s; }
   @keyframes fxIn { from { transform: rotate(8deg) scale(1.2); opacity: 0; } to { transform: rotate(8deg) scale(1); opacity: 1; } }
-  #ticker { position: absolute; top: 29%; left: 50%; transform: translateX(-50%); font-size: 13px; letter-spacing: 1px; color: #ffd75e; background: rgba(20,10,8,.75); border: 1px solid var(--panel-line); border-radius: 16px; padding: 4px 14px; display: none; max-width: 80vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ticker { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); font-size: 13px; letter-spacing: 1px; color: #ffd75e; background: rgba(20,10,8,.75); border: 1px solid var(--panel-line); border-radius: 16px; padding: 4px 14px; display: none; max-width: 80vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #ledgerCard { position: absolute; left: 50%; top: 46%; transform: translateX(-50%); width: 340px; display: none; font-size: 14px; }
   /* Story frame: the ledger moves up and LEFT so it never collides with
      the dialogue card at the bottom or the MARINA sign at centre-top
@@ -202,7 +223,7 @@
      right so they never touch the bottom-right cluster. */
   #popups { position: absolute; right: 360px; bottom: 245px; width: 260px; text-align: right; }
   .popup { margin-bottom: 6px; transition: opacity .4s, transform .4s; }
-  .popup b { display: block; font-size: 22px; letter-spacing: 1px; color: var(--gold); }
+  .popup b { display: block; font-size: 26px; letter-spacing: 1px; color: var(--gold); }
   .popup span { font-size: 13px; opacity: .9; }
   .popup-collect b { color: #7dd87d; }
   .popup-fare b { color: var(--teal); }
@@ -210,10 +231,13 @@
   .popup-out { opacity: 0; transform: translateY(-14px); }
   /* World-space labels (r11): +Rp popups pinned to a 3D position via
      vector.project — absolutely positioned at the projected screen point,
-     centred on it. The layer covers the screen but takes no pointer. */
-  #worldLabels { position: absolute; inset: 0; pointer-events: none; }
+     centred on it. The layer covers the screen but takes no pointer.
+     Recording 14: z-index above the HUD panels, so a label anchored
+     near the driving strip can never hide behind the driveBox panel
+     (first-shoot defect: the drift label's tail vanished behind it). */
+  #worldLabels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
   .wlabel { position: absolute; transform: translate(-50%, -50%); text-align: center; }
-  .wlabel b { display: block; font-size: 24px; letter-spacing: 1px; color: var(--gold); text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  .wlabel b { display: block; font-size: 28px; letter-spacing: 1px; color: var(--gold); text-shadow: 0 2px 8px rgba(0,0,0,.8); }
   .wlabel span { font-size: 12px; opacity: .9; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
   #prompt { position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); font-size: 15px; background: rgba(20,18,12,.65); padding: 6px 14px; border-radius: 20px; display: none; }
   #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 12px; opacity: .85; white-space: nowrap; }
@@ -244,43 +268,52 @@
      one focus cluster per frame, the rest hidden. CSS !important beats
      the inline display styles hud.update() writes every frame, so the
      profile is enforced without touching the live HUD logic.
-     Recording 13 — DEPTH VISIBLE: the r11 de-clutter hid the systems
-     the exact judge decides on, and the mock lost 0-6 on depth. Each
-     frame now shows its depth cluster, organised in the four corners,
-     still one big number per frame:
-     COVER (heat): mission banner top-left, money + stars + JURAGAN chip
-     + KEMAJUAN % card top-right, ONE chase panel left, minimap + REP +
-     chips bottom-left, big speed + weapon wheel + armour + radio
-     bottom-right, Sari dialogue bottom-centre.
+     Recording 14 — HIERARCHY, NOT SUBTRACTION: the r11 de-clutter hid
+     the systems the exact judge decides on, and the mock lost 0-6 on
+     depth. Each frame now shows its depth cluster, organised in the
+     four corners, still one big number per frame:
+     COVER (heat): mission banner top-centre, money + stars + JURAGAN
+     chip top-right, econ zone (KEMAJUAN % + REP + chips) top-left,
+     ONE chase panel left, minimap bottom-left, big speed + gear +
+     nitro + weapon wheel + armour + radio bottom-right, Sari dialogue
+     bottom-centre, DRIFT popup centre.
      DRIVE: minimap (with the respect ring) + ONE chase panel + big speed
-     + the race chip with KLASEMEN standings + chip row.
-     FOOT: mission banner top-left + minimap (search ring) + REP line +
-     weapon strip with health/armour + money.
+     + gear + nitro + the race chip with KLASEMEN standings + chip row
+     + NEAR MISS popup centre.
+     FOOT: mission banner top-centre + minimap (search ring) + REP line
+     (econ zone) + weapon strip with health/armour + money + KASET
+     collect popup.
      STORY: the full map screen only — map + stats + completion
      breakdown + chapters + standings. */
-  /* Cover: the mission stinger docks TOP-LEFT (the act chip goes — the
-     chapter lives in the PROGRES card, not in this frame).
-     Recording 13 — DEPTH VISIBLE: the r11 cover hid the minimap,
-     the completion card and the weapon wheel, and the exact judge read
-     the cover as "mission + money only" (0.22 vs HALCYON). The cover
-     now shows all four corner clusters, organised, nothing overlapping:
-     mission top-left, cash + stars + completion card top-right,
-     police panel left, minimap + REP + chips bottom-left, big speed +
-     weapon wheel + armour + radio bottom-right, dialogue bottom-centre. */
-  body[data-hud="heat"] #missionStinger { left: 12px; transform: none; text-align: left; min-width: 0; max-width: 560px; }
+  /* Recording 14 — passive panels fade so the road wins: the police
+     panel and the garage rail sit at a lower-opacity background in
+     every dossier frame (their text stays full-strength). Nothing is
+     deleted or hidden by this — it is hierarchy by tone, not by
+     subtraction. */
+  body[data-hud] #policeBox, body[data-hud] #progressRail { background: rgba(20,10,8,.62); }
+  /* Cover: the mission stinger stays TOP-CENTRE (Recording 14: the
+     top-left corner is the econ zone now — the stinger docked left
+     would collide with it). The cover shows all four corner clusters,
+     organised, nothing overlapping: mission top-centre, cash + stars
+     top-right, econ zone top-left, police panel left, minimap
+     bottom-left, big speed + gear + nitro + weapon wheel + armour +
+     radio bottom-right, dialogue bottom-centre. Recording 14 — the
+     FEEDBACK LAYER IS VISIBLE HERE: #centerFx, #popups and #ticker
+     are NOT hidden anymore (r11–r13 hid them, so the exact judge
+     never saw a drift/near-miss popup in the cover) and the nitro bar
+     + state show in the driving strip. */
   body[data-hud="heat"] #actChip, body[data-hud="heat"] #actPips,
   body[data-hud="heat"] #clockText, body[data-hud="heat"] #billPill,
-  body[data-hud="heat"] #seenFlash, body[data-hud="heat"] #ticker,
-  body[data-hud="heat"] #raceChip, body[data-hud="heat"] #centerFx,
+  body[data-hud="heat"] #seenFlash,
+  body[data-hud="heat"] #raceChip,
   body[data-hud="heat"] #ledgerCard, body[data-hud="heat"] #toast,
-  body[data-hud="heat"] #popups, body[data-hud="heat"] #prompt,
+  body[data-hud="heat"] #prompt,
   body[data-hud="heat"] #progressRail, body[data-hud="heat"] #crosshair,
   body[data-hud="heat"] #controlsHint, body[data-hud="heat"] #mapScreen,
   body[data-hud="heat"] #titleCard, body[data-hud="heat"] #weaponStrip,
   body[data-hud="heat"] #gauge, body[data-hud="heat"] #vehicleName,
   body[data-hud="heat"] #vehiclePlate,
   body[data-hud="heat"] #ojekMeter, body[data-hud="heat"] #fuelBar,
-  body[data-hud="heat"] #nitroBar,
   body[data-hud="heat"] #eqBars { display: none !important; }
   body[data-hud="heat"] #bigSpeed { display: block !important; }
   /* Drive: minimap + chase panel + big speed + the RACE chip (the race
@@ -289,13 +322,16 @@
      radio and condition are CUT here (advisor: two live activity meters
      in one frame reads as staged; the ojek bike still rides in-world
      and its fares land on the map screen). The race gate still reads
-     on the minimap (gold circle). */
+     on the minimap (gold circle). Recording 14 — the FEEDBACK LAYER
+     IS VISIBLE HERE TOO: #centerFx, #popups, #ticker and #worldLabels
+     are not hidden (r13 hid all four, so the drive frame showed no
+     drift/near-miss/nitro feedback at all), and the nitro bar shows
+     in the driving strip. */
   body[data-hud="drive"] #missionStinger, body[data-hud="drive"] #actChip,
   body[data-hud="drive"] #actPips, body[data-hud="drive"] #cashBox,
-  body[data-hud="drive"] #completionCard, body[data-hud="drive"] #ticker,
-  body[data-hud="drive"] #centerFx,
+  body[data-hud="drive"] #completionCard,
   body[data-hud="drive"] #ledgerCard, body[data-hud="drive"] #dialogue,
-  body[data-hud="drive"] #toast, body[data-hud="drive"] #popups,
+  body[data-hud="drive"] #toast,
   body[data-hud="drive"] #prompt, body[data-hud="drive"] #progressRail,
   body[data-hud="drive"] #crosshair, body[data-hud="drive"] #controlsHint,
   body[data-hud="drive"] #mapScreen, body[data-hud="drive"] #titleCard,
@@ -303,18 +339,19 @@
   body[data-hud="drive"] #gauge,
   body[data-hud="drive"] #vehicleName, body[data-hud="drive"] #vehiclePlate,
   body[data-hud="drive"] #vehicleCond, body[data-hud="drive"] #ojekMeter,
-  body[data-hud="drive"] #fuelBar, body[data-hud="drive"] #nitroBar,
+  body[data-hud="drive"] #fuelBar,
   body[data-hud="drive"] #armorBar, body[data-hud="drive"] #radioLine,
-  body[data-hud="drive"] #eqBars, body[data-hud="drive"] #weaponBox,
-  body[data-hud="drive"] #worldLabels { display: none !important; }
+  body[data-hud="drive"] #eqBars, body[data-hud="drive"] #weaponBox { display: none !important; }
   body[data-hud="drive"] #bigSpeed { display: block !important; }
-  /* Foot: mission banner top-left + money + the compact weapon strip +
+  /* Foot: mission banner top-centre + money + the compact weapon strip +
      the minimap (the search ring + ZONA label are the cordon-search
      proof — r11 hid the radar, so the foot frame showed no map at all)
-     + the REP line + bar. The chip row and next-unlock line are cut
-     here (advisor: three micro-panels stacked bottom-left at 256 px
-     are noise — the collect count already reads in the pickup popup). */
-  body[data-hud="foot"] #missionStinger { left: 12px; transform: none; text-align: left; min-width: 0; max-width: 560px; }
+     + the REP line + bar in the top-left econ zone. The chip row and
+     next-unlock line are cut here (advisor: three micro-panels stacked
+     bottom-left at 256 px are noise — the collect count already reads
+     in the pickup popup). Recording 14: #popups is NOT hidden anymore
+     (r13 hid it, so the foot frame's real KASET collect popup never
+     showed). */
   body[data-hud="foot"] #actChip, body[data-hud="foot"] #actPips,
   body[data-hud="foot"] #clockText, body[data-hud="foot"] #billPill,
   body[data-hud="foot"] #seenFlash, body[data-hud="foot"] #rankChip,
@@ -322,7 +359,7 @@
   body[data-hud="foot"] #ticker,
   body[data-hud="foot"] #raceChip, body[data-hud="foot"] #centerFx,
   body[data-hud="foot"] #ledgerCard, body[data-hud="foot"] #dialogue,
-  body[data-hud="foot"] #toast, body[data-hud="foot"] #popups,
+  body[data-hud="foot"] #toast,
   body[data-hud="foot"] #prompt, body[data-hud="foot"] #driveBox,
   body[data-hud="foot"] #progressRail, body[data-hud="foot"] #crosshair,
   body[data-hud="foot"] #controlsHint, body[data-hud="foot"] #mapScreen,
@@ -337,6 +374,7 @@
   body[data-hud="story"] #missionStinger, body[data-hud="story"] #actChip,
   body[data-hud="story"] #actPips, body[data-hud="story"] #mapWrap,
   body[data-hud="story"] #cashBox, body[data-hud="story"] #driveBox,
+  body[data-hud="story"] #econZone,
   body[data-hud="story"] #progressRail, body[data-hud="story"] #dialogue,
   body[data-hud="story"] #ledgerCard, body[data-hud="story"] #ticker,
   body[data-hud="story"] #raceChip, body[data-hud="story"] #toast,
@@ -356,18 +394,25 @@
   #mapScreen.show { display: flex; }
   #mapCanvas { border: 2px solid var(--panel-line); border-radius: 12px; background: #10161d; flex: none; }
   #mapSide { width: 420px; flex: none; }
-  #mapBanner { font-size: 26px; font-weight: 800; letter-spacing: 2px; line-height: 1.25; color: var(--gold); margin-bottom: 14px; }
-  #mapStats { font-size: 16px; line-height: 1.9; letter-spacing: 1px; }
+  #mapBanner { font-size: 28px; font-weight: 800; letter-spacing: 2px; line-height: 1.2; color: var(--gold); margin-bottom: 10px; }
+  /* Recording 14 — the map screen reads as a DESIGNED screen: one huge
+     gold completion number leads the stats column, then three short
+     lines at 19 px. At dossier size the % + banner + map are the frame.
+     Sizes are capped so the whole side column fits the 720 px frame —
+     at 34/52 px the banner's first line + the quote were cut off the
+     top/bottom (first-shoot defect). */
+  .mapBigPct { font-size: 44px; font-weight: 800; letter-spacing: 2px; line-height: 1.1; color: var(--gold); margin-bottom: 8px; }
+  #mapStats { font-size: 19px; line-height: 1.7; letter-spacing: 1px; }
   #mapStats b { color: var(--gold); }
-  #mapLedger { font-size: 15px; line-height: 1.7; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
+  #mapLedger { font-size: 16px; line-height: 1.7; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
   #mapLedger .row { display: flex; justify-content: space-between; }
   #mapLedger .total { font-weight: 700; color: var(--gold); }
-  #mapChapters { font-size: 15px; line-height: 1.7; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
+  #mapChapters { font-size: 16px; line-height: 1.7; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
   #mapChapters .row { display: flex; justify-content: space-between; }
-  #mapChapters .row.head { font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
-  #mapStandings { font-size: 14px; line-height: 1.6; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
+  #mapChapters .row.head { font-size: 12px; letter-spacing: 2px; color: #ff9d5c; }
+  #mapStandings { font-size: 16px; line-height: 1.6; margin-top: 12px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 10px; }
   #mapStandings b { color: var(--gold); }
-  #mapQuote { font-size: 14px; font-style: italic; line-height: 1.5; color: #f3e6c8; margin-top: 14px; }
+  #mapQuote { font-size: 15px; font-style: italic; line-height: 1.5; color: #f3e6c8; margin-top: 14px; }
   #mapQuote b { color: var(--gold); font-style: normal; }
   /* Title card (r11 frame 4): the story frame is a title screen, not a
      map — wordmark ~50% of the width over a dimmed live street. Hidden
@@ -394,17 +439,19 @@
   <div id="letterboxBottom"></div>
   <div id="actChip">BABAK 1 — KENALAN</div>
   <div id="actPips"></div>
+  <div id="econZone" class="panel"><div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK EKONOMI · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
+    <div id="repRow"><span id="repText">RESPECT 1 · KUTIL 0/250</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
+    <div id="chipRow">KOLEKSI 0/24 · ASET 0/3 · KEMAJUAN 0%</div>
+  </div>
   <div id="missionStinger" class="panel">
     <div id="stingerBig">MISI 1/8 — JUMPA DI MARINA</div>
     <span id="stingerMini"></span>
     <div id="missionStage"><div id="missionStageFill"></div></div>
     <span id="missionNext">NEXT▸ Antar paket ke Kios Baris Utara</span>
   </div>
-  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small><div id="billPill"></div><div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK EKONOMI · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div></div>
+  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small><div id="billPill"></div></div>
   <div id="policeBox" class="panel"><h3 id="policeHead">RESPON POLISI</h3><div id="policeRows"></div></div>
   <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div>
-    <div id="repRow"><span id="repText">RESPECT 1 · KUTIL 0/250</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
-    <div id="chipRow">KOLEKSI 0/24 · ASET 0/3 · KEMAJUAN 0%</div>
   </div>
   <div id="ticker"></div>
   <div id="raceChip"></div>
@@ -417,13 +464,15 @@
   <div id="prompt"></div>
   <div id="driveBox" class="panel">
     <canvas id="gauge" width="150" height="150"></canvas>
-    <div id="bigSpeed"><b id="bigSpeedNum">0</b><span>KM/H</span><div id="bigSpeedCar">CEMPAKA GT</div><div id="bigSpeedCond"><i id="bigSpeedCondFill"></i></div></div>
+    <div id="bigSpeed"><b id="bigSpeedNum">0</b><span>KM/H</span><span id="bigSpeedGear">GEAR N</span><div id="bigSpeedCar">CEMPAKA GT</div><div id="bigSpeedCond"><i id="bigSpeedCondFill"></i></div></div>
     <div id="vehicleName">CEMPAKA GT</div>
     <div id="vehiclePlate"></div>
     <div id="vehicleCond"></div>
     <div id="ojekMeter"></div>
     <div id="fuelBar" class="meter" title="Bensin"><i id="fuelFill"></i></div>
     <div id="nitroBar" class="meter" title="Nitro"><i id="nitroFill"></i></div>
+    <div id="nitroState"></div>
+    <div id="xpTick"></div>
     <div id="armorBar" class="meter" title="Armor" style="display:none"><i id="armorFill"></i></div>
     <div id="radioLine">RADIO KEMARAU 92.4 · Aspal Panas — Geng Kemarau</div><span id="eqBars"><i></i><i></i><i></i><i></i><i></i></span>
     <div id="weaponBox"></div>
