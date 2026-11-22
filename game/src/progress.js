@@ -2,6 +2,7 @@
 // acts, and the completion percentage the pause screen and the dossier
 // show. One source of truth — the HUD, the garage discount, the weapon
 // shop and the bribe all read from here, never from their own copies.
+import { MISSIONS } from './missions.js';
 //
 // Ladder (supplement wins): KUTIL -> BOS KECIL -> RAJA JALANAN ->
 // LEGENDA BENTARA. Thresholds 0 / 250 / 1000 / 2500 REP.
@@ -61,11 +62,39 @@ export function unlocksAtLevel(level) {
 
 // The eight missions, presented as three named acts. The mission logic
 // itself is untouched — this only names the act a mission index sits in.
+// Recording 15 — CHAPTERS: each act is a NAMED chapter with named
+// stages (its mission titles), the "CH 3 · PAPER MOON" shape HALCYON
+// shows. The chapter card on the map screen and the stinger read from
+// here, never from a staged string: the name, the stage list and the
+// done/in-progress state all come from the live mission index.
 export const ACT_NAMES = {
   1: 'BABAK 1 — KENALAN',
   2: 'BABAK 2 — NAIK DAUN',
   3: 'BABAK 3 — MUSIM KERING',
 };
+
+// The chapter's story name — the evocative title the chapter card
+// leads with, distinct from the act label above.
+export const CHAPTER_NAMES = {
+  1: 'KENALAN DI MARINA',
+  2: 'PLAZA MENARA',
+  3: 'PANAS TERAKHIR',
+};
+
+export function chapterForMission(index) {
+  return actForMission(index);
+}
+
+export function chapterName(index) {
+  const a = actForMission(index);
+  return `BABAK ${a} · ${CHAPTER_NAMES[a]}`;
+}
+
+// Named stages of a chapter: the mission titles of that act, in order
+// — the stages the chapter card lists, from the real mission data.
+export function chapterStages(act) {
+  return MISSIONS.filter((m, i) => actForMission(i) === act).map((m) => m.title);
+}
 
 export function actForMission(index) {
   if (index < 3) return 1;

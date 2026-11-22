@@ -13,16 +13,14 @@ export const CITY = {
   half: 194,
 };
 
-// Golden-hour sun: from the west (high x), ~17° up (Recording 14:
- // take 2: at ~12° the disc sat in the pale horizon band and washed
- // into the haze — a touch higher puts it against the deeper sky
- // while the shadows stay long). Azimuth ~15° north of due east:
- // the disc sits DOWN THE AVENUE the cover chase runs, in the clear
- // sky gap between the flanking buildings — at 33° it sat over the
- // north roofline and the disc never showed. Far enough south (high
- // z) that the disc clears the mission stinger at the top of the
- // cover frame.
-export const SUN = { x: 230, y: 72, z: 60 };
+// Golden-hour sun: from the west (high x), ~15° up (Recording 15:
+// at ~13° the 16° disc sat behind the skyline — a touch higher puts
+// its top half clear of the rooftops while the shadows stay long).
+// Azimuth ~15° north of due east: the disc sits DOWN THE AVENUE the
+// cover chase runs, in the clear sky gap between the flanking
+// buildings. Far enough south (high z) that the disc clears the
+// mission stinger at the top of the cover frame.
+export const SUN = { x: 230, y: 66, z: 60 };
 export const SUN_COLOR = 0xffab5e;
 export const SUN_INTENSITY = 3.4;
 // Pale 4pm sky: bleached horizon, pale blue-grey top — not a red sunset.

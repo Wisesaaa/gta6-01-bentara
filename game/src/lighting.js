@@ -22,17 +22,22 @@ export const SUN_INTENSITY = 3.4;
 // concrete under a pale sky, never apocalyptic red.
 const PRESETS = {
   1: {
-    sun: 0xffb060, sunIntensity: 3.4,
+    sun: 0xff9040, sunIntensity: 3.6,
     hemiSky: 0xffd9a8, hemiGround: 0x8a6a48, hemiIntensity: 1.0,
-    fogColor: 0xe8b98a, fogDensity: 0.0016, exposure: 1.32,
-    skyBottom: 0xffc890, skyMid: 0xf0b878, skyTop: 0x8fa8c0,
+    fogColor: 0xe89a62, fogDensity: 0.0016, exposure: 1.32,
+    // Recording 15 — TRUE sunset grade (advisor: gradients smear to
+    // daylight at 256 px; the disc carries the dusk, the gradient must
+    // back it): warm orange horizon -> deep orange mid -> TEAL top,
+    // the orange-to-teal sky Isla/HALCYON own. Was pale blue top +
+    // pale cream mid — the "flat daylight" read.
+    skyBottom: 0xff8a3d, skyMid: 0xff9a4d, skyTop: 0x4a7a8a,
     lampGlow: 0.4, litOpacity: 0.85,
   },
   2: {
-    sun: 0xffa854, sunIntensity: 3.5,
+    sun: 0xff8a3d, sunIntensity: 3.7,
     hemiSky: 0xffd9a8, hemiGround: 0x8a6a48, hemiIntensity: 1.05,
-    fogColor: 0xeab98a, fogDensity: 0.0014, exposure: 1.34,
-    skyBottom: 0xffcc90, skyMid: 0xf2bc80, skyTop: 0x94a8be,
+    fogColor: 0xea9a62, fogDensity: 0.0014, exposure: 1.34,
+    skyBottom: 0xff7a30, skyMid: 0xff9440, skyTop: 0x3f7080,
     lampGlow: 0.35, litOpacity: 0.8,
   },
   3: {

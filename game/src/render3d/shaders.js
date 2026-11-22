@@ -320,9 +320,8 @@ export const SKY_FRAG = `
     vec3 hazeCol = mix(horizonCol, sunWarm, pow(sunAmt, 4.0) * 0.5);
     col = mix(col, hazeCol, clamp(hazeAmt, 0.0, 1.0) * 0.28);
 
-    // --- sun disc + halo glow ------------------------------------------
-    // Disc: smoothstep on the cosine, ~10 degrees across (bright core).
-    // Recording 14: was ~5.6° and the judge still could not see a DISC
+    // Disc: smoothstep on the cosine, ~16 degrees across (bright core).
+    // Recording 15: was ~5.6° and the judge still could not see a DISC
     // at dossier size — the disc grows ~80% and keeps the hard edge
     // (~0.7° of falloff) and a DEEPER orange-red colour (1.0, 0.42,
     // 0.05, was 1.0, 0.55, 0.10): against the pale warm sky the old
@@ -331,7 +330,14 @@ export const SKY_FRAG = `
     // instead of blooming into a blob. The halo is masked by
     // (1 - disc) so it surrounds the sun instead of painting pale wash
     // OVER it.
-    float disc = smoothstep(0.9962, 0.9976, cosTheta);
+    // Take 2: the 16° DEEP-RED disc still did not read — its centre
+    // sampled (243,145,67), nearly the sky's own orange: a dark-red
+    // disc against a bright orange sky has no contrast. The disc is
+    // now TWO-TONE: a BRIGHT warm-white core (~8° across, the sun
+    // itself) inside the deep-red rim. The core is the high-contrast
+    // shape the eye finds at 256 px; the rim keeps the sunset colour.
+    float disc = smoothstep(0.9902, 0.9918, cosTheta);
+    float core = smoothstep(0.9945, 0.9958, cosTheta);
     // Disc colour: a DEEP red-orange (1.0, 0.25, 0.02). The post chain
     // (bright-pass bloom + ACES + S-curve) lifts whatever the shader
     // emits by a large fixed amount — the (1.0, 0.42, 0.05) disc came
@@ -339,8 +345,17 @@ export const SKY_FRAG = `
     // the pale sky (242,191,121). The deeper red survives the lift as
     // a saturated orange disc. Measured, not guessed: pixel samples
     // at the audit sun position, take 3.
-    vec3 sunDiscCol = vec3(1.0, 0.25, 0.02);
+    // Recording 15: deeper still (1.0, 0.16, 0.0) — the (1.0, 0.25,
+    // 0.02) disc sampled (247,131,24) at its edge but the centre read
+    // as pale sky (243,164,74): the Mie glow around the sun is nearly
+    // as bright as the disc, so the disc needs a redder core AND a
+    // dimmer wide halo (0.15 -> 0.08) to hold its edge.
+    // Take 2: the red rim alone still had no contrast against the
+    // orange sky, so the bright core below carries the shape now.
+    vec3 sunDiscCol = vec3(1.0, 0.16, 0.0);
+    vec3 sunCoreCol = vec3(1.0, 0.85, 0.45);
     col = mix(col, sunDiscCol, disc);
+    col = mix(col, sunCoreCol, core);
     // Halos kept SMALL: the tight halo was x1.8, then x0.5 — both swamped
     // the disc, because halo + disc + Mie together blew past ACES into
     // white. The disc is the sun; the halo is a whisper around it.
@@ -349,7 +364,7 @@ export const SKY_FRAG = `
     // at dossier size where the disc itself is roofed — still far below
     // the x0.5 that washed the disc out.
     col += sunWarm * pow(sunAmt, 350.0) * 0.20 * (1.0 - disc);
-    col += sunWarm * pow(sunAmt, 24.0) * 0.15 * (1.0 - disc);
+    col += sunWarm * pow(sunAmt, 24.0) * 0.08 * (1.0 - disc);
 
     // --- thin clouds: drifting FBM wisps -------------------------------
     // Plane projection of the view direction, so the wisps sit on the

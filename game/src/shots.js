@@ -218,9 +218,13 @@ export function stageShot(name, game, atSeconds) {
     G.player.car.z = -35;
     G.player.car.heading = 0;
     G.player.car.speed = 42;
-    // Three cruisers, so the response list can show a staggered convoy
-    // and one of them can sit in RAMMING range for the MENABRAK pill.
-    G.addHeat(3);
+    // Three cruisers + the HELI, so the response list can show a
+    // staggered convoy and one of them can sit in RAMMING range for
+    // the MENABRAK pill. Recording 15 — heat 4, not 3: the heli only
+    // spawns at heat >= 4, and the drive frame stages it overhead
+    // (spotlight cone + pool on the player, roadblock ahead) — the
+    // advisor's "response chain, not a prop" test.
+    G.addHeat(4);
     // The pursuit corner: the chase runs NORTH up the x=111 arterial for
     // 3.0 s, then turns EAST at the (111,111) intersection for the last
     // 0.5 s — the player is mid-turn when the frame freezes. TWO
@@ -394,6 +398,36 @@ export function stageShot(name, game, atSeconds) {
     // the race is proven by the minimap's gold circle.
     G.hud.hideDialogue();
     G.setShotInput({ active: false });
+    // Recording 15 — the HELI over the drive frame too (heat 4 spawned
+    // it during the sim): 18 m ahead along the heading, 3 m to the
+    // right, 14 m up (~26° elevation — in the bright sky strip ABOVE
+    // the race chip, below the frame top, clear of the corner tower
+    // that hid the first take), nose on the player, spotlight cone +
+    // ground pool on the hero car, 40% bigger for the frame. With the
+    // roadblock staged 46 m ahead, the frame shows the response chain
+    // the advisor asked for: heli + cone + cruisers + roadblock in
+    // one shot.
+    const driveHeli = G.police.heli;
+    if (driveHeli) {
+      const dh = G.player.heading;
+      const fx = Math.sin(dh);
+      const fz = Math.cos(dh);
+      const rx = Math.cos(dh);
+      const rz = -Math.sin(dh);
+      driveHeli.group.position.set(
+        G.player.x + fx * 18 + rx * -2, 14, G.player.z + fz * 18 + rz * -2,
+      );
+      driveHeli.group.scale.setScalar(1.4);
+      driveHeli.group.lookAt(G.player.x, 0, G.player.z);
+      driveHeli.spotX = G.player.x;
+      driveHeli.spotZ = G.player.z;
+      driveHeli.pool.position.set(G.player.x, 0.08, G.player.z);
+      driveHeli.spot.position.set(
+        (driveHeli.spotX - driveHeli.group.position.x) * 0.35,
+        -11,
+        (driveHeli.spotZ - driveHeli.group.position.z) * 0.35 + 1.6,
+      );
+    }
     if (G.ojek.state !== 'idle') G.ojek.moveBike(125, 105);
     const dh2 = G.player.heading;
     const cam = G.view.camera;
@@ -705,9 +739,17 @@ export function stageShot(name, game, atSeconds) {
     // put it inside the north slab.) From the hero camera it sits ~9°
     // right of the view axis, ~24° up; the sun disc sits ~16° right of
     // the axis, ~11° up — separated, both in the upper third.
+    // Recording 15 — CLOSER and LOWER (+18/+13/+10, ~30° up from the
+    // lens): the R14 heli read small at dossier size, and the bigger
+    // sun disc (16° across now) needs the heli clearly separated from
+    // it — and IN THE SKY GAP (a touch further south, +10, so the dark
+    // body sits against bright orange sky, not the dark tower). 40%
+    // bigger for the frame (same staging class as the foot cops'
+    // 1.4x) so the body + rotor read as a helicopter at 256 px.
     const heli = G.police.heli;
     if (heli) {
-      heli.group.position.set(G.player.x + 22, 15, G.player.z + 9);
+      heli.group.position.set(G.player.x + 18, 13, G.player.z + 10);
+      heli.group.scale.setScalar(1.4);
       heli.group.lookAt(G.player.x, 0, G.player.z);
       heli.spotX = G.player.x;
       heli.spotZ = G.player.z;
@@ -797,20 +839,11 @@ export function stageShot(name, game, atSeconds) {
     for (let k = 1; k <= 4; k += 1) {
       G.effects.smoke(hx - Math.sin(hh) * 2.2 * k, hz - Math.cos(hh) * 2.2 * k, true);
     }
-    // World-space label: the near-miss payout, re-shown at the REAL 3D
-    // anchor where the sim paid it (recorded by the wrapper above) —
-    // the economy feedback lives IN the world as well as in the centre
-    // popup (Recording 14 un-hid centreFx in this profile). The amount
-    // is the real payout ($250), never the study's example. The drift
-    // gets NO world label: the centre popup already carries the real
-    // drift payout big, and the label's anchor (the smoke trail behind
-    // the mid-drift car, whose heading is rotated ~50° at the freeze)
-    // projects off the left edge of the frame — a label the judge
-    // cannot see is clutter, not proof. If the near-miss never fired,
-    // no label appears — the shoot script reports it.
-    for (const n of nmPayouts) {
-      G.hud.popups.worldLabel('NYARIS!', `+$${n.amount}`, new THREE.Vector3(n.x, 1.2, n.z), cam, 60);
-    }
+    // Recording 15 — NO world-space label for the near-miss anymore:
+    // the structured feedback strip already carries the real payout
+    // (NEAR MISS · NYARIS! +$250), and the floating label over the
+    // road was the last floating text in the cover (coordinator:
+    // strip-only). The re-shown centre popup above feeds the strip.
     // Speed lines + steer roll: the chase is at 108 km/h mid-drift, so
     // the frame carries the speed streaks (world.js setSpeed).
     G.view.setSpeed(G.player.speedKmh, G.player.steer || 0);
@@ -965,6 +998,24 @@ export function stageShot(name, game, atSeconds) {
     // and track (the first take claimed IDOL +$60 while the item
     // actually collected was a TAPE +$25).
     const stagedItem = stageCollectible(G, 40, 90, 'tape');
+    // Recording 15 — an AMMO CRATE on the player's walking line at
+    // (40,99): he walks over it ~1.7 s into the sim, so the pickup is
+    // real — +12 shells into the live reserve, the foot strip's
+    // SHOTGUN count rises 6/24 -> 6/36, and the crate vanishes. The
+    // crate itself (olive box, gold stripe, gold ring) sits in frame
+    // ahead of him until he reaches it.
+    const stagedCrate = G.collectibles.stageAmmoCrate(40, 99);
+    // Record the real ammo payout, same wrapper pattern as the tape:
+    // the live popup's 2.6 s lifetime expires during the sim, so the
+    // re-show below carries the REAL recorded amount with a 60 s
+    // lifetime for the slow capture. If the sim pays nothing, nothing
+    // is re-shown.
+    const ammoPayouts = [];
+    const origAmmo = G.hud.popups.ammo.bind(G.hud.popups);
+    G.hud.popups.ammo = (shells, seconds) => {
+      ammoPayouts.push({ shells });
+      return origAmmo(shells, seconds);
+    };
     // No shots during the sim: the player's sim fire hit a parked car in
     // the first take (an SMG drop + a collect popup the frame never meant
     // to show). The firefight is staged after the sim — frozen tracers,
@@ -1074,7 +1125,7 @@ export function stageShot(name, game, atSeconds) {
     // against its base, so the left third of the frame is market, not a
     // flat brown slab. Picked by kind (not by order) and never one of
     // the six market props above.
-    for (const [kind, wx, wz] of [['warung', 28, 88], ['stall', 29, 96]]) {
+    for (const [kind, wx, wz] of [['warung', 28, 88], ['stall', 20, 94]]) {
       const prop = G.props.props.find((pp) => !pp.broken && pp.kind === kind && !usedProps.has(pp));
       if (!prop) continue;
       prop.x = wx;
@@ -1194,6 +1245,12 @@ export function stageShot(name, game, atSeconds) {
       : 25;
     G.hud.popups.clear();
     G.hud.popups.collect(itemValue, stagedItem ? stagedItem.kind : 'tape', 60, stagedItem ? stagedItem.track : null);
+    // Recording 15 — re-show the ammo-crate pickup the walk really
+    // earned (same real amount, 60 s lifetime). The crate is already
+    // taken, so this is the receipt, not a second payout.
+    for (const a of ammoPayouts) {
+      origAmmo(a.shells, 60);
+    }
     G.setShotInput({ active: false });
     // Foot camera (ronde 2): the LIVE followFoot (4.2 m back, 2.4 m up)
     // put the lens 4 m from the 8 m Warung Sari sign — the sign spanned

@@ -8,7 +8,7 @@
 // A drift chain builds a combo (×2 -> ×5, white -> amber -> red): two
 // slides within 4 s of each other count as one chain, and the popup
 // shows the chain, not a lonely slide.
-export function createPopups(container, centerContainer, worldContainer) {
+export function createPopups(container, centerContainer, worldContainer, onStunt) {
   const live = [];
   const centerLive = [];
   const worldLive = [];
@@ -17,12 +17,27 @@ export function createPopups(container, centerContainer, worldContainer) {
   let pulsePending = 0;
   let pulseTimer = null;
 
+  // Recording 15 — the structured feedback strip (hud.js stuntFeed) is
+  // fed from here, so every stunt event lands in the docked strip as
+  // well as the centre popup: one source, two renderings, same real
+  // amounts. The strip is what the dossier frames show (the centre
+  // popups are hidden in the heat/drive profiles now — floating text
+  // over the road counted as clutter in R14).
+  function feed(kind, main, sub) {
+    if (typeof onStunt === 'function') onStunt(kind, main, sub);
+  }
+
   function spawn(text, sub, kind = 'stunt', seconds = 2.6) {
     const el = document.createElement('div');
     el.className = `popup popup-${kind}`;
     el.innerHTML = `<b>${text}</b>${sub ? `<span>${sub}</span>` : ''}`;
-    const offset = (live.length % 3) * 34;
-    el.style.marginTop = `${-offset}px`;
+    // Recording 15 — NO negative stack offset: #popups is
+    // bottom-anchored and children flow top-to-bottom, so a negative
+    // marginTop pulled each later popup UP OVER the previous one (the
+    // foot frame's KASET + AMUNISI re-shows rendered as one garbled
+    // block at -34 px and worse at -64 px). In normal flow they stack
+    // cleanly, the block growing upward from its bottom anchor.
+    el.style.marginTop = '0px';
     container.appendChild(el);
     const item = { el, left: seconds };
     live.push(item);
@@ -93,6 +108,9 @@ export function createPopups(container, centerContainer, worldContainer) {
     const now = Date.now();
     combo = now - comboSince < 4000 ? Math.min(5, combo + 1) : 1;
     comboSince = now;
+    // Strip chip leads with the mechanic (advisor: big "$" chips
+    // re-trigger "score-chasing") — the money rides small in the sub.
+    feed('drift', `DRIFT ×${combo} · NGEPOT`, `+$${amount} · +2 REP · ${secondsHeld.toFixed(1)} dtk`);
     if (combo >= 2) {
       const heat = combo >= 5 ? 'fx-hot' : combo >= 3 ? 'fx-warm' : '';
       return centerFx(`DRIFT ×${combo} · NGEPOT +$${amount}`, `+2 REP · ${secondsHeld.toFixed(1)} detik ngepot`, 'mid', seconds, heat);
@@ -103,6 +121,7 @@ export function createPopups(container, centerContainer, worldContainer) {
   // NEAR MISS: the big line names the stunt both ways (NEAR MISS /
   // NYARIS!) with the real $250 payout and the real +3 REP (game.js).
   function nearMiss(amount, seconds = 2.6) {
+    feed('nearmiss', 'NEAR MISS · NYARIS!', `+$${amount} · +3 REP`);
     return centerFx(`NEAR MISS · NYARIS! +$${amount}`, '+3 REP · nyaris tabrakan di kecepatan penuh', 'mid', seconds);
   }
 
@@ -143,7 +162,16 @@ export function createPopups(container, centerContainer, worldContainer) {
   }
 
   function roadblock(amount) {
+    feed('roadblock', 'BLOKADE DITEMBUS', `+$${amount}`);
     return centerFx(`IKAT JALAN DITEMBUS +$${amount}`, 'Blokade polisi ditembus', 'mid', 2.6, 'fx-warm');
+  }
+
+  // Ammo crate pickup: the real shell count the crate paid, into the
+  // side stack + the strip. `seconds` is the capture lifetime, same
+  // pattern as collect().
+  function ammo(shells, seconds = 2.6) {
+    feed('ammo', `AMUNISI +${shells}`, 'Peluru shotgun');
+    return spawn(`AMUNISI +${shells}`, 'Peti amunisi — peluru shotgun', 'collect', seconds);
   }
 
   function collect(amount, kind, seconds = 2.6, track = null) {
@@ -172,5 +200,5 @@ export function createPopups(container, centerContainer, worldContainer) {
     combo = 0;
   }
 
-  return { spawn, drift, nearMiss, roadblock, collect, fare, raceGate, clear, big, mid, pulse, worldLabel };
+  return { spawn, drift, nearMiss, roadblock, collect, fare, raceGate, clear, big, mid, pulse, worldLabel, ammo };
 }

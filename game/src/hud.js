@@ -21,7 +21,7 @@ import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS, RACE } from './config.js';
 import { MISSIONS } from './missions.js';
 import { drawPortrait } from './dialogue.js';
 import { createPopups } from './popups.js';
-import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress, completionPercent } from './progress.js';
+import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress, completionPercent, chapterName, chapterStages, CHAPTER_NAMES } from './progress.js';
 import { economySnapshot, completionSnapshot } from './economy.js';
 
 export { repLevel, repTitle };
@@ -86,6 +86,7 @@ export function createHud() {
     dialogue: $('dialogue'), dialogueLine: $('dialogueLine'), portraitCanvas: $('portraitCanvas'),
     dialogueName: $('dialogueName'), dialogueRole: $('dialogueRole'),
     toast: $('toast'), prompt: $('prompt'), popups: $('popups'), centerFx: $('centerFx'),
+    feedbackStrip: $('feedbackStrip'),
     ticker: $('ticker'), raceChip: $('raceChip'),
     gauge: $('gauge'), vehicleName: $('vehicleName'), vehiclePlate: $('vehiclePlate'),
     vehicleCond: $('vehicleCond'), ojekMeter: $('ojekMeter'),
@@ -111,7 +112,40 @@ export function createHud() {
   };
   const mapCtx = els.minimap.getContext('2d');
   const gaugeCtx = els.gauge.getContext('2d');
-  const popups = createPopups(els.popups, els.centerFx, els.worldLabels);
+  // Recording 15 — the structured feedback strip: popups feed it via
+  // onStunt, so the strip shows the same real events as the centre
+  // popups, docked in chips instead of floating over the road.
+  const feedItems = [];
+  function stuntFeed(kind, main, sub) {
+    const now = performance.now();
+    const existing = feedItems.find((f) => f.kind === kind);
+    if (existing) {
+      existing.main = main;
+      existing.sub = sub;
+      existing.at = now;
+      existing.pulse = now;
+    } else {
+      feedItems.push({ kind, main, sub, at: now, pulse: now });
+    }
+    renderFeedStrip();
+  }
+  function renderFeedStrip() {
+    if (!els.feedbackStrip) return;
+    const now = performance.now();
+    for (let i = feedItems.length - 1; i >= 0; i -= 1) {
+      if (now - feedItems[i].at >= 10000) feedItems.splice(i, 1);
+    }
+    const live = feedItems.filter((f) => now - f.at < 10000);
+    // The nitro chip is live state, rendered by update() every frame —
+    // it is not an event, so it never lives in feedItems.
+    const chips = live.map((f) => {
+      const fresh = now - f.pulse < 900 ? ' fresh' : '';
+      return `<span class="fchip fchip-${f.kind}${fresh}"><b>${f.main}</b>${f.sub ? `<em>${f.sub}</em>` : ''}</span>`;
+    }).join('');
+    const nitro = els.feedbackStrip.dataset.nitro || '';
+    els.feedbackStrip.innerHTML = chips + nitro;
+  }
+  const popups = createPopups(els.popups, els.centerFx, els.worldLabels, stuntFeed);
   let billTimer = 0;
   let toastTimer = 0;
   let xpTickTimer = 0;
@@ -411,7 +445,7 @@ export function createHud() {
     }
     els.stingerMini.textContent = G.missions.done
       ? 'BENTARA MILIKMU'
-      : `${G.missions.objectiveText()} · ${missionDistance(G)} m`;
+      : `${chapterName(G.missions.index)} — ${G.missions.objectiveText()} · ${missionDistance(G)} m`;
     // Race chip: only while a checkpoint race is running — gate count +
     // live timer + par + the payout on line one, and the KLASEMEN
     // standings board on line two (top-3 lap times, best first, from
@@ -567,6 +601,21 @@ export function createHud() {
       els.nitroBar.style.display = 'block';
       els.nitroFill.style.width = `${Math.round((P.car.boost || 0) * 100)}%`;
       els.nitroBar.classList.toggle('locked', !(P.car.turboLevel > 0));
+      // Recording 15 — the nitro chip in the structured feedback
+      // strip: live state every frame (READY / AKTIF / refilling % /
+      // the REP 2 gate), so the strip's third chip is never a staged
+      // number. Re-rendered only when the text changes.
+      if (els.feedbackStrip) {
+        const boost = P.car.boost || 0;
+        const nitroText = !(P.car.turboLevel > 0)
+          ? 'NITRO 🔒 REP 2'
+          : P.car.boosting ? '⚡ NITRO AKTIF' : boost >= 0.99 ? 'NITRO READY' : `NITRO ${Math.round(boost * 100)}%`;
+        const nitroHtml = `<span class="fchip fchip-nitro${P.car.boosting ? ' fresh' : ''}"><b>${nitroText}</b><em>SHIFT = NOS</em></span>`;
+        if (els.feedbackStrip.dataset.nitro !== nitroHtml) {
+          els.feedbackStrip.dataset.nitro = nitroHtml;
+          renderFeedStrip();
+        }
+      }
       // NITRO state line, from the live boost meter + turbo fit: READY
       // at a full meter, AKTIF while Shift is burning it, a live %
       // while it refills, and the real REP 2 gate when no turbo is
@@ -882,17 +931,30 @@ export function createHud() {
     // Chapter list: the 3 acts with their mission ranges, from the real
     // mission data — done / in progress / locked. The map screen is the
     // completion screen, so the whole journey reads at a glance.
+    // Recording 15 — DESIGNED CHAPTER CARD, not a table: the current
+    // (or final) chapter leads BIG — "BABAK 3 · PANAS TERAKHIR" with
+    // its NAMED stages and stage progress — then the three chapter
+    // rows underneath. The stage names are the real mission titles;
+    // the progress is the live mission index, never a staged label.
+    // (Advisor Q1: this card moves criterion 2 DEPTH most — it must
+    // sit mid-mission with corroborating evidence in the same shot,
+    // so the story frame's save is the near-complete one.)
     if (els.mapChapters) {
       const doneIdx = G.missions.done ? 8 : G.missions.index;
+      const curAct = G.missions.done ? 3 : actForMission(G.missions.index);
+      const curStages = chapterStages(curAct);
+      const curDone = [0, 1, 2, 3, 4, 5, 6, 7]
+        .filter((i) => actForMission(i) === curAct && i < doneIdx).length;
+      const stageList = curStages.map((t, k) => (k < curDone ? `✓ ${t}` : k === curDone && !G.missions.done ? `▶ ${t}` : `· ${t}`)).join(' → ');
       const chapterHtml = [1, 2, 3].map((a) => {
         const idxs = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => actForMission(i) === a);
-        const first = idxs[0] + 1;
-        const last = idxs[idxs.length - 1] + 1;
         const doneCount = idxs.filter((i) => i < doneIdx).length;
-        const state = doneCount === idxs.length ? 'SELESAI' : doneCount > 0 ? 'BERJALAN' : 'TERKUNCI';
-        return `<div class="row"><span>${actNameForMission(idxs[0])} · MISI ${first}–${last}</span><span>${doneCount}/${idxs.length} · ${state}</span></div>`;
+        const state = doneCount === idxs.length ? '✓ SELESAI' : doneCount > 0 ? '▶ BERJALAN' : '🔒 TERKUNCI';
+        return `<div class="row"><span>BABAK ${a} · ${CHAPTER_NAMES[a]}</span><span>${doneCount}/${idxs.length} ${state}</span></div>`;
       }).join('');
-      els.mapChapters.innerHTML = `<div class="row head"><span>BABAK</span><span>STATUS</span></div>${chapterHtml}`;
+      els.mapChapters.innerHTML = `<div class="chapterCard"><div class="chapterBig">BABAK ${curAct} · ${CHAPTER_NAMES[curAct]}</div>`
+        + `<div class="chapterStages">TAHAP ${curDone}/${curStages.length} · ${stageList}</div></div>`
+        + `<div class="row head"><span>BABAK</span><span>STATUS</span></div>${chapterHtml}`;
     }
     const info = drawMap(els.mapCanvas, G);
     els.mapScreen.classList.add('show');

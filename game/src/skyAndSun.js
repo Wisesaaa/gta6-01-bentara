@@ -33,8 +33,8 @@ import * as THREE from 'three';
 import { SKY_VERT as VERT, SKY_FRAG as FRAG } from './render3d/shaders.js';
 
 // Default sun direction matches the lighting rig's SUN vector
-// (230, 72, 60) normalised — low, ~15° north of due east, ~17° elevation, r14.
-const DEFAULT_SUN_DIR = new THREE.Vector3(230, 72, 60).normalize();
+// (230, 66, 60) normalised — low, ~15° north of due east, ~15° elevation, r15.
+const DEFAULT_SUN_DIR = new THREE.Vector3(230, 66, 60).normalize();
 
 export function createSkyAndSun(scene, opts = {}) {
   const sunDir = opts.sunDirection
@@ -54,10 +54,10 @@ export function createSkyAndSun(scene, opts = {}) {
       uHaze: { value: opts.haze !== undefined ? opts.haze : 0.38 },
       // Defaults match the Act 1 grade (lighting.js PRESETS[1]) so the
       // first frame already carries the warm sunset grade.
-      uTopColor: { value: new THREE.Color(0x8fa8c0) },
-      uMidColor: { value: new THREE.Color(0xf0b878) },
-      uBottomColor: { value: new THREE.Color(0xffc890) },
-      uSunColor: { value: new THREE.Color(0xffb060) },
+      uTopColor: { value: new THREE.Color(0x4a7a8a) },
+      uMidColor: { value: new THREE.Color(0xff9a4d) },
+      uBottomColor: { value: new THREE.Color(0xff8a3d) },
+      uSunColor: { value: new THREE.Color(0xff9040) },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,

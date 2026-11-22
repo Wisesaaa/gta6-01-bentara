@@ -227,6 +227,14 @@ export function createGame(canvas, seed = 7) {
       fireFeedback('small', player.x, player.z);
       if (collectibles.collected % 6 === 0) hud.toast(`Koleksi ${collectibles.collected}/${collectibles.total} — kota ini menyimpan banyak rahasia.`, 4);
     },
+    // Recording 15 — ammo crate: the shells go into the LIVE reserve
+    // (the wheel/strip counts rise), the popup + strip chip name the
+    // real amount, and the crate is gone for good.
+    onAmmo: (crate, shells) => {
+      player.shells += shells;
+      hud.popups.ammo(shells);
+      audio.collect();
+    },
   });
   const taxi = createTaxi(view.scene, city, rng, {
     onPassenger: (p) => { hud.toast(`Taksi: ${p.name} menunggu di ${loc(p.stand).label} — jemput kalau sempat.`, 4); },
