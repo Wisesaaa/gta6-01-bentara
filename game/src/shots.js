@@ -176,6 +176,28 @@ function stageTaxi(game, standKey, x, z) {
   return p;
 }
 
+// Recording 18 — run the new side activities for real, through the
+// modules' own update/press path (the shot script only supplies the
+// timing a player would): one full karaoke session (12 beats, pressed on
+// each beat) and two fishing catches (bite forced by the QA/shot hook,
+// pressed inside the strike window). The save's stats then carry the
+// activities line the story frame's results meta shows.
+function runSideSessions(G) {
+  G.karaoke.start();
+  for (let i = 0; i < 800 && G.karaoke.active; i += 1) {
+    G.karaoke.update(STEP);
+    if (G.karaoke.active && G.karaoke.timeToBeat() <= STEP) G.karaoke.press();
+  }
+  for (let n = 0; n < 2; n += 1) {
+    G.fishing.start();
+    G.fishing.forceBite();
+    for (let i = 0; i < 120 && G.fishing.active; i += 1) {
+      G.fishing.update(STEP);
+      if (G.fishing.phase === 'strike') { G.fishing.press(); break; }
+    }
+  }
+}
+
 export function stageShot(name, game, atSeconds) {
   const spec = SHOTS[name] ?? SHOTS.drive;
   const seconds = typeof atSeconds === 'number' && atSeconds > 0 ? atSeconds : spec.at;
@@ -665,12 +687,15 @@ export function stageShot(name, game, atSeconds) {
       p.fleeTimer = 0;
     });
     // New systems in frame, staged ahead of the player's end position
-    // (x ≈ 90 after the chase): a taxi passenger waiting on the north
-    // sidewalk and a gold WAYANG idol on the south one — both live, both
-    // collectible / hailable, neither in the driving line. The idol is
-    // the named collectible the HUD lockup counts (WAYANG n/m).
+    // (x ≈ 60 after the chase): a taxi passenger waiting on the north
+    // sidewalk and a gold WAYANG idol ON the chase line at (48, 110.2)
+    // — 0.8 m off the z=111 lane, inside the 2.6 m pickup radius, so the
+    // hero car really collects it mid-chase: the popup pays, the HUD
+    // lockup's WAYANG counter rises 0/6 -> 1/6 in the cover itself.
+    // (At (92,100) the idol sat 11 m off the driving line and was never
+    // collected — the cover's WAYANG stayed 0/6 in R13–R17.)
     stageTaxi(G, 'industrialYard', 96, 122);
-    stageCollectible(G, 92, 100, 'idol');
+    stageCollectible(G, 48, 110.2, 'idol');
     G.hud.toast('', 0.01);
     // Record the real payouts: wrap the drift + near-miss popups so the
     // world labels below can show the REAL amounts at the REAL 3D
@@ -825,6 +850,12 @@ export function stageShot(name, game, atSeconds) {
     for (const n of nmPayouts) {
       origNearMiss(n.amount, 60);
     }
+    // Recording 18 — NO re-show of the WAYANG popup here: the docked
+    // popup's sub-line lands under the big speed readout (the 107 covers
+    // "Wayang emas Bentara") — overlap clutter in the busiest frame, the
+    // exact criterion-3 failure. The cover's WAYANG proof is the KOLEKSI
+    // lockup now reading 1/6 (the idol was really collected mid-chase);
+    // the foot frame shows the WAYANG popup cleanly.
     // The mission stinger, held for the capture too. The second line is
     // the NEXT mission (the study's cover banner: "MISI 3/8 — RAMPOKAN
     // KECIL · NEXT: Paket Ruko — temui Sari"), not the district.
@@ -1009,6 +1040,12 @@ export function stageShot(name, game, atSeconds) {
     // lockup's WAYANG counter rises — the named collectible the judge
     // reads, not a tape.
     const stagedItem = stageCollectible(G, 40, 90, 'idol');
+    // Recording 18 — a KASET tape on the same walking line at (40,93),
+    // collected ~1 s into the walk: the tape's popup names the real radio
+    // track it carries ("KASET +$25 · Kaset: Senja Jingga — Warung
+    // Senja"), so KASET finally has its own moment instead of living
+    // only inside the lockup line. Both pickups are real.
+    const stagedTape = stageCollectible(G, 40, 93, 'tape');
     // Recording 15 — an AMMO CRATE on the player's walking line at
     // (40,99): he walks over it ~1.7 s into the sim, so the pickup is
     // real — +12 shells into the live reserve, the foot strip's
@@ -1256,11 +1293,31 @@ export function stageShot(name, game, atSeconds) {
       : 25;
     G.hud.popups.clear();
     G.hud.popups.collect(itemValue, stagedItem ? stagedItem.kind : 'tape', 60, stagedItem ? stagedItem.track : null);
+    // Recording 18 — re-show the KASET tape the walk really earned too
+    // (same real track name, 60 s lifetime): two docked popups, WAYANG
+    // + KASET, each naming its own thing. Cap is 3, so the ammo receipt
+    // below still fits.
+    if (stagedTape && stagedTape.taken) {
+      G.hud.popups.collect(COLLECTIBLES.tapeValue, 'tape', 60, stagedTape.track);
+    }
     // Recording 15 — re-show the ammo-crate pickup the walk really
     // earned (same real amount, 60 s lifetime). The crate is already
     // taken, so this is the receipt, not a second payout.
     for (const a of ammoPayouts) {
       origAmmo(a.shells, 60);
+    }
+    // Recording 18 — KARAOKE, mid-session at the freeze: start a real
+    // session at the karaoke corner (44,100 — ahead-right of the player)
+    // and drive it through the module's own update/press path for ~6
+    // beats, pressing on each beat. The session stays ACTIVE at the
+    // freeze, so the panel reads live: beat dots half-filled, score and
+    // combo from real PERFECT hits, the beat bar mid-fill. The player
+    // stands still while singing (the session freezes movement, like a
+    // shop) — his re-staged spot holds.
+    G.karaoke.start();
+    for (let i = 0; i < 220 && G.karaoke.active; i += 1) {
+      G.karaoke.update(STEP);
+      if (G.karaoke.active && G.karaoke.timeToBeat() <= STEP) G.karaoke.press();
     }
     G.setShotInput({ active: false });
     // Foot camera (ronde 2): the LIVE followFoot (4.2 m back, 2.4 m up)
@@ -1562,6 +1619,11 @@ export function stageShot(name, game, atSeconds) {
     // the live save.
     G.audio.setRadio(true);
     const m8 = MISSIONS[7];
+    // Recording 18 — the near-complete save has really DONE the new side
+    // activities (one karaoke session + two fishing catches, run through
+    // the modules just above), so the map stats + results meta carry the
+    // AKTIVITAS line with real counts.
+    runSideSessions(G);
     G.hud.showMapScreen(G, { hasil: m8.reward, tagihan: 0, bersih: m8.reward, rep: m8.rep });
     // Recording 16 — frame 4 is the RACE RESULTS screen: the standings
     // from the real race just run (WIRA + BAYU/RANI/JOKO, measured

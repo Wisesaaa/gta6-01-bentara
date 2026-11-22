@@ -31,7 +31,7 @@
   /* Recording 16 — the day/time lockup: HARI + clock + time-of-day word
      (PAGI/SIANG/SORE/SENJA/MALAM) in 20 px bold gold, top-right in the
      cash box. The word matches the light: SENJA at the sunset grade. */
-  #clockText { font-size: 22px !important; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
+  #clockText { font-size: 24px !important; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
   /* Recording 16 — RACE RESULTS overlay: the full readable results
      screen shown after a real race finishes — standings table with
      positions, names, times and gaps, the player's row highlighted in
@@ -133,8 +133,13 @@
   #cashText { color: var(--green); }
   #starsBox { font-size: 24px; letter-spacing: 4px; color: var(--gold); }
   #starsBox .off { color: rgba(255,255,255,.35); }
-  #seenFlash { font-size: 12px; letter-spacing: 1px; color: #ff6a5a; font-weight: 700; display: none; animation: blink 0.7s steps(2) infinite; }
+  #seenFlash { font-size: 16px; letter-spacing: 1px; color: #ff6a5a; font-weight: 800; display: none; animation: blink 0.7s steps(2) infinite; }
   #seenFlash.lost { color: #ffb14d; animation: none; }
+  /* Recording 18 — the search-zone detection bar under the chip: the
+     fill is the time LEFT in the zone (full = just lost them, empty =
+     the next star drops). One bar, no extra panel. */
+  #zoneBar { display: none; height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  #zoneBarFill { height: 100%; width: 100%; background: #ffb14d; }
   @keyframes blink { 50% { opacity: 0.25; } }
   #billPill { display: none; font-size: var(--fs-small); font-weight: 700; color: #ff9d5c; margin-top: 4px; }
   /* LEFT-MID police response list, max ~140px tall. Recording 17 — top
@@ -277,9 +282,10 @@
      card owns the top-centre, so top-left is the only clear corner. */
   /* r11: the cover dialogue sits BOTTOM-CENTRE (the study's 5th cover
      element) as a compact strip under the hero car — not top-left. */
-  body.cover-shot #dialogue { width: 440px; top: auto; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 6px 10px; }
+  body.cover-shot #dialogue { width: 560px; top: auto; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 8px 12px; }
   body.cover-shot #portraitCanvas { width: 48px; height: 48px; }
-  body.cover-shot #dialogueLine { font-size: 12px !important; }
+  body.cover-shot #dialogueName { font-size: 15px !important; }
+  body.cover-shot #dialogueLine { font-size: 16px !important; }
   /* Character portrait + dialogue, bottom-centre, 24px safe margins.
      Narrowed to 560 px so the (now compact) bottom-right cluster can
      never reach its right end — r3 cut Aska's line there. */
@@ -289,6 +295,19 @@
   #dialogueName { display: inline-block; font-size: 13px; color: var(--gold); letter-spacing: 1px; font-weight: 700; }
   #dialogueRole { display: inline-block; font-size: 10px; letter-spacing: 1px; background: #1f6b74; color: #fff; border-radius: 8px; padding: 1px 7px; margin-left: 6px; vertical-align: 1px; }
   #dialogueLine { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; font-style: italic; overflow-wrap: break-word; line-height: 1.35; }
+  /* Recording 18 — KARAOKE + MEMANCING panels: bottom-centre above the
+     dialogue line, gold-bordered, one big line each. The beat dots are
+     the rhythm read at a glance; the beat bar fills toward each beat. */
+  #karaokeBox { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 520px; max-width: calc(100vw - 48px); box-sizing: border-box; display: none; text-align: center; border-color: #ff2e88; }
+  #karaokeBox.perfect { border-color: var(--gold); box-shadow: 0 0 16px rgba(255,215,94,.5); }
+  #karaokeTitle { font-size: 16px; font-weight: 800; letter-spacing: 2px; color: #ff7ab8; }
+  #karaokeDots { font-size: 20px; letter-spacing: 4px; color: var(--gold); line-height: 1.4; }
+  #karaokeScore { font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+  #karaokeBeatWrap { height: 8px; background: rgba(255,255,255,.25); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  #karaokeBeatBar { height: 100%; width: 0%; background: #ff2e88; }
+  #fishingBox { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 520px; max-width: calc(100vw - 48px); box-sizing: border-box; display: none; text-align: center; border-color: #2fbf71; }
+  #fishingBox.strike { border-color: #ff3b2e; box-shadow: 0 0 16px rgba(255,59,46,.6); animation: blink 0.5s steps(2) infinite; }
+  #fishingText { font-size: 18px; font-weight: 800; letter-spacing: 1px; }
   #toast { position: absolute; bottom: 168px; left: 50%; transform: translateX(-50%); font-size: 17px; font-style: italic; width: max-content; max-width: 920px; padding: 0 12px; box-sizing: border-box; text-align: center; }
   /* Race chip: shown only while a checkpoint race is running (gate
      count + live timer), tucked under the mission stinger. Two lines:
@@ -389,7 +408,7 @@
      + state show in the driving strip. */
   body[data-hud="heat"] #actChip, body[data-hud="heat"] #actPips,
   body[data-hud="heat"] #billPill,
-  body[data-hud="heat"] #seenFlash,
+  body[data-hud="heat"] #seenFlash, body[data-hud="heat"] #zoneBar,
   body[data-hud="heat"] #raceChip,
   body[data-hud="heat"] #ledgerCard, body[data-hud="heat"] #toast,
   body[data-hud="heat"] #prompt,
@@ -468,7 +487,7 @@
      showed). */
   body[data-hud="foot"] #actChip, body[data-hud="foot"] #actPips,
   body[data-hud="foot"] #billPill,
-  body[data-hud="foot"] #seenFlash, body[data-hud="foot"] #rankChip,
+  body[data-hud="foot"] #rankChip,
   body[data-hud="foot"] #completionCard, body[data-hud="foot"] #policeBox,
   body[data-hud="foot"] #ticker,
   body[data-hud="foot"] #raceChip, body[data-hud="foot"] #centerFx,
@@ -578,7 +597,7 @@
     <span id="missionNext">NEXT▸ Antar paket ke Kios Baris Utara</span>
   </div>
   <div id="dayPill"><span id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</span></div>
-  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><div id="billPill"></div></div>
+  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="zoneBar"><div id="zoneBarFill"></div></div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><div id="billPill"></div></div>
   <div id="policeBox" class="panel"><h3 id="policeHead">RESPON POLISI</h3><div id="policeRows"></div></div>
   <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div>
   </div>
@@ -588,6 +607,8 @@
   <div id="feedbackStrip"></div>
   <div id="ledgerCard" class="panel"></div>
   <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="64" height="64"></canvas><div id="dialogueText"><b id="dialogueName">PAK WIRA</b><span id="dialogueRole">BOS MARINA</span><span id="dialogueLine"></span></div></div>
+  <div id="karaokeBox" class="panel"><div id="karaokeTitle">♪ KARAOKE — WARUNG SARI · TEKAN E PAS IRAMA</div><div id="karaokeDots">○○○○○○○○○○○○</div><div id="karaokeScore">SKOR 0 · 0× KENA · KOMBO 0×</div><div id="karaokeBeatWrap"><div id="karaokeBeatBar"></div></div></div>
+  <div id="fishingBox" class="panel"><span id="fishingText">🎣 MEMANCING · tunggu gigitan…</span></div>
   <div id="toast"></div>
   <div id="popups"></div>
   <div id="worldLabels"></div>

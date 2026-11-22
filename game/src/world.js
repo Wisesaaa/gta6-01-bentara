@@ -249,7 +249,7 @@ function buildRoads(scene) {
   const streak = new THREE.Mesh(
     new THREE.PlaneGeometry(100, 6),
     new THREE.MeshBasicMaterial({
-      map: streakTex, transparent: true, opacity: 0.55,
+      map: streakTex, transparent: true, opacity: 0.7,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
@@ -266,7 +266,7 @@ function buildRoads(scene) {
   const streak2 = new THREE.Mesh(
     new THREE.PlaneGeometry(100, 6),
     new THREE.MeshBasicMaterial({
-      map: streakTex, transparent: true, opacity: 0.55,
+      map: streakTex, transparent: true, opacity: 0.7,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
@@ -281,7 +281,7 @@ function buildRoads(scene) {
   const streak3 = new THREE.Mesh(
     new THREE.PlaneGeometry(60, 5),
     new THREE.MeshBasicMaterial({
-      map: streakTex, transparent: true, opacity: 0.5,
+      map: streakTex, transparent: true, opacity: 0.65,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
@@ -819,7 +819,7 @@ function buildSigns(scene) {
   // glow sprite behind it so the sign throws light, not just colour.
   // Both are real world signs, lit by the same unlit material as every
   // other sign.
-  const signKaraoke = textSign('KARAOKE', 13, 3.2, '#ff2e88', '#ffffff');
+  const signKaraoke = textSign('KARAOKE', 15, 3.6, '#ff2e88', '#ffffff');
   signKaraoke.position.set(100, 9, 104);
   signKaraoke.rotation.y = -Math.PI / 2;
   signKaraoke.userData.isNeon = true;
@@ -827,7 +827,7 @@ function buildSigns(scene) {
   const glowK = makeGlowSprite(0xff2e88, 16, 0.4);
   glowK.position.set(99.6, 9, 104);
   scene.add(glowK);
-  const signNeon = textSign('WARUNG NEON', 13, 3, '#0899a8', '#ffffff');
+  const signNeon = textSign('WARUNG NEON', 14, 3.2, '#0899a8', '#ffffff');
   signNeon.position.set(24, 9, 125);
   signNeon.rotation.y = Math.PI;
   signNeon.userData.isNeon = true;
@@ -956,10 +956,15 @@ function buildPalms(scene) {
   // as the trees, clear of the road and the buildings): the cover
   // arterial z=111 (heat camera looks east down it), the drive arterial
   // x=111 (drive camera looks north up it), and the market street x=40
-  // (foot camera looks north up it). 16 palms, each a real trunk +
+  // (foot camera looks north up it). 20 palms, each a real trunk +
   // 6 frond cones, dark Lambert so they read as silhouettes at dusk.
   // Count exposed on scene.userData for the QA gate.
   const palmSpots = [];
+  // Recording 18 — four more palms on the NEAR half of the cover
+  // arterial (x 20–65): the R17 palms all sit at x >= 80, so in the
+  // heat frame they read only as distant silhouettes; these four stand
+  // mid-frame beside the hero car.
+  for (const [x, z] of [[20, 99.5], [35, 122.5], [50, 99.5], [65, 122.5]]) palmSpots.push({ x, z });
   for (const x of [80, 110, 140, 168]) {
     palmSpots.push({ x, z: 99.5 });
     palmSpots.push({ x: x + 8, z: 122.5 });

@@ -19,7 +19,7 @@ import { routeWaypoints } from './gpsRoute.js';
 import { drawMap } from './mapScreen.js';
 import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS, RACE } from './config.js';
 import { MISSIONS } from './missions.js';
-import { drawPortrait } from './dialogue.js';
+import { drawPortrait, missionIntro } from './dialogue.js';
 import { createPopups } from './popups.js';
 import { repLevel, repTitle, repProgress, nextUnlock, actForMission, actNameForMission, missionProgress, completionPercent, chapterName, chapterStages, CHAPTER_NAMES, REP_STEPS } from './progress.js';
 import { economySnapshot, completionSnapshot } from './economy.js';
@@ -80,6 +80,7 @@ export function createHud() {
     completionFill: $('completionFill'), economyRank: $('economyRank'),
     economyWealth: $('economyWealth'), economyNext: $('economyNext'),
     seenFlash: $('seenFlash'), billPill: $('billPill'),
+    zoneBar: $('zoneBar'), zoneBarFill: $('zoneBarFill'),
     policeBox: $('policeBox'), policeHead: $('policeHead'), policeRows: $('policeRows'),
     minimap: $('minimap'), locName: $('locName'),
     dialogue: $('dialogue'), dialogueLine: $('dialogueLine'), portraitCanvas: $('portraitCanvas'),
@@ -308,10 +309,10 @@ export function createHud() {
       const cx = searching && G.police.lastSeen ? G.police.lastSeen.x : G.player.x;
       const cz = searching && G.police.lastSeen ? G.police.lastSeen.z : G.player.z;
       mapCtx.strokeStyle = searching ? 'rgba(255, 106, 90, 0.95)' : 'rgba(255, 59, 46, 0.8)';
-      mapCtx.lineWidth = searching ? 3 : 2;
+      mapCtx.lineWidth = searching ? 4 : 2;
       mapCtx.setLineDash([6, 5]);
       mapCtx.beginPath();
-      mapCtx.arc(px(cx), py(cz), searching ? 34 : 26, 0, Math.PI * 2);
+      mapCtx.arc(px(cx), py(cz), searching ? 38 : 26, 0, Math.PI * 2);
       mapCtx.stroke();
       if (searching) {
         // The cordon's perimeter reads red-blue on the minimap too: a
@@ -319,15 +320,15 @@ export function createHud() {
         // the same two rings on the ground in 3D).
         mapCtx.strokeStyle = 'rgba(47, 123, 255, 0.9)';
         mapCtx.beginPath();
-        mapCtx.arc(px(cx), py(cz), 28, 0, Math.PI * 2);
+        mapCtx.arc(px(cx), py(cz), 31, 0, Math.PI * 2);
         mapCtx.stroke();
       }
       mapCtx.setLineDash([]);
       if (searching) {
         mapCtx.fillStyle = '#ff6a5a';
-        mapCtx.font = 'bold 9px system-ui, sans-serif';
+        mapCtx.font = 'bold 11px system-ui, sans-serif';
         mapCtx.textAlign = 'center';
-        mapCtx.fillText('ZONA', px(cx), py(cz) - 38);
+        mapCtx.fillText('ZONA', px(cx), py(cz) - 42);
       }
     }
     // Ojek bike: bright green dot + ring, so the fare run reads on radar.
@@ -569,16 +570,26 @@ export function createHud() {
       if (S.heat >= 1 && G.police) {
         const seen = G.police.anyoneSees(P.x, P.z);
         els.seenFlash.style.display = 'block';
+        const decay = S.esTehTimer > 0 ? 5.5 : 11;
         if (seen) {
           els.seenFlash.textContent = '● TERLIHAT — ZONA MENGIKUTIMU';
         } else {
-          const decay = S.esTehTimer > 0 ? 5.5 : 11;
           const left = Math.max(0, Math.ceil(decay - (S.seenTimer || 0)));
           els.seenFlash.textContent = `○ HILANG — ZONA PENCARIAN · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
         }
         els.seenFlash.classList.toggle('lost', !seen);
+        // Recording 18 — the detection bar: time LEFT in the zone as a
+        // fill (full = just lost them, draining = the next star is about
+        // to drop; while seen it stays full red).
+        if (els.zoneBar && els.zoneBarFill) {
+          els.zoneBar.style.display = 'block';
+          const frac = seen ? 1 : Math.max(0, 1 - (S.seenTimer || 0) / decay);
+          els.zoneBarFill.style.width = `${Math.round(frac * 100)}%`;
+          els.zoneBarFill.style.background = seen ? '#ff3b2e' : '#ffb14d';
+        }
       } else {
         els.seenFlash.style.display = 'none';
+        if (els.zoneBar) els.zoneBar.style.display = 'none';
       }
     }
     billTimer -= dt;
@@ -943,6 +954,36 @@ export function createHud() {
     else delete document.body.dataset.hud;
   }
 
+  // Recording 18 — the mission chain, advisor-limited: current mission
+  // (▶, with its named contact + dialogue line) and the next one (·),
+  // never all 8 titles — the full list is the density trap that lost
+  // criterion 3. The contact name + line come from the live mission
+  // data (missionIntro), never a staged string.
+  function missionChainHtml(G) {
+    if (!G.missions) return '';
+    if (G.missions.done) return 'RANTAI MISI <b>8/8 SELESAI</b> · PAK WIRA: “Musim kemarau selesai. Bentara sekarang mengenal namamu.”';
+    const i = G.missions.index;
+    const cur = MISSIONS[Math.min(i, MISSIONS.length - 1)];
+    const intro = missionIntro(i);
+    const contact = CHARACTERS[intro.who] ? CHARACTERS[intro.who].name : intro.who.toUpperCase();
+    const next = i + 1 < MISSIONS.length ? MISSIONS[i + 1] : null;
+    const nextIntro = next ? missionIntro(i + 1) : null;
+    const nextContact = nextIntro && CHARACTERS[nextIntro.who] ? CHARACTERS[nextIntro.who].name : '';
+    return `MISI <b>${i + 1}/8 ▶ ${cur.title}</b> — ${contact}: “${intro.line}”`
+      + (next ? `<br>BERIKUTNYA <b>${next.title}</b> — ${nextContact}` : '');
+  }
+  // Recording 18 — the activities line: every side activity the save
+  // has actually done, with real counts — karaoke sessions, fish caught,
+  // taxi/ojek trips. The stats screen is where breadth is proven.
+  function activitiesHtml(G) {
+    const parts = [];
+    if (G.karaoke && G.karaoke.sessions > 0) parts.push(`KARAOKE <b>${G.karaoke.sessions}× · SKOR ${G.karaoke.totalScore}</b>`);
+    if (G.fishing && G.fishing.catches > 0) parts.push(`MEMANCING <b>${G.fishing.catches} ekor · $${G.fishing.earned}</b>`);
+    if (G.taxi && G.taxi.trips > 0) parts.push(`TAKSI <b>${G.taxi.trips} trip</b>`);
+    if (G.ojek && G.ojek.trips > 0) parts.push(`OJEK <b>${G.ojek.trips} trip</b>`);
+    return parts.length ? `AKTIVITAS ${parts.join(' · ')}` : '';
+  }
+
   // Full city map + completion screen (r8 frame 4). Stats + ledger come
   // from the live game state, never a staged string. Returns the map
   // draw info (markers, roads, route points) for the shot QA.
@@ -984,7 +1025,9 @@ export function createHud() {
       + `LEVEL <b>${rp16.level} · ${rp16.title}</b> · XP <b>${Math.round(G.state.rep)}${rp16.need ? `/${REP_STEPS[rp16.level]}` : ' MAKS'}</b><br>`
       + `MISI <b>8/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
       + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${coll} · ${assets}<br>`
-      + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>${faresLine}${raceLine}`;
+      + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>${faresLine}${raceLine}`
+      + `<br>${missionChainHtml(G)}`
+      + (activitiesHtml(G) ? `<br>${activitiesHtml(G)}` : '');
     if (els.mapStandings) {
       // Recording 16 — HASIL BALAPAN as a full standings table: positions,
       // names, times, gaps, the player's row highlighted. From the last
@@ -1078,7 +1121,9 @@ export function createHud() {
           : '';
         els.resultsMeta.innerHTML = `KEMAJUAN <b>${comp.pct}%</b> · LEVEL <b>${rpM.level} · ${rpM.title}</b><br>`
           + `<b>BABAK ${curAct} · ${CHAPTER_NAMES[curAct]}</b> — TAHAP ${curDone}/${stages.length} ✓<br>`
-          + `${dayM.text} · KOLEKSI ${collM}`;
+          + `${dayM.text} · KOLEKSI ${collM}<br>`
+          + `${missionChainHtml(G)}`
+          + (activitiesHtml(G) ? `<br>${activitiesHtml(G)}` : '');
       } else {
         els.resultsMeta.innerHTML = '';
       }

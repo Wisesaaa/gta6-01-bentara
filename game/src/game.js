@@ -38,6 +38,8 @@ import { Garage, discountedPrice } from './garage.js';
 import { Usaha } from './usaha.js';
 import { createEffects } from './effects.js';
 import { createGpsRoute } from './gpsRoute.js';
+import { createKaraoke } from './karaoke.js';
+import { createFishing } from './fishing.js';
 import { applyLitBody } from './litPass.js';
 import { actForMission, repLevel, hasUnlock } from './progress.js';
 
@@ -213,6 +215,30 @@ export function createGame(canvas, seed = 7) {
     },
   });
   player.setPos(-6, -158, 0);
+
+  // Recording 18 — KARAOKE + MEMANCING: two new side activities with
+  // genuinely different input loops (beat timing, bite-window timing),
+  // each paying cash + REP through the same settle path as missions.
+  const karaoke = createKaraoke(view.scene, rng, {
+    onHit: (q, amount, rep) => {
+      state.cash += amount;
+      state.rep += rep;
+      hud.xpTick(rep, `KARAOKE ${q}`);
+    },
+    onEnd: (s) => {
+      hud.toast(`KARAOKE selesai — skor ${s.score}, ${s.hits}× kena (${s.perfects}× PERFECT).`, 4);
+    },
+  });
+  const fishing = createFishing(view.scene, rng, {
+    onCatch: (fish) => {
+      state.cash += fish.value;
+      state.rep += 5;
+      hud.xpTick(5, 'MEMANCING');
+      hud.toast(`Dapat ${fish.name} +$${fish.value}!`, 4);
+      audio.collect();
+    },
+    onMiss: () => { hud.toast('Ikan lepas — lempar lagi (E di dermaga).', 3); },
+  });
 
   // Side activities: collectibles, taxi fares and the checkpoint race.
   // Each pays cash + REP through the same settle path as missions.
@@ -413,6 +439,21 @@ export function createGame(canvas, seed = 7) {
   // (missions.update consumes the talk on the same press.)
   function handleInteract() {
     if (missions.nearTalkTarget(player.x, player.z)) return;
+    // Recording 18 — karaoke first while a session runs: E is the beat
+    // hit, not a shop/property press. On foot at the karaoke corner, E
+    // starts a session; at the pier, E casts a line.
+    if (karaoke.active) { karaoke.press(); return; }
+    if (fishing.active) { fishing.press(); return; }
+    if (player.onFoot && karaoke.nearSpot(player.x, player.z)) {
+      karaoke.start();
+      hud.toast('KARAOKE — tekan E pas irama! 12 ketukan.', 4);
+      return;
+    }
+    if (player.onFoot && fishing.nearSpot(player.x, player.z)) {
+      fishing.start();
+      hud.toast('MEMANCING — tunggu gigitan, tekan E pas STRIKE!', 4);
+      return;
+    }
     // Taxi first (after talk): the passenger is time-sensitive (maxWait)
     // and the pickup needs the player in a car, so it never steals an
     // on-foot E press from the garage or a property — but a player in a
@@ -788,7 +829,9 @@ export function createGame(canvas, seed = 7) {
       }
       state.time += dt;
       // The player freezes while a shop panel is open; the world does not.
-      if (!state.down && !state.shopOpen) player.step(dt);
+      // Recording 18 — the player also stands still while singing karaoke
+      // or holding a fishing rod (the session owns E, not movement).
+      if (!state.down && !state.shopOpen && !karaoke.active && !fishing.active) player.step(dt);
       traffic.step(dt, player.car);
       peds.step(dt);
       police.step(dt, {
@@ -814,6 +857,8 @@ export function createGame(canvas, seed = 7) {
       });
       race.update(dt, { px: player.x, pz: player.z });
       collectibles.update(dt, state.time, player.x, player.z);
+      karaoke.update(dt);
+      fishing.update(dt);
       usaha.update(dt);
       checkNearMiss(dt);
       props.step(dt);
@@ -933,7 +978,7 @@ export function createGame(canvas, seed = 7) {
 
   const game = {
     state, city, view, player, traffic, peds, police, missions, bill, props,
-    collectibles, taxi, ojek, race, garage, usaha, effects,
+    collectibles, taxi, ojek, race, garage, usaha, effects, karaoke, fishing,
     hud, audio, input: inputFacade, shotKeys, npcs, parked, rng,
     step, draw, audit, addHeat, damagePlayer, applySave, missionTarget, policeUnits, timeScale,
     loadSave: loadGame,
