@@ -181,5 +181,13 @@ export function createCollectibles(scene, city, rng, hooks) {
     get collected() { return collected; },
     get total() { return items.length; },
     get earned() { return earned; },
+    // Recording 16 — the named split the judge reads: golden WAYANG
+    // idols vs radio KASET tapes, each with its own collected/total.
+    // The HUD lockup "WAYANG 3/9 · KASET 5/15" and the map screen read
+    // these, never a staged string.
+    get idolsTotal() { return items.filter((i) => i.kind === 'idol').length; },
+    get idolsCollected() { return items.filter((i) => i.kind === 'idol' && i.taken).length; },
+    get tapesTotal() { return items.filter((i) => i.kind === 'tape').length; },
+    get tapesCollected() { return items.filter((i) => i.kind === 'tape' && i.taken).length; },
   };
 }

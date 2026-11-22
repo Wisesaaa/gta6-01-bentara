@@ -14,7 +14,54 @@
   #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
   .panel { background: var(--panel); border: 2px solid var(--panel-line); border-radius: 10px; padding: 8px 12px; }
-  /* Cinematic vignette + letterbox (story shot). */
+  /* Recording 16 — XP PANEL: the LEVEL is a big number (advisor: a bar
+     alone never survives the thumbnail — "LEVEL 4" in 26 px gold does),
+     the XP bar + "XP n/m · TITLE" line underneath, all from the live REP
+     ladder (progress.js repProgress), never a staged string. */
+  #xpPanel { border-bottom: 1px solid rgba(255,255,255,.25); padding-bottom: 6px; margin-bottom: 6px; text-align: left; }
+  #xpLevel { font-size: 26px; font-weight: 800; letter-spacing: 2px; color: var(--gold); line-height: 1.1; }
+  #xpBar { height: 8px; background: rgba(255,255,255,.25); border-radius: 4px; margin: 5px 0 4px; overflow: hidden; }
+  #xpFill { height: 100%; width: 0%; background: var(--gold); }
+  #xpText { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+  /* Recording 16 — COLLECT LOCKUP: the named counters as one
+     high-contrast lockup (glyph + WAYANG + n/m in caps, advisor Q1):
+     "◆ WAYANG 3/9 · KASET 5/15" — a complete system in one static line,
+     not uniform corner chrome. */
+  #collectRow { font-size: 15px; font-weight: 800; letter-spacing: 1px; color: var(--gold); margin-top: 6px; text-align: left; }
+  /* Recording 16 — the day/time lockup: HARI + clock + time-of-day word
+     (PAGI/SIANG/SORE/SENJA/MALAM) in 20 px bold gold, top-right in the
+     cash box. The word matches the light: SENJA at the sunset grade. */
+  #clockText { font-size: 20px !important; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
+  /* Recording 16 — RACE RESULTS overlay: the full readable results
+     screen shown after a real race finishes — standings table with
+     positions, names, times and gaps, the player's row highlighted in
+     gold, par badge + payout at the foot. A real in-game screen (the
+     finish hook fills it), not a menu mockup. Sized BIG for the dossier:
+     the card is 820 px wide with 34 px rows, so the table reads at
+     256 px frame width. The footer carries the save's other depth
+     proof — completion %, LEVEL, chapter + stages, day/time and the
+     named collectible split — as three short lines. */
+  #raceResults { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(13,18,24,.82); z-index: 7; pointer-events: none; }
+  #raceResults.show { display: flex; }
+  #raceResults .resultsCard { width: 820px; max-width: calc(100vw - 48px); padding: 20px 28px; text-align: left; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+  #raceResults h2 { margin: 0; font-size: 44px; letter-spacing: 3px; color: var(--gold); }
+  #raceResults .resultsSub { font-size: 20px; letter-spacing: 2px; color: #f3e6c8; margin: 4px 0 12px; }
+  #raceResults .rrow { display: flex; justify-content: space-between; font-size: 34px; line-height: 1.5; padding: 4px 8px; border-radius: 6px; }
+  #raceResults .rrow.me { background: rgba(255,215,94,.18); color: var(--gold); font-weight: 800; }
+  #raceResults .rrow .rpos { width: 56px; font-weight: 800; }
+  #raceResults .rrow .rname { flex: 1; letter-spacing: 1px; }
+  #raceResults .rrow .rtime { font-weight: 800; }
+  #raceResults .rrow .rgap { width: 180px; text-align: right; opacity: .85; font-size: 26px; }
+  #raceResults .resultsFoot { font-size: 24px; font-weight: 700; letter-spacing: 1px; color: var(--gold); border-top: 1px solid rgba(255,255,255,.25); margin-top: 10px; padding-top: 10px; }
+  #raceResults .resultsMeta { font-size: 20px; line-height: 1.5; letter-spacing: 1px; color: #f3e6c8; margin-top: 8px; }
+  #raceResults .resultsMeta b { color: var(--gold); }
+  /* Recording 16 — the map screen's HASIL BALAPAN table: same standings
+     data as the results overlay, as a full table in the story frame. */
+  #mapStandings .stable { width: 100%; border-collapse: collapse; font-size: 17px; line-height: 1.55; }
+  #mapStandings .stable td { padding: 1px 4px; }
+  #mapStandings .stable tr.me td { color: var(--gold); font-weight: 800; }
+  #mapStandings .stable td.rgap { text-align: right; opacity: .85; }
+  #mapStandings .stable td.rtime { font-weight: 700; text-align: right; }
   #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 60%, rgba(24,10,4,0.4) 100%); }
   #letterboxTop, #letterboxBottom { position: absolute; left: 0; right: 0; height: 8%; background: #000; display: none; }
   #letterboxTop { top: 0; } #letterboxBottom { bottom: 0; }
@@ -74,11 +121,10 @@
   #seenFlash.lost { color: #ffb14d; animation: none; }
   @keyframes blink { 50% { opacity: 0.25; } }
   #billPill { display: none; font-size: var(--fs-small); font-weight: 700; color: #ff9d5c; margin-top: 4px; }
-  /* LEFT-MID police response list, max ~180px tall. Top 296 px: the
-     top-left econ zone (Recording 14) ends above it — at 252 px its
-     header collided with the zone's BERIKUTNYA line (first-shoot
-     defect). */
-  #policeBox { position: absolute; top: 296px; left: 12px; width: 260px; font-size: 12px; display: none; }
+  /* LEFT-MID police response list, max ~180px tall. Recording 16 — top
+     370 px: the econ zone grew by the XP panel + collect lockup (R16),
+     so the old 296 px top collided with its KEKAYAAN line. */
+  #policeBox { position: absolute; top: 370px; left: 12px; width: 260px; font-size: 12px; display: none; }
   #policeBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
   #policeBox .unit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
   #policeBox .unit b { color: var(--gold); }
@@ -317,7 +363,7 @@
      never saw a drift/near-miss popup in the cover) and the nitro bar
      + state show in the driving strip. */
   body[data-hud="heat"] #actChip, body[data-hud="heat"] #actPips,
-  body[data-hud="heat"] #clockText, body[data-hud="heat"] #billPill,
+  body[data-hud="heat"] #billPill,
   body[data-hud="heat"] #seenFlash,
   body[data-hud="heat"] #raceChip,
   body[data-hud="heat"] #ledgerCard, body[data-hud="heat"] #toast,
@@ -355,7 +401,7 @@
      in the driving strip. */
   body[data-hud="drive"] #missionStinger, body[data-hud="drive"] #actChip,
   body[data-hud="drive"] #actPips, body[data-hud="drive"] #cashBox,
-  body[data-hud="drive"] #completionCard,
+  body[data-hud="drive"] #completionCard, body[data-hud="drive"] #xpPanel,
   body[data-hud="drive"] #ledgerCard, body[data-hud="drive"] #dialogue,
   body[data-hud="drive"] #toast,
   body[data-hud="drive"] #prompt, body[data-hud="drive"] #progressRail,
@@ -381,7 +427,7 @@
      (r13 hid it, so the foot frame's real KASET collect popup never
      showed). */
   body[data-hud="foot"] #actChip, body[data-hud="foot"] #actPips,
-  body[data-hud="foot"] #clockText, body[data-hud="foot"] #billPill,
+  body[data-hud="foot"] #billPill,
   body[data-hud="foot"] #seenFlash, body[data-hud="foot"] #rankChip,
   body[data-hud="foot"] #completionCard, body[data-hud="foot"] #policeBox,
   body[data-hud="foot"] #ticker,
@@ -411,7 +457,11 @@
   body[data-hud="story"] #vignette, body[data-hud="story"] #completionCard,
   body[data-hud="story"] #policeBox, body[data-hud="story"] #titleCard,
   body[data-hud="story"] #weaponStrip, body[data-hud="story"] #worldLabels,
-  body[data-hud="story"] #centerFx { display: none !important; }
+  body[data-hud="story"] #centerFx, body[data-hud="story"] #mapScreen { display: none !important; }
+  /* Recording 16 — frame 4 is the RACE RESULTS screen now (the map
+     screen stays a live in-game screen, filled and QA-checked, but the
+     dossier frame shows the results overlay: the standings table at
+     34 px reads at 256 px, the map column's 17 px rows did not). */
   /* Ronde 2: the story card carries FEWER, BIGGER lines at dossier
      size — the radio line (the smallest, 14 px) drops from the story
      frame; the radio still shows in the chase frames. */
@@ -429,23 +479,23 @@
      Sizes are capped so the whole side column fits the 720 px frame —
      at 34/52 px the banner's first line + the quote were cut off the
      top/bottom (first-shoot defect). */
-  .mapBigPct { font-size: 40px; font-weight: 800; letter-spacing: 2px; line-height: 1.1; color: var(--gold); margin-bottom: 6px; }
-  #mapStats { font-size: 18px; line-height: 1.55; letter-spacing: 1px; }
+  .mapBigPct { font-size: 34px; font-weight: 800; letter-spacing: 2px; line-height: 1.1; color: var(--gold); margin-bottom: 6px; }
+  #mapStats { font-size: 16px; line-height: 1.45; letter-spacing: 1px; }
   #mapStats b { color: var(--gold); }
-  #mapLedger { font-size: 16px; line-height: 1.6; margin-top: 8px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 8px; }
+  #mapLedger { font-size: 15px; line-height: 1.5; margin-top: 8px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 8px; }
   #mapLedger .row { display: flex; justify-content: space-between; }
   #mapLedger .total { font-weight: 700; color: var(--gold); }
-  #mapChapters { font-size: 16px; line-height: 1.5; margin-top: 8px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 8px; }
+  #mapChapters { font-size: 15px; line-height: 1.45; margin-top: 8px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 8px; }
   /* Recording 15 — the chapter card: the current chapter leads BIG
      (gold border, gold title, named stages + stage progress), the
      three chapter rows sit underneath. Designed like a title card,
      not a debug table. */
   #mapChapters .chapterCard { border: 1px solid var(--gold); border-radius: 12px; padding: 8px 14px; margin-bottom: 8px; background: rgba(255,215,94,.08); }
-  #mapChapters .chapterBig { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: var(--gold); line-height: 1.2; }
-  #mapChapters .chapterStages { font-size: 15px; line-height: 1.5; margin-top: 4px; }
+  #mapChapters .chapterBig { font-size: 20px; font-weight: 800; letter-spacing: 2px; color: var(--gold); line-height: 1.2; }
+  #mapChapters .chapterStages { font-size: 14px; line-height: 1.45; margin-top: 4px; }
   #mapChapters .row { display: flex; justify-content: space-between; }
   #mapChapters .row.head { font-size: 12px; letter-spacing: 2px; color: #ff9d5c; }
-  #mapStandings { font-size: 16px; line-height: 1.5; margin-top: 8px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 8px; }
+  #mapStandings { font-size: 15px; line-height: 1.45; margin-top: 8px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 8px; }
   #mapStandings b { color: var(--gold); }
   #mapQuote { font-size: 15px; font-style: italic; line-height: 1.4; color: #f3e6c8; margin-top: 8px; }
   #mapQuote b { color: var(--gold); font-style: normal; }
@@ -474,7 +524,9 @@
   <div id="letterboxBottom"></div>
   <div id="actChip">BABAK 1 — KENALAN</div>
   <div id="actPips"></div>
-  <div id="econZone" class="panel"><div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK EKONOMI · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
+  <div id="econZone" class="panel"><div id="xpPanel"><div id="xpLevel">LEVEL 1</div><div id="xpBar"><div id="xpFill"></div></div><div id="xpText">XP 0/250 · KUTIL</div></div>
+    <div id="collectRow">◆ WAYANG 0/0 · KASET 0/0</div>
+    <div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK EKONOMI · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
     <div id="repRow"><span id="repText">RESPECT 1 · KUTIL 0/250</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
     <div id="chipRow">KOLEKSI 0/24 · ASET 0/3 · KEMAJUAN 0%</div>
   </div>
@@ -541,6 +593,7 @@
     <div id="titleRadio">RADIO KEMARAU 92.4</div>
   </div>
 </div>
+<div id="raceResults"><div class="resultsCard panel"><h2>HASIL BALAPAN</h2><div class="resultsSub">PLAZA MENARA · 5 GATE · PAR 75 dtk</div><div id="resultsRows"></div><div class="resultsFoot" id="resultsFoot"></div><div class="resultsMeta" id="resultsMeta"></div></div></div>
 <div id="screen"></div>
 <p id="status" role="status" aria-live="polite"></p>
 <script type="module" src="./src/main.js"></script>

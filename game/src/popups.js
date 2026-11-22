@@ -180,7 +180,10 @@ export function createPopups(container, centerContainer, worldContainer, onStunt
     // copy of a song the radio plays.
     const sub = kind === 'idol' ? 'Wayang emas Bentara'
       : track ? `Kaset: ${track.title} — ${track.artist}` : 'Radio Kemarau 92.4';
-    return spawn(kind === 'idol' ? 'IDOL +$' + amount : 'KASET +$' + amount, sub, 'collect', seconds);
+    // Recording 16 — the popup names the collectible the way the HUD
+    // lockup does: WAYANG (not IDOL), so the foot frame's popup and the
+    // "WAYANG n/m" counter read as one named system.
+    return spawn(kind === 'idol' ? 'WAYANG +$' + amount : 'KASET +$' + amount, sub, 'collect', seconds);
   }
 
   function fare(amount, name) {

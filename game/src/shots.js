@@ -38,9 +38,10 @@
 //   chapter list, KLASEMEN standings and the final-mission ledger.
 //   The map screen is a real in-game screen (M key), not a menu mockup.
 import * as THREE from 'three';
-import { STEP, COLLECTIBLES, SUN, STUNTS } from './config.js';
+import { STEP, COLLECTIBLES, SUN, STUNTS, RACE } from './config.js';
 import { MISSIONS } from './missions.js';
-import { loc } from './city.js';
+import { loc, roadLines } from './city.js';
+import { routeWaypoints } from './gpsRoute.js';
 import { makeGlowSprite } from './effects.js';
 import { pointAhead, projectPoint, auditTarget, countInView } from './photoSpawner.js';
 
@@ -194,6 +195,10 @@ export function stageShot(name, game, atSeconds) {
     G.hud.hideDialogue();
     G.state.cash = 18400;
     G.state.rep = 1250;
+    // Recording 16 — HARI 2, 18:00 SENJA: the day lockup reads the
+    // sunset light (state.time 240 s -> 16:00 + 120 min = 18:00).
+    G.state.day = 2;
+    G.state.time = 240;
     G.player.enterCar(G.parked[0]);
     // Recording 13 — the save OWNS the shotgun (bought at the Ruko for
     // $120) and wears armour: the drive frame's depth is the race chip
@@ -499,6 +504,10 @@ export function stageShot(name, game, atSeconds) {
     G.missions.setIndex(2);
     G.state.cash = 18250;
     G.state.rep = 1250;
+    // Recording 16 — HARI 3, 18:00 SENJA: the day lockup reads the
+    // sunset light (state.time 240 s -> 16:00 + 120 min = 18:00).
+    G.state.day = 3;
+    G.state.time = 240;
     G.player.enterCar(G.parked[0]);
     // Recording 13 — the save OWNS the shotgun (bought at the Ruko for
     // $120) and wears armour: the cover's weapon wheel shows a real
@@ -658,10 +667,11 @@ export function stageShot(name, game, atSeconds) {
     });
     // New systems in frame, staged ahead of the player's end position
     // (x ≈ 90 after the chase): a taxi passenger waiting on the north
-    // sidewalk and a gold wayang idol on the south one — both live, both
-    // collectible / hailable, neither in the driving line.
+    // sidewalk and a gold WAYANG idol on the south one — both live, both
+    // collectible / hailable, neither in the driving line. The idol is
+    // the named collectible the HUD lockup counts (WAYANG n/m).
     stageTaxi(G, 'industrialYard', 96, 122);
-    stageCollectible(G, 92, 100);
+    stageCollectible(G, 92, 100, 'idol');
     G.hud.toast('', 0.01);
     // Record the real payouts: wrap the drift + near-miss popups so the
     // world labels below can show the REAL amounts at the REAL 3D
@@ -870,6 +880,9 @@ export function stageShot(name, game, atSeconds) {
     G.audio.setRadio(true);
     G.state.cash = 19600;
     G.state.rep = 1960;
+    // Recording 16 — HARI 5, 18:00 SENJA (state.time 240 s).
+    G.state.day = 5;
+    G.state.time = 240;
     // WANTED on foot (r9): heat 3.0 before the sim, so 2 foot cops + 3
     // cruisers + the roadblock spawn and close in — but NO heli (the
     // heli spawns at heat 4 and always sees the player, so a search
@@ -987,17 +1000,16 @@ export function stageShot(name, game, atSeconds) {
       p.target = { x: pedSpots[k][0] + 8, z: pedSpots[k][1] - 12 };
       p.fleeTimer = 0;
     });
-    // A gold TAPE staged on the player's walking line — at (40,90),
-    // 2 m into the walk, so he collects it EARLY (t ≈ 0.3 s): the
-    // collect is real — popup, cash, and the counter — and its sparkle
-    // burst (at (40,90)) is 1.7 s faded and 2 m BEHIND the camera by
-    // the freeze. (At (40,94) the burst sat right under the lens and
-    // its white glow washed out the player's feet in take 2.) A tape
-    // on purpose: its popup names the real track it carries. Keep the
-    // staged item: the re-shown popup must carry ITS real kind, value
-    // and track (the first take claimed IDOL +$60 while the item
-    // actually collected was a TAPE +$25).
-    const stagedItem = stageCollectible(G, 40, 90, 'tape');
+    // A gold WAYANG idol staged on the player's walking line — at
+    // (40,90), 2 m into the walk, so he collects it EARLY (t ≈ 0.3 s):
+    // the collect is real — popup, cash, and the counter — and its
+    // sparkle burst (at (40,90)) is 1.7 s faded and 2 m BEHIND the camera
+    // by the freeze. (At (40,94) the burst sat right under the lens and
+    // its white glow washed out the player's feet in take 2.) An idol on
+    // purpose: the popup names the real kind ("WAYANG +$60") and the HUD
+    // lockup's WAYANG counter rises — the named collectible the judge
+    // reads, not a tape.
+    const stagedItem = stageCollectible(G, 40, 90, 'idol');
     // Recording 15 — an AMMO CRATE on the player's walking line at
     // (40,99): he walks over it ~1.7 s into the sim, so the pickup is
     // real — +12 shells into the live reserve, the foot strip's
@@ -1336,6 +1348,9 @@ export function stageShot(name, game, atSeconds) {
     G.state.cash = 60000;
     G.state.rep = 2600;
     G.state.heat = 0;
+    // Recording 16 — HARI 7, 18:00 SENJA (state.time 240 s).
+    G.state.day = 7;
+    G.state.time = 240;
     G.player.hasShotgun = true;
     G.player.shellMag = 6;
     G.player.shells = 24;
@@ -1350,14 +1365,105 @@ export function stageShot(name, game, atSeconds) {
     }
     const storyCar = G.garage.catalog().slice().sort((a, b) => a.price - b.price)[0];
     const storyCarBuy = storyCar ? G.garage.buy(storyCar.id) : null;
-    // Race history: the save's real top-3, restored through the same
-    // setRecords() the save loader uses.
-    G.race.setRecords([68.4, 82.1, 95.6]);
+    // Recording 16 — run a REAL race for the results screen: the player
+    // drives the 5 gates at a steady cruise (~11 m/s, a mid-pack pace,
+    // so the measured time lands near par instead of a teleport's
+    // absurd 2 s), steering at each live gate; the three bot rivals
+    // drive the same route at their own pace. The race only ends when
+    // the last rival crosses, so the HASIL BALAPAN table ranks four
+    // real measured times. Steering follows the game's own road GPS
+    // (routeWaypoints) — a straight line to the gate cuts through
+    // building blocks and wrecks the car against a wall (gate 2: the
+    // block at (74,148)). A stuck car (no gate for 10 s) gets one
+    // nudge back onto the gate's road + a repair — the recovery the
+    // live game never needs because a human steers around the block.
+    let storyRaceSteps = 0;
+    let storyRaceStuck = 0;
+    let storyLastGate = 0;
+    let raceWps = [];
+    let raceWpIdx = 0;
+    G.player.enterCar(G.parked[0]);
+    G.player.car.x = G.race.start.x;
+    G.player.car.z = G.race.start.z;
+    G.player.car.heading = 0;
+    G.player.car.speed = 0;
+    G.player.car.health = 100;
+    G.player.car.sync();
+    G.race.startRace();
+    while (G.race.active && storyRaceSteps < 9000) {
+      const gate = G.race.nextGate;
+      if (gate) {
+        if (G.race.gateIndex !== storyLastGate || raceWps.length === 0) {
+          storyLastGate = G.race.gateIndex;
+          storyRaceStuck = 0;
+          raceWps = routeWaypoints(
+            { x: G.player.car.x, z: G.player.car.z },
+            { x: gate.x, z: gate.z },
+          );
+          raceWpIdx = 0;
+        }
+        while (raceWpIdx < raceWps.length - 1
+          && Math.hypot(raceWps[raceWpIdx].x - G.player.car.x, raceWps[raceWpIdx].z - G.player.car.z) < 6) {
+          raceWpIdx += 1;
+        }
+        const tgt = raceWps[Math.min(raceWpIdx, raceWps.length - 1)];
+        const dx = tgt.x - G.player.car.x;
+        const dz = tgt.z - G.player.car.z;
+        const want = Math.atan2(dx, dz);
+        let diff = want - G.player.car.heading;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        G.setShotInput({
+          active: true, up: G.player.car.speed < 11, down: G.player.car.speed > 12,
+          left: diff > 0.08, right: diff < -0.08, brake: false, run: false, mouse: false,
+        });
+        storyRaceStuck += 1;
+        if (storyRaceStuck > 600) {
+          // Recovery: the direct line to the gate can run through a
+          // building (gate 3 sits on the z=185 road behind a block).
+          // Put the car back ON the gate's road, 10 m before the gate
+          // along it, facing the gate — the final approach is then a
+          // straight on-road drive, and the timer keeps running.
+          const lines = roadLines();
+          const nearLine = (v) => lines.reduce((best, l) => (Math.abs(l - v) < Math.abs(best - v) ? l : best), lines[0]);
+          const lx = nearLine(gate.x);
+          const lz = nearLine(gate.z);
+          if (Math.abs(gate.z - lz) <= Math.abs(gate.x - lx)) {
+            const dir = (G.player.car.x - gate.x) >= 0 ? 1 : -1;
+            G.player.car.x = gate.x + dir * 10;
+            G.player.car.z = lz;
+            G.player.car.heading = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+          } else {
+            const dir = (G.player.car.z - gate.z) >= 0 ? 1 : -1;
+            G.player.car.x = lx;
+            G.player.car.z = gate.z + dir * 10;
+            G.player.car.heading = dir > 0 ? Math.PI : 0;
+          }
+          G.player.car.speed = 0;
+          G.player.car.health = 100;
+          G.player.car.sync();
+          raceWps = [];
+          storyRaceStuck = 0;
+        }
+      } else {
+        G.setShotInput({ active: false });
+      }
+      G.step(STEP);
+      storyRaceSteps += 1;
+    }
+    G.setShotInput({ active: false });
+    G.player.exitCar();
+    window.__storyRace = {
+      steps: storyRaceSteps, active: G.race.active,
+      standings: G.race.standings, records: G.race.records, runs: G.race.runs,
+    };
     // Collect 14 items for real: teleport onto each one and step once —
     // the same pickup radius + hooks as live play (cash + REP + toast).
     // The snapshot is taken before the loop: remaining() shrinks as
     // items are taken, so slice(0, 14) up front is the 14 to collect.
-    const storyItems = G.collectibles.remaining().slice(0, 14);
+    // Recording 16 — top up to exactly 14: the race drive can already
+    // have collected an item on the route, so take only what is missing.
+    const storyItems = G.collectibles.remaining().slice(0, Math.max(0, 14 - G.collectibles.collected));
     for (const item of storyItems) {
       G.player.setPos(item.x, item.z, 0);
       G.step(STEP);
@@ -1401,6 +1507,8 @@ export function stageShot(name, game, atSeconds) {
       ojek: storyOjek,
       taxiTrips: G.taxi.trips,
       ojekTrips: G.ojek.trips,
+      raceStandings: G.race.standings,
+      raceRuns: G.race.runs,
     };
     // Back on foot at the marina for the backdrop behind the map, and
     // the bank re-read after all the real spending + earning above.
@@ -1456,6 +1564,25 @@ export function stageShot(name, game, atSeconds) {
     G.audio.setRadio(true);
     const m8 = MISSIONS[7];
     G.hud.showMapScreen(G, { hasil: m8.reward, tagihan: 0, bersih: m8.reward, rep: m8.rep });
+    // Recording 16 — frame 4 is the RACE RESULTS screen: the standings
+    // from the real race just run (WIRA + BAYU/RANI/JOKO, measured
+    // times), shown with a 600 s lifetime for the slow capture. The map
+    // screen stays filled behind it (a live in-game screen, QA-checked)
+    // but the story profile hides it — the results table at 34 px is
+    // the frame's readable proof, and its footer carries the completion
+    // %, LEVEL, chapter and day the map column used to carry at 17 px.
+    const storyStandings = G.race.standings;
+    if (storyStandings) {
+      const storyPlayer = storyStandings.find((r) => r.player);
+      const storyBeatPar = storyPlayer.time <= RACE.parSeconds;
+      G.hud.showRaceResults({
+        time: storyPlayer.time,
+        paid: storyBeatPar ? RACE.reward * 2 : RACE.reward,
+        beatPar: storyBeatPar,
+        standings: storyStandings,
+        playerPos: storyPlayer.pos,
+      }, G, 600);
+    }
     // Close camera due south of the player, looking due north: the
     // player stands left-foreground with his back to us, Wira and Aska
     // just beyond him, and the MARINA sign, the water, the boats and

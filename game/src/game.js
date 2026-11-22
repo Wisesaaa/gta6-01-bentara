@@ -277,12 +277,20 @@ export function createGame(canvas, seed = 7) {
   const race = createRace(view.scene, city, rng, {
     onStart: (gate) => { hud.toast('BALAPAN: lewati 5 gate emas secepat mungkin!'); audio.taxiDing(); },
     onGate: (n, total, t) => { hud.popups.raceGate(n, total); audio.collect(); },
+    // Recording 16 — the player crossing the line does not end the race:
+    // the three rivals are still driving, so the chip says who is still
+    // out there until the results screen ranks everyone.
+    onPlayerFinish: (done) => {
+      hud.toast(`WIRA FINISH ${done.time.toFixed(1)} dtk — menunggu BAYU, RANI, JOKO di garis akhir.`, 6);
+    },
     onFinish: (done) => {
       state.cash += done.paid;
       state.rep += 120;
       hud.toast(done.beatPar
         ? `BALAPAN SELESAI ${done.time.toFixed(1)} dtk — di bawah par! +$${done.paid}.`
         : `BALAPAN SELESAI ${done.time.toFixed(1)} dtk — +$${done.paid}.`, 6);
+      // Recording 16 — the race-results screen, from the real standings.
+      hud.showRaceResults(done, game, 8);
       audio.missionDone();
     },
   });
