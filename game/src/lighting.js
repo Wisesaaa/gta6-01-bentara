@@ -30,14 +30,18 @@ const PRESETS = {
     // back it): warm orange horizon -> deep orange mid -> TEAL top,
     // the orange-to-teal sky Isla/HALCYON own. Was pale blue top +
     // pale cream mid — the "flat daylight" read.
-    skyBottom: 0xff8a3d, skyMid: 0xff9a4d, skyTop: 0x4a7a8a,
+    // Recording 17 — deeper TEAL top (was 0x4a7a8a): advisor Q2 ranks
+    // the sky first — the teal-top/orange-horizon split is the single
+    // biggest "sunset-pastel" read at 256 px, and the old pale-blue top
+    // smeared to daylight. Mid stays warm orange.
+    skyBottom: 0xff8a3d, skyMid: 0xff8f45, skyTop: 0x2f6f80,
     lampGlow: 0.4, litOpacity: 0.85,
   },
   2: {
     sun: 0xff8a3d, sunIntensity: 3.7,
     hemiSky: 0xffd9a8, hemiGround: 0x8a6a48, hemiIntensity: 1.05,
     fogColor: 0xea9a62, fogDensity: 0.0014, exposure: 1.34,
-    skyBottom: 0xff7a30, skyMid: 0xff9440, skyTop: 0x3f7080,
+    skyBottom: 0xff7a30, skyMid: 0xff9440, skyTop: 0x2a6878,
     lampGlow: 0.35, litOpacity: 0.8,
   },
   3: {

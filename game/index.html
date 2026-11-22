@@ -18,8 +18,8 @@
      alone never survives the thumbnail — "LEVEL 4" in 26 px gold does),
      the XP bar + "XP n/m · TITLE" line underneath, all from the live REP
      ladder (progress.js repProgress), never a staged string. */
-  #xpPanel { border-bottom: 1px solid rgba(255,255,255,.25); padding-bottom: 6px; margin-bottom: 6px; text-align: left; }
-  #xpLevel { font-size: 26px; font-weight: 800; letter-spacing: 2px; color: var(--gold); line-height: 1.1; }
+  #xpPanel { border-bottom: 1px solid rgba(255,255,255,.25); padding-bottom: 4px; margin-bottom: 4px; text-align: left; }
+  #xpLevel { font-size: 24px; font-weight: 800; letter-spacing: 2px; color: var(--gold); line-height: 1.1; }
   #xpBar { height: 8px; background: rgba(255,255,255,.25); border-radius: 4px; margin: 5px 0 4px; overflow: hidden; }
   #xpFill { height: 100%; width: 0%; background: var(--gold); }
   #xpText { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
@@ -31,7 +31,7 @@
   /* Recording 16 — the day/time lockup: HARI + clock + time-of-day word
      (PAGI/SIANG/SORE/SENJA/MALAM) in 20 px bold gold, top-right in the
      cash box. The word matches the light: SENJA at the sunset grade. */
-  #clockText { font-size: 20px !important; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
+  #clockText { font-size: 22px !important; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
   /* Recording 16 — RACE RESULTS overlay: the full readable results
      screen shown after a real race finishes — standings table with
      positions, names, times and gaps, the player's row highlighted in
@@ -91,10 +91,15 @@
      is 22 px bold gold, the rank 13 px. The foot profile hides this
      block (cash stays). */
   #econZone #completionCard { border-top: 1px solid rgba(255,255,255,.25); margin-top: 6px; padding-top: 6px; text-align: left; }
-  #completionPct { font-size: 22px; font-weight: 800; letter-spacing: 1px; color: var(--gold); }
+  #completionPct { font-size: 20px; font-weight: 800; letter-spacing: 1px; color: var(--gold); }
   #completionBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
   #completionFill { height: 100%; width: 0%; background: var(--gold); }
-  #economyRank { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+  #economyRank { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+  /* Recording 17 — the chapter line duplicates #actChip (same act name)
+     and the next-rank line duplicates the REP next-unlock cue: both are
+     hidden here so the EKONOMI strip stays 3 short lines. Both elements
+     stay in the DOM and stay updated (the QA anchor reads their text). */
+  #econZone #progressChapter, #econZone #economyNext { display: none; }
   #progressChapter { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--gold); margin-top: 2px; }
   #economyWealth { font-size: 12px; opacity: .9; margin-top: 2px; }
   #economyNext { font-size: 11px; color: var(--gold); margin-top: 2px; }
@@ -105,13 +110,24 @@
      used to sit in the cash box (top-right) and under the minimap
      (bottom-left) now sit together here, so the road wins and the
      economy still reads at a glance. */
-  #econZone { position: absolute; top: 64px; left: 12px; width: 300px; text-align: left; }
+  /* Recording 17 — HUD ORGANIZATION: labelled strips, not a text wall.
+     The top-left panel is split into three labelled zones — PROGRESI
+     (LEVEL/XP + RESPECT), KOLEKSI (the named collectible lockup), EKONOMI
+     (KEMAJUAN + wealth) — each with a small gold section label and a
+     divider, so the dense panel reads as organized strips at 256 px.
+     The duplicated chip row is gone (its KOLEKSI/ASET/wealth numbers
+     already live in the three strips; ASET moved onto the economy-rank
+     line). The day lockup leaves the cash box for its own gold-bordered
+     pill (#dayPill) top-right, shown in EVERY frame including drive. */
+  .zoneLabel { font-size: 9px; font-weight: 800; letter-spacing: 3px; color: var(--gold); opacity: .9; border-top: 1px solid rgba(255,255,255,.25); padding-top: 3px; margin-top: 4px; text-align: left; }
+  .zoneLabel:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  #dayPill { position: absolute; top: 12px; right: 12px; background: var(--panel); border: 2px solid var(--gold); border-radius: 12px; padding: 6px 14px; text-align: right; box-shadow: 0 0 12px rgba(255,215,94,.25); }
+  #econZone { position: absolute; top: 64px; left: 12px; width: 272px; text-align: left; }
   #econZone #repRow { margin-top: 6px; font-size: 12px; text-align: left; }
-  #econZone #chipRow { margin-top: 6px; font-size: 12px; color: var(--gold); text-align: left; }
   #repBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 3px; overflow: hidden; }
   #repFill { height: 100%; width: 0%; background: #7dd87d; }
   #nextUnlock { display: block; margin-top: 4px; font-size: 11px; color: var(--gold); text-align: left; }
-  #cashBox { position: absolute; top: 12px; right: 12px; font-size: 26px; font-weight: 700; text-align: right; }
+  #cashBox { position: absolute; top: 70px; right: 12px; font-size: 26px; font-weight: 700; text-align: right; }
   #cashBox small { display: block; font-size: 12px; font-weight: 400; opacity: .85; }
   #rankChip { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: var(--gold); border: 1px solid var(--gold); border-radius: 10px; padding: 1px 8px; margin-top: 4px; }
   #cashText { color: var(--green); }
@@ -121,10 +137,13 @@
   #seenFlash.lost { color: #ffb14d; animation: none; }
   @keyframes blink { 50% { opacity: 0.25; } }
   #billPill { display: none; font-size: var(--fs-small); font-weight: 700; color: #ff9d5c; margin-top: 4px; }
-  /* LEFT-MID police response list, max ~180px tall. Recording 16 — top
-     370 px: the econ zone grew by the XP panel + collect lockup (R16),
-     so the old 296 px top collided with its KEKAYAAN line. */
-  #policeBox { position: absolute; top: 370px; left: 12px; width: 260px; font-size: 12px; display: none; }
+  /* LEFT-MID police response list, max ~140px tall. Recording 17 — top
+     390 px: the econ zone ends ~383 px after the labelled-strip
+     compression, so 390 px docks the panel right under it (same stack
+     as R16: econ → police → minimap, the panel's foot still overlapping
+     the minimap's top cap the way R16's did). Rows capped at 4 + a
+     "+N unit lagi" line (hud.js) so the panel never grows past ~140 px. */
+  #policeBox { position: absolute; top: 390px; left: 12px; width: 260px; font-size: 12px; display: none; }
   #policeBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
   #policeBox .unit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
   #policeBox .unit b { color: var(--gold); }
@@ -279,9 +298,15 @@
   #raceChip { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--gold); background: rgba(20,10,8,.8); border: 1px solid var(--panel-line); border-radius: 14px; padding: 4px 14px; display: none; text-align: center; line-height: 1.5; }
   #raceChip .standings { font-size: 12px; font-weight: 400; color: #fff; opacity: .95; letter-spacing: 0; }
   #raceChip .standings b { color: var(--gold); font-weight: 700; }
-  /* Score popups, centre-right above the gauge — anchored 360 px from the
-     right so they never touch the bottom-right cluster. */
-  #popups { position: absolute; right: 360px; bottom: 245px; width: 260px; text-align: right; }
+  /* Score popups, docked TOP-RIGHT under the day pill + cash box —
+     Recording 17: the old spot (right 360 px, bottom 245 px) floated
+     over the road centre-right, one more competing layer in the
+     busiest part of the frame. Docked here they stack in one fixed
+     corner, never over the road, and the foot frame's WAYANG +$60
+     pickup reads in the same corner as the money it adds to. Capped
+     at 3 stacked (popups.js) so the corner can never re-import
+     clutter. */
+  #popups { position: absolute; right: 12px; top: 215px; width: 260px; text-align: right; }
   .popup { margin-bottom: 6px; transition: opacity .4s, transform .4s; }
   .popup b { display: block; font-size: 26px; letter-spacing: 1px; color: var(--gold); }
   .popup span { font-size: 13px; opacity: .9; }
@@ -388,6 +413,21 @@
   body[data-hud="heat"] #weaponBox .wcenter b, body[data-hud="heat"] #weaponBox .wcenter em { font-size: 12px; }
   body[data-hud="heat"] #feedbackStrip { display: flex !important; }
   body[data-hud="heat"] #centerFx { display: none !important; }
+  /* Recording 17 — orphan labels: the heat frame shows all three
+     strips, but the drive frame hides XP/REP + completion (so the
+     PROGRESI and EKONOMI labels would sit over empty space) and the
+     foot frame hides completion (EKONOMI label orphan). The labels are
+     #econZone's div children 1 (PROGRESI), 4 (KOLEKSI), 6 (EKONOMI). */
+  body[data-hud="drive"] #econZone div:nth-of-type(1),
+  body[data-hud="drive"] #econZone div:nth-of-type(6),
+  body[data-hud="foot"] #econZone div:nth-of-type(6) { display: none !important; }
+  /* Recording 17 — the heat/drive minimap shrinks 200 -> 140 px: the
+     left column (econ zone + 4-row police panel) now runs to y 530 and
+     the 200 px minimap's top cap (y 460) covered the police panel's
+     4th row. At 140 px the map top sits at y 520, clear of the panel,
+     and the ring + grid still read at dossier size. Foot keeps 200 px
+     (no police panel there, and the search ring is that frame's proof). */
+  body[data-hud="heat"] #minimap, body[data-hud="drive"] #minimap { width: 140px; height: 140px; }
   /* Drive: minimap + chase panel + big speed + the RACE chip (the race
      is this frame's depth proof — r11 hid it, so the judge never saw
      the standings) + the chip row under the minimap. The ojek meter,
@@ -438,7 +478,7 @@
   body[data-hud="foot"] #progressRail, body[data-hud="foot"] #crosshair,
   body[data-hud="foot"] #controlsHint, body[data-hud="foot"] #mapScreen,
   body[data-hud="foot"] #titleCard, body[data-hud="foot"] #worldLabels,
-  body[data-hud="foot"] #chipRow, body[data-hud="foot"] #nextUnlock { display: none !important; }
+  body[data-hud="foot"] #nextUnlock { display: none !important; }
   body[data-hud="foot"] #weaponStrip { display: block !important; }
   /* Story: the FULL MAP SCREEN (Recording 13) — the map + stats +
      completion breakdown + chapters + standings are the depth proof the
@@ -524,11 +564,12 @@
   <div id="letterboxBottom"></div>
   <div id="actChip">BABAK 1 — KENALAN</div>
   <div id="actPips"></div>
-  <div id="econZone" class="panel"><div id="xpPanel"><div id="xpLevel">LEVEL 1</div><div id="xpBar"><div id="xpFill"></div></div><div id="xpText">XP 0/250 · KUTIL</div></div>
+  <div id="econZone" class="panel"><div class="zoneLabel">PROGRESI</div><div id="xpPanel"><div id="xpLevel">LEVEL 1</div><div id="xpBar"><div id="xpFill"></div></div><div id="xpText">XP 0/250</div></div>
+    <div id="repRow"><span id="repText">RESPECT 1 · KUTIL</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
+    <div class="zoneLabel">KOLEKSI</div>
     <div id="collectRow">◆ WAYANG 0/0 · KASET 0/0</div>
-    <div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK EKONOMI · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
-    <div id="repRow"><span id="repText">RESPECT 1 · KUTIL 0/250</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
-    <div id="chipRow">KOLEKSI 0/24 · ASET 0/3 · KEMAJUAN 0%</div>
+    <div class="zoneLabel">EKONOMI</div>
+    <div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
   </div>
   <div id="missionStinger" class="panel">
     <div id="stingerBig">MISI 1/8 — JUMPA DI MARINA</div>
@@ -536,7 +577,8 @@
     <div id="missionStage"><div id="missionStageFill"></div></div>
     <span id="missionNext">NEXT▸ Antar paket ke Kios Baris Utara</span>
   </div>
-  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><small id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</small><div id="billPill"></div></div>
+  <div id="dayPill"><span id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</span></div>
+  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><div id="billPill"></div></div>
   <div id="policeBox" class="panel"><h3 id="policeHead">RESPON POLISI</h3><div id="policeRows"></div></div>
   <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div>
   </div>

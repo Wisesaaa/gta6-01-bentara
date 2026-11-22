@@ -28,6 +28,14 @@ export function createPopups(container, centerContainer, worldContainer, onStunt
   }
 
   function spawn(text, sub, kind = 'stunt', seconds = 2.6) {
+    // Recording 17 — cap the docked stack at 3 (advisor: a 4th popup
+    // re-imports clutter into the new top-right corner). The oldest
+    // leaves immediately when a 4th lands; its timer is left to expire
+    // harmlessly (its element is already gone from the DOM).
+    if (live.length >= 3) {
+      const old = live.shift();
+      if (old && old.el) old.el.remove();
+    }
     const el = document.createElement('div');
     el.className = `popup popup-${kind}`;
     el.innerHTML = `<b>${text}</b>${sub ? `<span>${sub}</span>` : ''}`;

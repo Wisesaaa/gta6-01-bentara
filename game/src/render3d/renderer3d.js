@@ -44,11 +44,13 @@ function createRoadWater(scene) {
     uniforms: {
       uTime: { value: 0 },
       uSunDir: { value: sunDir },
-      uSky: { value: new THREE.Color(0xecc9a0) },
+      uSky: { value: new THREE.Color(0xf4dcb2) },
       uSunColor: { value: new THREE.Color(0xffc890) },
       uFogColor: { value: new THREE.Color(0xe0c8a8) },
       uFogDensity: { value: 0.0016 },
-      uStrength: { value: 0.9 },
+      // Recording 17 — strength 1.0 (was 0.9): the sheen is the wet
+      // road, and at dossier size the mirror has to bite.
+      uStrength: { value: 1.0 },
     },
     vertexShader: ROAD_WATER_VERT,
     fragmentShader: ROAD_WATER_FRAG,

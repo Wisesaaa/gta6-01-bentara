@@ -403,15 +403,14 @@ export function stageShot(name, game, atSeconds) {
     // the race is proven by the minimap's gold circle.
     G.hud.hideDialogue();
     G.setShotInput({ active: false });
-    // Recording 15 — the HELI over the drive frame too (heat 4 spawned
-    // it during the sim): 18 m ahead along the heading, 3 m to the
-    // right, 14 m up (~26° elevation — in the bright sky strip ABOVE
-    // the race chip, below the frame top, clear of the corner tower
-    // that hid the first take), nose on the player, spotlight cone +
-    // ground pool on the hero car, 40% bigger for the frame. With the
-    // roadblock staged 46 m ahead, the frame shows the response chain
-    // the advisor asked for: heli + cone + cruisers + roadblock in
-    // one shot.
+    // Recording 17 — (591, 65): 14 m ahead, 12 m up, 2 m lateral — the
+    // probe table for this camera says that point lands in the sky
+    // strip ABOVE the race chip, clear of the corner tower and clear
+    // of the sun disc. The R16 spot (18 m ahead, 14 m up) projected
+    // onto the mural building's face and was occluded by it; the
+    // closer/lower R17-first-take spot (24 m ahead, 9.5 m up) landed
+    // at (684, 206) — also on the building's face. Spotlight cone +
+    // ground pool on the hero car, 40% bigger for the frame.
     const driveHeli = G.police.heli;
     if (driveHeli) {
       const dh = G.player.heading;
@@ -420,7 +419,7 @@ export function stageShot(name, game, atSeconds) {
       const rx = Math.cos(dh);
       const rz = -Math.sin(dh);
       driveHeli.group.position.set(
-        G.player.x + fx * 18 + rx * -2, 14, G.player.z + fz * 18 + rz * -2,
+        G.player.x + fx * 14 + rx * 2, 12, G.player.z + fz * 14 + rz * 2,
       );
       driveHeli.group.scale.setScalar(1.4);
       driveHeli.group.lookAt(G.player.x, 0, G.player.z);

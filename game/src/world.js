@@ -214,9 +214,9 @@ function buildRoads(scene) {
   });
   const puddleGeo = new THREE.CircleGeometry(1, 20);
   const puddles = [
-    [30, 107], [70, 115], [110, 108], [140, 114], // z=111 arterial
-    [107, -10], [115, 30], [108, 55], // x=111 arterial, south stretch
-    [107, 75], [115, 90], [108, 100], // x=111 arterial, north stretch —
+    [30, 107], [70, 115], [110, 108], [140, 114], [150, 108], [90, 114], // z=111 arterial
+    [107, -10], [115, 30], [108, 55], [112, 40], // x=111 arterial, south stretch
+    [107, 75], [115, 90], [108, 100], [112, 130], // x=111 arterial, north stretch —
     // the drive frame's road (the camera looks north from z 66, so the
     // south-stretch puddles sat behind it and the drive road read matte)
     [33, -40], [-41, 60], [181, -100], // elsewhere
@@ -249,7 +249,7 @@ function buildRoads(scene) {
   const streak = new THREE.Mesh(
     new THREE.PlaneGeometry(100, 6),
     new THREE.MeshBasicMaterial({
-      map: streakTex, transparent: true, opacity: 0.4,
+      map: streakTex, transparent: true, opacity: 0.55,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
@@ -266,7 +266,7 @@ function buildRoads(scene) {
   const streak2 = new THREE.Mesh(
     new THREE.PlaneGeometry(100, 6),
     new THREE.MeshBasicMaterial({
-      map: streakTex, transparent: true, opacity: 0.4,
+      map: streakTex, transparent: true, opacity: 0.55,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
@@ -281,7 +281,7 @@ function buildRoads(scene) {
   const streak3 = new THREE.Mesh(
     new THREE.PlaneGeometry(60, 5),
     new THREE.MeshBasicMaterial({
-      map: streakTex, transparent: true, opacity: 0.35,
+      map: streakTex, transparent: true, opacity: 0.5,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
@@ -803,6 +803,38 @@ function buildSigns(scene) {
   signWarungSari.position.set(42, 5, 104);
   signWarungSari.rotation.y = Math.PI;
   scene.add(signWarungSari);
+  // Recording 17 — NEON, capped at two huge camera-facing signs
+  // (advisor: neon collapses into bright dots at 256 px unless the sign
+  // is huge and faces the shot camera). KARAOKE is a gantry sign OVER
+  // the cover arterial's south lane at (100, 9, 104), facing west:
+  // the heat camera looks east down the arterial, so the only
+  // full-face west-facing surface with a clear sightline is the road
+  // corridor itself — the (134,60) building's west face (take 2) is
+  // occluded by the block buildings between it and the camera, and
+  // the mural building's face is taken by the mural. WARUNG NEON
+  // faces south at (24, 9, 125), west of the market street: the foot
+  // camera's right is world -X, so it lands screen-right, clear of
+  // both the PASAR PAGI sign it used to hide behind and the palm that
+  // covered its middle in take 2 (was x=27). Each carries an additive
+  // glow sprite behind it so the sign throws light, not just colour.
+  // Both are real world signs, lit by the same unlit material as every
+  // other sign.
+  const signKaraoke = textSign('KARAOKE', 13, 3.2, '#ff2e88', '#ffffff');
+  signKaraoke.position.set(100, 9, 104);
+  signKaraoke.rotation.y = -Math.PI / 2;
+  signKaraoke.userData.isNeon = true;
+  scene.add(signKaraoke);
+  const glowK = makeGlowSprite(0xff2e88, 16, 0.4);
+  glowK.position.set(99.6, 9, 104);
+  scene.add(glowK);
+  const signNeon = textSign('WARUNG NEON', 13, 3, '#0899a8', '#ffffff');
+  signNeon.position.set(24, 9, 125);
+  signNeon.rotation.y = Math.PI;
+  signNeon.userData.isNeon = true;
+  scene.add(signNeon);
+  const glowN = makeGlowSprite(0x00c8d8, 16, 0.4);
+  glowN.position.set(24, 9, 124.5);
+  scene.add(glowN);
 }
 
 function buildSkyline(scene) {
@@ -914,6 +946,53 @@ function buildTrees(scene, city) {
   trunkMesh.castShadow = true;
   crownMesh.castShadow = true;
   scene.add(trunkMesh, crownMesh);
+}
+
+function buildPalms(scene) {
+  // Recording 17 — PALMS: tall thin trunks + drooping fronds, dark
+  // against the bright dusk sky — the silhouette HALCYON owns and we
+  // did not have (our trees are flat dusty-olive crowns). Lined along
+  // the three shot arterials at the sidewalk edge (±11.5 m, same offset
+  // as the trees, clear of the road and the buildings): the cover
+  // arterial z=111 (heat camera looks east down it), the drive arterial
+  // x=111 (drive camera looks north up it), and the market street x=40
+  // (foot camera looks north up it). 16 palms, each a real trunk +
+  // 6 frond cones, dark Lambert so they read as silhouettes at dusk.
+  // Count exposed on scene.userData for the QA gate.
+  const palmSpots = [];
+  for (const x of [80, 110, 140, 168]) {
+    palmSpots.push({ x, z: 99.5 });
+    palmSpots.push({ x: x + 8, z: 122.5 });
+  }
+  for (const z of [20, 55, 90, 130]) palmSpots.push({ x: 122.5, z });
+  for (const z of [60, 100, 140]) palmSpots.push({ x: 51.5, z });
+  palmSpots.push({ x: 28.5, z: 120 });
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6a4a30 });
+  const frondMat = new THREE.MeshLambertMaterial({ color: 0x1f3a24 });
+  const trunkGeo = new THREE.CylinderGeometry(0.14, 0.22, 8, 6);
+  const frondGeo = new THREE.ConeGeometry(0.55, 3.6, 4);
+  for (const [i, s] of palmSpots.entries()) {
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.y = 4;
+    trunk.castShadow = true;
+    g.add(trunk);
+    for (let k = 0; k < 6; k += 1) {
+      const a = (k / 6) * Math.PI * 2 + (i % 3) * 0.35;
+      const frond = new THREE.Mesh(frondGeo, frondMat);
+      // Droop outward-down from the crown: cone tip up by default, so
+      // rotate ~115° from vertical and flatten — a drooping palm frond.
+      frond.position.set(Math.sin(a) * 1.1, 7.6, Math.cos(a) * 1.1);
+      frond.rotation.set(Math.cos(a) * 2.0, 0, -Math.sin(a) * 2.0);
+      frond.scale.set(1, 1, 0.35);
+      frond.castShadow = true;
+      g.add(frond);
+    }
+    g.position.set(s.x, 0, s.z);
+    g.userData.isPalm = true;
+    scene.add(g);
+  }
+  scene.userData.palmCount = palmSpots.length;
 }
 
 function buildPlaza(scene) {
@@ -1385,6 +1464,7 @@ export function createView(canvas, city) {
   buildSigns(scene);
   buildSkyline(scene);
   buildTrees(scene, city);
+  buildPalms(scene);
   buildPlaza(scene);
   const mural = buildMural(scene, city);
   buildEastTower(scene);

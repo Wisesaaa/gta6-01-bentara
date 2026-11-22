@@ -75,7 +75,6 @@ export function createHud() {
     actChip: $('actChip'), actPips: $('actPips'),
     missionStageFill: $('missionStageFill'), missionNext: $('missionNext'),
     repText: $('repText'), repFill: $('repFill'), nextUnlock: $('nextUnlock'),
-    chipRow: $('chipRow'),
     cashText: $('cashText'), clockText: $('clockText'), starsBox: $('starsBox'),
     completionCard: $('completionCard'), completionPct: $('completionPct'),
     completionFill: $('completionFill'), economyRank: $('economyRank'),
@@ -511,9 +510,12 @@ export function createHud() {
     if (els.xpLevel) els.xpLevel.textContent = `LEVEL ${rp.level}`;
     if (els.xpFill) els.xpFill.style.width = `${Math.round(rp.frac * 100)}%`;
     if (els.xpText) {
+      // Recording 17 — numbers only here: the rank TITLE lives on the
+      // RESPECT line below and the next title on the next-unlock line,
+      // so the three lines stop repeating each other.
       els.xpText.textContent = rp.need
-        ? `XP ${Math.round(S.rep)}/${REP_STEPS[rp.level]} · ${rp.title} — BERIKUTNYA: ${rp.nextTitle}`
-        : `XP ${Math.round(S.rep)} · ${rp.title} — LEVEL MAKSIMAL`;
+        ? `XP ${Math.round(S.rep)}/${REP_STEPS[rp.level]}`
+        : `XP ${Math.round(S.rep)} · LEVEL MAKSIMAL`;
     }
     if (els.collectRow && G.collectibles) {
       els.collectRow.textContent = `◆ WAYANG ${G.collectibles.idolsCollected}/${G.collectibles.idolsTotal} · KASET ${G.collectibles.tapesCollected}/${G.collectibles.tapesTotal}`;
@@ -521,7 +523,9 @@ export function createHud() {
     // RESPECT bar + next unlock: the labeled rank ladder (KUTIL -> BOS
     // KECIL -> RAJA JALANAN -> LEGENDA BENTARA), progress to the next
     // rank, and the unlock that rank opens.
-    els.repText.textContent = `RESPECT ${rp.level} · ${rp.title} ${Math.round(rp.into)}/${rp.need || '—'}`;
+    // Recording 17 — rank only here (numbers live on the XP line above):
+    // "RESPECT 3 · RAJA JALANAN", bar + next-unlock underneath.
+    els.repText.textContent = `RESPECT ${rp.level} · ${rp.title}`;
     els.repFill.style.width = `${Math.round(rp.frac * 100)}%`;
     const nu = nextUnlock(S.rep);
     els.nextUnlock.textContent = nu ? `BERIKUTNYA di REP ${nu.level}: ${nu.label}` : 'SEMUA UNLOCK TERBUKA';
@@ -534,11 +538,13 @@ export function createHud() {
     const comp = completionPercent(completionSnapshot(G));
     const econ = economySnapshot(G);
     const assets = G.usaha ? G.usaha.assetChip() : 'ASET 0/3';
-    els.chipRow.textContent = `KOLEKSI ${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24} · ${assets} · KEKAYAAN $${econ.wealth.toLocaleString('en-US')}`;
+    // Recording 17 — the duplicated summary row is deleted (its numbers
+    // already live in the PROGRESI/KOLEKSI/EKONOMI strips); ASET
+    // survives on the rank line.
     if (els.completionCard) {
       els.completionPct.textContent = `KEMAJUAN ${comp.pct}%`;
       els.completionFill.style.width = `${comp.pct}%`;
-      els.economyRank.textContent = `RANK EKONOMI · ${econ.rank.title}`;
+      els.economyRank.textContent = `RANK · ${econ.rank.title} · ${assets}`;
       els.economyWealth.textContent = `KEKAYAAN $${econ.wealth.toLocaleString('en-US')}${econ.dailyIncome > 0 ? ` · +$${Math.round(econ.dailyIncome).toLocaleString('en-US')}/hari` : ''}`;
       els.economyNext.textContent = econ.rank.nextTitle
         ? `→ ${econ.rank.nextTitle} di $${econ.rank.nextMin.toLocaleString('en-US')}`
@@ -582,9 +588,12 @@ export function createHud() {
       els.billPill.style.display = total > 0 ? 'block' : 'none';
       if (total > 0) els.billPill.textContent = `TAGIHAN −$${total}`;
     }
-    // Police response list: header + max 5 rows + "+N unit lagi". The
+    // Police response list: header + max 4 rows + "+N unit lagi". The
     // table's columns are callsign | type | distance | VERB (the study's
-    // format). The roadblock (BLOKADE) is a static barricade, not a
+    // format). Recording 17 — capped at 4 (was 5): the 5th row pushed
+    // the panel past ~160 px and into the minimap; 4 rows + the "+N"
+    // line still proves the response chain, and the header keeps the
+    // true unit count. The roadblock (BLOKADE) is a static barricade, not a
     // responding unit — it stays in the world and on the minimap, but
     // the table counts the responders only (3 cruisers + heli = 4 UNIT
     // at heat 4), so the header reads the study's "RESPON POLISI — 4 UNIT".
@@ -593,12 +602,12 @@ export function createHud() {
     if (S.heat >= 1 && tableUnits.length > 0) {
       els.policeBox.style.display = 'block';
       els.policeHead.textContent = `RESPON POLISI — ${tableUnits.length} UNIT · KODE ${Math.floor(S.heat)}`;
-      const shown = tableUnits.slice(0, 5);
+      const shown = tableUnits.slice(0, 4);
       let html = shown.map((u) => {
         const pill = STATUS_PILL[u.status] || [u.status, 'pill-cari'];
         return `<div class="unit"><b>${u.name}</b><span class="type">${u.type || ''}</span><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
       }).join('');
-      if (tableUnits.length > 5) html += `<div class="more">+${tableUnits.length - 5} unit lagi</div>`;
+      if (tableUnits.length > 4) html += `<div class="more">+${tableUnits.length - 4} unit lagi</div>`;
       els.policeRows.innerHTML = html;
     } else {
       els.policeBox.style.display = 'none';
@@ -1069,7 +1078,7 @@ export function createHud() {
           : '';
         els.resultsMeta.innerHTML = `KEMAJUAN <b>${comp.pct}%</b> · LEVEL <b>${rpM.level} · ${rpM.title}</b><br>`
           + `<b>BABAK ${curAct} · ${CHAPTER_NAMES[curAct]}</b> — TAHAP ${curDone}/${stages.length} ✓<br>`
-          + `${dayM.text} · ${collM}`;
+          + `${dayM.text} · KOLEKSI ${collM}`;
       } else {
         els.resultsMeta.innerHTML = '';
       }

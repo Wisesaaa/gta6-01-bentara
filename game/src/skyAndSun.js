@@ -54,7 +54,7 @@ export function createSkyAndSun(scene, opts = {}) {
       uHaze: { value: opts.haze !== undefined ? opts.haze : 0.38 },
       // Defaults match the Act 1 grade (lighting.js PRESETS[1]) so the
       // first frame already carries the warm sunset grade.
-      uTopColor: { value: new THREE.Color(0x4a7a8a) },
+      uTopColor: { value: new THREE.Color(0x2f6f80) },
       uMidColor: { value: new THREE.Color(0xff9a4d) },
       uBottomColor: { value: new THREE.Color(0xff8a3d) },
       uSunColor: { value: new THREE.Color(0xff9040) },
