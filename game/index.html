@@ -226,6 +226,59 @@
   #weaponBox .wcenter { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,215,94,.16); border: 2px solid var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   #weaponBox .wcenter b { font-size: 10px; color: var(--gold); line-height: 1.1; }
   #weaponBox .wcenter em { font-style: normal; font-size: 10px; }
+  /* R20 — damage bar inside every wheel slot (criterion 1: the wheel
+     reads as a loadout). Gold fill on a faint track; the width is set
+     inline by hud.js (damage / 90 max). */
+  #weaponBox .dmgbar { display: block; height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; overflow: hidden; margin: 2px 0; }
+  #weaponBox .dmgbar i { display: block; height: 100%; background: var(--gold); }
+  /* R20 — MISSION BRIEFING panel (foot frame). Right side, portrait-led:
+     the portrait is the anchor (in-game-photography: portrait as anchor,
+     FG/MG/BG depth in the 3D scene behind it). Same --panel token as
+     every other panel; type one step up from the cover dialogue
+     (frontend-design tokens: name 36, title 40, line 20, objectives 22,
+     reward 26, choices 20). Top 64 px so the day pill stays visible
+     above it; bottom 12 px. */
+  #briefing { position: absolute; top: 64px; right: 12px; width: 560px; height: 644px; box-sizing: border-box; display: none; flex-direction: column; align-items: center; gap: 5px; padding: 10px 18px; text-align: center; }
+  #briefPortrait { width: 280px; height: 280px; border-radius: 50%; border: 4px solid var(--gold); background: #7a5c2e; flex: none; }
+  #briefNameRow { display: flex; align-items: center; gap: 10px; }
+  #briefName { font-size: 36px; font-weight: 800; letter-spacing: 3px; color: var(--gold); line-height: 1; }
+  #briefRole { font-size: 16px; font-weight: 700; letter-spacing: 2px; background: #1f6b74; color: #fff; border-radius: 8px; padding: 3px 10px; }
+  #briefTitle { display: flex; align-items: baseline; gap: 10px; }
+  #briefTitleMain { font-size: 40px; font-weight: 800; letter-spacing: 2px; color: var(--gold); line-height: 1; }
+  #briefTitleSub { font-size: 24px; font-weight: 800; letter-spacing: 2px; color: #fff; }
+  #briefLine { font-size: 20px; font-style: italic; line-height: 1.3; }
+  #briefObjectives { width: 100%; text-align: left; }
+  #briefObjectives .bobj { font-size: 22px; line-height: 1.35; padding: 1px 0; }
+  #briefObjectives .bobj span { color: var(--gold); font-weight: 800; margin-right: 8px; }
+  #briefObjectives .bobj.done { color: #7dd87d; }
+  #briefReward { font-size: 26px; font-weight: 800; letter-spacing: 1px; color: var(--gold); }
+  #briefChoices { display: flex; gap: 10px; margin-top: 2px; }
+  #briefChoices:empty { display: none; }
+  #briefChoices .dchoice { font-size: 20px; font-weight: 700; letter-spacing: 1px; border: 1px solid rgba(255,255,255,.4); border-radius: 8px; padding: 6px 16px; background: rgba(16,22,29,.6); color: #fff; cursor: pointer; }
+  #briefChoices .dchoice.selected { border-color: var(--gold); background: rgba(255,215,94,.18); color: var(--gold); }
+  /* R20 — ARSENAL screen (story frame). Same fullscreen-screen language
+     as the map screen (bg .96, z-index 4, column flex). Header 44 px
+     gold; rows 36 px names + damage bar + DMG + ammo + owned/locked
+     status; the counts band as the footer (same 130 px digits as the
+     map screen's band — one count style everywhere). */
+  #arsenalScreen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: flex-start; gap: 14px; background: rgba(13,18,24,.96); z-index: 4; padding: 20px; box-sizing: border-box; }
+  #arsenalScreen.show { display: flex; }
+  #arsenalHead { margin: 0; font-size: 44px; font-weight: 800; letter-spacing: 3px; color: var(--gold); line-height: 1.1; }
+  #arsenalSub { font-size: 20px; font-weight: 700; letter-spacing: 2px; color: #f3e6c8; }
+  #arsenalGrid { width: 1000px; max-width: calc(100vw - 48px); }
+  #arsenalGrid .arow { display: flex; align-items: center; gap: 16px; padding: 9px 14px; border-top: 1px solid rgba(255,255,255,.12); box-sizing: border-box; }
+  #arsenalGrid .arow .aname { width: 200px; flex: none; font-size: 36px; font-weight: 800; letter-spacing: 2px; color: #fff; }
+  #arsenalGrid .arow.cur .aname { color: var(--gold); }
+  #arsenalGrid .arow .admg { flex: 1; height: 14px; background: rgba(255,255,255,.25); border-radius: 7px; overflow: hidden; }
+  #arsenalGrid .arow .admg i { display: block; height: 100%; background: var(--gold); }
+  #arsenalGrid .arow .admgnum { width: 130px; flex: none; font-size: 24px; font-weight: 700; color: var(--gold); text-align: right; }
+  #arsenalGrid .arow .aammo { width: 150px; flex: none; font-size: 28px; font-weight: 800; text-align: right; }
+  #arsenalGrid .arow .astat-owned { width: 200px; flex: none; font-size: 26px; font-weight: 800; color: #7dd87d; text-align: right; }
+  #arsenalGrid .arow .astat-locked { width: 200px; flex: none; font-size: 26px; font-weight: 800; color: #ff9d5c; text-align: right; }
+  #arsenalCounts { display: flex; justify-content: space-evenly; width: 100%; max-width: 1200px; flex: none; }
+  #arsenalCounts .mcount { text-align: center; }
+  #arsenalCounts .mcount b { display: block; font-size: 130px; font-weight: 800; line-height: 1; color: var(--gold); }
+  #arsenalCounts .mcount span { font-size: 20px; letter-spacing: 3px; }
   /* Compact weapon strip (r11 foot frame): current + next owned weapon
      with ammo — hidden in live play, shown by the foot profile. */
   #weaponStrip { display: none; position: absolute; bottom: 34px; right: 12px; text-align: right; font-size: 12px; }
@@ -429,21 +482,42 @@
   body[data-hud="heat"] #prompt,
   body[data-hud="heat"] #progressRail, body[data-hud="heat"] #crosshair,
   body[data-hud="heat"] #controlsHint, body[data-hud="heat"] #mapScreen,
-  body[data-hud="heat"] #titleCard, body[data-hud="heat"] #weaponBox,
+  body[data-hud="heat"] #titleCard,
   body[data-hud="heat"] #gauge, body[data-hud="heat"] #vehicleName,
-  body[data-hud="heat"] #vehiclePlate,
+  body[data-hud="heat"] #vehiclePlate, body[data-hud="heat"] #vehicleCond,
   body[data-hud="heat"] #ojekMeter, body[data-hud="heat"] #fuelBar,
-  body[data-hud="heat"] #eqBars { display: none !important; }
+  body[data-hud="heat"] #nitroBar, body[data-hud="heat"] #nitroState,
+  body[data-hud="heat"] #xpTick, body[data-hud="heat"] #armorBar,
+  body[data-hud="heat"] #radioLine, body[data-hud="heat"] #eqBars,
+  body[data-hud="heat"] #weaponStrip, body[data-hud="heat"] #popups,
+  body[data-hud="heat"] #bigSpeedGear, body[data-hud="heat"] #bigSpeedCar,
+  body[data-hud="heat"] #bigSpeedCond, body[data-hud="heat"] #briefing,
+  body[data-hud="heat"] #arsenalScreen { display: none !important; }
   body[data-hud="heat"] #bigSpeed { display: block !important; }
-  /* R19 take 2 — the cover shows the weapon STRIP, not the wheel: the
-     210 px wheel made the right column ~486 px tall, so the big "107"
-     printed over the KEMAJUAN card's lower lines (first shoot). The
-     strip ("Shotgun 6/24 · Pistol ∞ · NYAWA 100 · ROMPI 60") is ~30 px,
-     which puts the drive box's top ~54 px clear of the cash box — and
-     it cuts right-column clutter, the judge's standing complaint. The
-     5-slot visual proof is lost on the cover; the counts screen's
-     "SENJATA 5" keeps the numeric proof. */
-  body[data-hud="heat"] #weaponStrip { display: flex !important; }
+  body[data-hud="heat"] #bigSpeed b { font-size: 40px; }
+  /* R20 — the cover shows the weapon WHEEL OPEN as the ONE big HUD
+     element (criterion 1; frontend-design: spend boldness in one place).
+     The wheel leaves the driveBox flow (position:fixed, centre-right)
+     so the right column stays minimal: top 340 clears the cash box
+     bottom (~337), big speed small below it. 300 px wheel, slot names
+     22 px — the same scale as the 87% that registered. The strip is
+     cut (the wheel carries the weapon proof now) and the corner popups
+     are cut too (the feedback strip carries the payouts). */
+  body[data-hud="heat"] #weaponBox { position: fixed; right: 12px; top: 340px; width: 300px; height: 300px; margin: 0; display: block !important; z-index: 3; }
+  body[data-hud="heat"] #weaponBox .wheel { width: 300px; height: 300px; }
+  /* R20 — wheel slots pulled OUT from the centre disc (first shoot:
+     116 px slots at radius 100 collided with the 100 px disc: the
+     centre "Shotgun" text overlapped the Pelontar/Shotgun slot names).
+     104 px slots at radius 108, 84 px disc: 14 px clear gap. Second
+     shoot: the centre text still touched the Pelontar box's edge, so
+     the disc shrinks to 80 px and the centre type to 18/16 px. */
+  body[data-hud="heat"] #weaponBox .wslot { width: 104px; margin: -36px 0 0 -52px; padding: 4px 2px; transform: rotate(var(--a)) translate(108px) rotate(calc(var(--a) * -1)); }
+  body[data-hud="heat"] #weaponBox .wslot b { font-size: 13px; }
+  body[data-hud="heat"] #weaponBox .wslot i { font-size: 22px; }
+  body[data-hud="heat"] #weaponBox .wslot em { font-size: 18px; }
+  body[data-hud="heat"] #weaponBox .wcenter { width: 80px; height: 80px; margin: -40px 0 0 -40px; }
+  body[data-hud="heat"] #weaponBox .wcenter b { font-size: 18px; }
+  body[data-hud="heat"] #weaponBox .wcenter em { font-size: 16px; }
   body[data-hud="heat"] #feedbackStrip { display: flex !important; }
   body[data-hud="heat"] #centerFx { display: none !important; }
   /* R19 — the orphan-labels rule is deleted with #econZone (no left
@@ -484,15 +558,14 @@
   body[data-hud="drive"] #bigSpeed { display: block !important; }
   body[data-hud="drive"] #feedbackStrip { display: flex !important; }
   body[data-hud="drive"] #centerFx { display: none !important; }
-  /* Foot: mission banner top-centre + money + the compact weapon strip +
-     the minimap (the search ring + ZONA label are the cordon-search
-     proof — r11 hid the radar, so the foot frame showed no map at all)
-     + the REP line + bar in the top-left econ zone. The chip row and
-     next-unlock line are cut here (advisor: three micro-panels stacked
-     bottom-left at 256 px are noise — the collect count already reads
-     in the pickup popup). Recording 14: #popups is NOT hidden anymore
-     (r13 hid it, so the foot frame's real KASET collect popup never
-     showed). */
+  /* Foot: R20 — the MISSION BRIEFING frame. One focus: the briefing
+     panel (right side) over the on-foot market scene. Everything
+     secondary is cut — minimap + weapon strip + karaoke/fishing panels
+     + zone chip + corner popups + cash box — so the panel + Sari + the
+     player on foot are the frame. Kept: mission banner top-left
+     (MISI 7/8, matching the briefing), day pill top-right, the 3D
+     market + cordon. The walk's WAYANG/KASET collect still happens
+     for real (live state), but its popups stay hidden with the rest. */
   body[data-hud="foot"] #actChip, body[data-hud="foot"] #actPips,
   body[data-hud="foot"] #billPill,
   body[data-hud="foot"] #rankChip,
@@ -505,13 +578,16 @@
   body[data-hud="foot"] #progressRail, body[data-hud="foot"] #crosshair,
   body[data-hud="foot"] #controlsHint, body[data-hud="foot"] #mapScreen,
   body[data-hud="foot"] #titleCard, body[data-hud="foot"] #worldLabels,
-  body[data-hud="foot"] #nextUnlock { display: none !important; }
-  body[data-hud="foot"] #weaponStrip { display: block !important; }
-  /* Story: the FULL MAP SCREEN (Recording 13) — the map + stats +
-     completion breakdown + chapters + standings are the depth proof the
-     exact judge cites for HALCYON ("a full map/story/stats/settings menu
-     with 55% completion"). The title card is hidden; the map screen is a
-     real in-game screen (M key), not a menu mockup. */
+  body[data-hud="foot"] #nextUnlock,
+  body[data-hud="foot"] #weaponStrip, body[data-hud="foot"] #karaokeBox,
+  body[data-hud="foot"] #fishingBox, body[data-hud="foot"] #seenFlash,
+  body[data-hud="foot"] #zoneBar, body[data-hud="foot"] #popups,
+  body[data-hud="foot"] #cashBox, body[data-hud="foot"] #arsenalScreen { display: none !important; }
+  /* Story: R20 — the ARSENAL screen. The map screen is hidden here
+     (it stays a live in-game screen under M); showArsenal() fills
+     #arsenalScreen (weapon grid + counts band footer) instead. The
+     title card stays hidden; the race-results overlay stays hidden
+     (the drive frame's job). */
   body[data-hud="story"] #missionStinger, body[data-hud="story"] #actChip,
   body[data-hud="story"] #actPips, body[data-hud="story"] #mapWrap,
   body[data-hud="story"] #cashBox, body[data-hud="story"] #driveBox,
@@ -523,16 +599,9 @@
   body[data-hud="story"] #vignette, body[data-hud="story"] #completionCard,
   body[data-hud="story"] #policeBox, body[data-hud="story"] #titleCard,
   body[data-hud="story"] #weaponStrip, body[data-hud="story"] #worldLabels,
-  body[data-hud="story"] #centerFx, body[data-hud="story"] #raceResults { display: none !important; }
-  /* R19 (D4) — frame 4 is the COUNTS/MENU screen: the map screen is
-     NOT hidden here anymore (R16–R18 hid it for the race-results
-     overlay, which is now the drive frame's job). The #raceResults
-     overlay is hidden above instead, and showMapScreen() fills
-     #mapCounts + #mapTabs + the garage list. */
-  /* Recording 16 — frame 4 is the RACE RESULTS screen now (the map
-     screen stays a live in-game screen, filled and QA-checked, but the
-     dossier frame shows the results overlay: the standings table at
-     34 px reads at 256 px, the map column's 17 px rows did not). */
+  body[data-hud="story"] #centerFx, body[data-hud="story"] #raceResults,
+  body[data-hud="story"] #mapScreen, body[data-hud="story"] #briefing { display: none !important; }
+  body[data-hud="story"] #arsenalScreen { display: flex !important; }
   /* Ronde 2: the story card carries FEWER, BIGGER lines at dossier
      size — the radio line (the smallest, 14 px) drops from the story
      frame; the radio still shows in the chase frames. */
@@ -651,6 +720,11 @@
   <div id="feedbackStrip"></div>
   <div id="ledgerCard" class="panel"></div>
   <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="96" height="96"></canvas><div id="dialogueText"><b id="dialogueName">PAK WIRA</b><span id="dialogueRole">BOS MARINA</span><span id="dialogueLine"></span><div id="dialogueChoices"></div></div></div>
+  <!-- R20 — MISSION BRIEFING panel (foot frame): Sari briefs MISI 7 at
+       Warung Sari. Portrait-led, right side; the same --panel token as
+       every other panel. Filled by hud.showBriefing() from the dialogue
+       graph node + briefing meta (objectives + real reward). -->
+  <div id="briefing" class="panel"><canvas id="briefPortrait" width="280" height="280"></canvas><div id="briefNameRow"><b id="briefName">SARI</b><span id="briefRole">INFORMAN BENTARA</span></div><div id="briefTitle"><b id="briefTitleMain">MISI 7</b><span id="briefTitleSub">OPERASI GARUDA-1</span></div><div id="briefLine"></div><div id="briefObjectives"></div><div id="briefReward"></div><div id="briefChoices"></div></div>
   <div id="karaokeBox" class="panel"><div id="karaokeTitle">♪ KARAOKE — WARUNG SARI · TEKAN E PAS IRAMA</div><div id="karaokeDots">○○○○○○○○○○○○</div><div id="karaokeScore">SKOR 0 · 0× KENA · KOMBO 0×</div><div id="karaokeBeatWrap"><div id="karaokeBeatBar"></div></div></div>
   <div id="fishingBox" class="panel"><span id="fishingText">🎣 MEMANCING · tunggu gigitan…</span></div>
   <div id="toast"></div>
@@ -693,6 +767,18 @@
       <div id="mapQuote"></div>
     </div>
     </div>
+  </div>
+  <!-- R20 — ARSENAL screen (story frame): the full loadout menu. Same
+       fullscreen-screen language as the map screen (bg .96, z-index 4),
+       same --panel token. Filled by hud.showArsenal(): 5 weapon rows
+       (name + damage bar + DMG + ammo + owned/locked) + the counts band
+       as the footer (the counts' home now that the map screen leaves
+       the dossier). -->
+  <div id="arsenalScreen">
+    <h2 id="arsenalHead">ARSENAL — 5 SENJATA</h2>
+    <div id="arsenalSub"></div>
+    <div id="arsenalGrid"></div>
+    <div id="arsenalCounts"></div>
   </div>
   <div id="titleCard">
     <div id="titleWordmark">BENTARA</div>

@@ -3,6 +3,7 @@
 // Portraits are drawn on a 2D canvas (skin, hat, shirt, eyes) so they read
 // at thumbnail size without any image asset.
 import { CHARACTERS, DJ_LINES } from './config.js';
+import { MISSIONS } from './missions.js';
 import { pick } from './rng.js';
 
 // Mission intros: one line per mission, spoken by the contact who gives it.
@@ -180,6 +181,63 @@ export const SARI_COVER_GRAPH = {
     },
     end: { end: true },
   },
+};
+
+// ---------------------------------------------------------------------------
+// Briefing graph (R20 — dialogue-systems skill). The foot frame's MISSION
+// BRIEFING is a staged story mission with a NAMED character: Sari briefs
+// MISI 7 (OPERASI GARUDA-1) at Warung Sari, on foot. Same graph contract
+// as the cover graph (stable lineIds, choices on transitions, effects in
+// a var store, validated before it runs). The panel shows the start
+// node's line + its 2 choices; the objectives + reward live in
+// SARI_BRIEFING below (mission 7's real steps + real reward from
+// MISSIONS[6]: CURI MOBIL, $600 + 400 REP).
+export const SARI_BRIEFING_GRAPH = {
+  start: 'sari_brief',
+  vars: { terima: false, tanya: false },
+  nodes: {
+    sari_brief: {
+      speaker: 'sari',
+      lineId: 'DLG_SARI_BRIEF_001',
+      line: 'Garuda-1 sudah di udara. Curi CEMPAKA GT-nya sebelum heli itu sampai ke Marina.',
+      choices: [
+        { label: 'Terima misi', to: 'sari_terima', set: { terima: true } },
+        { label: 'Tanya dulu', to: 'sari_tanya', set: { tanya: true } },
+      ],
+    },
+    sari_terima: {
+      speaker: 'sari',
+      lineId: 'DLG_SARI_BRIEF_002',
+      line: 'Bagus. Ambil kasetnya di Kios Baris dulu, baru kejar Garuda-1. Jangan bawa polisi ke warung saya.',
+      next: 'end',
+    },
+    sari_tanya: {
+      speaker: 'sari',
+      lineId: 'DLG_SARI_BRIEF_003',
+      line: 'Heli itu Garuda-1 — sorotnya mencari mobil curian. Kamu yang bawa mobilnya, jadi kamu yang dicari.',
+      next: 'end',
+    },
+    end: { end: true },
+  },
+};
+
+// The briefing panel's staged content (R20): mission 7's real steps as
+// objectives (one already done — meeting Sari, the briefing itself),
+// the real reward from MISSIONS[6]. The brief's "Rp 2,5 JT + 500 XP"
+// is NOT used: no mission pays that, and this project never stages a
+// number the save does not really pay (M7: $600 + 400 REP).
+export const SARI_BRIEFING = {
+  name: 'SARI',
+  role: 'INFORMAN BENTARA',
+  portraitKey: 'sari',
+  titleMain: 'MISI 7',
+  titleSub: 'OPERASI GARUDA-1',
+  objectives: [
+    { text: 'Temui Sari di Warung Sari', done: true },
+    { text: 'Ambil kaset di Kios Baris', done: false },
+    { text: 'Bawa CEMPAKA GT ke Marina', done: false },
+  ],
+  reward: `HADIAH: $${MISSIONS[6].reward} + ${MISSIONS[6].rep} REP`,
 };
 
 // Validate a graph before it runs: every referenced node exists, every

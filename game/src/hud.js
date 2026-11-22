@@ -107,6 +107,14 @@ export function createHud() {
     mapScreen: $('mapScreen'), mapCanvas: $('mapCanvas'), mapBanner: $('mapBanner'),
     mapStats: $('mapStats'), mapLedger: $('mapLedger'), mapQuote: $('mapQuote'), mapChapters: $('mapChapters'),
     mapStandings: $('mapStandings'), mapCounts: $('mapCounts'), mapTabs: $('mapTabs'),
+    // R20 — mission briefing panel (foot frame) + arsenal screen (story frame).
+    briefing: $('briefing'), briefPortrait: $('briefPortrait'),
+    briefName: $('briefName'), briefRole: $('briefRole'),
+    briefTitleMain: $('briefTitleMain'), briefTitleSub: $('briefTitleSub'),
+    briefLine: $('briefLine'), briefObjectives: $('briefObjectives'),
+    briefReward: $('briefReward'), briefChoices: $('briefChoices'),
+    arsenalScreen: $('arsenalScreen'), arsenalHead: $('arsenalHead'), arsenalSub: $('arsenalSub'),
+    arsenalGrid: $('arsenalGrid'), arsenalCounts: $('arsenalCounts'),
     rankChip: $('rankChip'), progressChapter: $('progressChapter'),
     xpLevel: $('xpLevel'), xpFill: $('xpFill'), xpText: $('xpText'),
     // R19 take-2 fix #5: collectRow is CUT (see index.html) — the
@@ -623,27 +631,29 @@ export function createHud() {
       els.billPill.style.display = total > 0 ? 'block' : 'none';
       if (total > 0) els.billPill.textContent = `TAGIHAN −$${total}`;
     }
-    // Police response list (R19 H5/D5): header + max 5 rows + "+N unit
-    // lagi", merged into the mission card's lower half. Columns:
-    // callsign | type | distance | TACTIC. The roadblock (BLOKADE)
-    // counts as a unit now (BOX IN) — 3 cruisers + heli + blokade =
-    // 5 UNIT at heat 4. Rows are ordered heli first, then cruisers,
-    // then the roadblock, then foot cops, so the 5 shown are always
-    // GARUDA-1 + the 3 cruisers + BLOKADE.
+    // Police response list (R19 H5/D5, R20 slimmed): header + max 3 rows
+    // + "+N unit lagi", merged into the mission card's lower half.
+    // Columns: callsign | type | distance | TACTIC. R20 (criterion 3 —
+    // the 5-row strip was part of the density complaint): the table
+    // covers the 5 VEHICLE units only (heli + 3 cruisers + blokade =
+    // 5 UNIT at heat 4; the 2 foot cops are a different category and
+    // read in-world, not in the table), shows the top 3, and the head
+    // carries the "5 UNIT" count with "+2 unit lagi" naming the rest.
     const units = G.policeUnits();
-    const tableUnits = units.slice().sort((a, b) => {
+    const vehicleUnits = units.filter((u) => u.type === 'CRUISER' || u.type === 'HELI' || u.type === 'BLOKADE');
+    const tableUnits = vehicleUnits.slice().sort((a, b) => {
       const rank = (u) => (u.status === 'SPOTLIGHT' ? 0 : u.type === 'CRUISER' ? 1 : u.type === 'BLOKADE' ? 2 : 3);
       return rank(a) - rank(b);
     });
     if (S.heat >= 1 && tableUnits.length > 0) {
       els.policeBox.style.display = 'block';
       els.policeHead.textContent = `RESPON POLISI — ${tableUnits.length} UNIT · KODE ${Math.floor(S.heat)}`;
-      const shown = tableUnits.slice(0, 5);
+      const shown = tableUnits.slice(0, 3);
       let html = shown.map((u) => {
         const pill = STATUS_PILL[u.status] || [u.status, 'pill-cari'];
         return `<div class="unit"><b>${u.name}</b><span class="type">${u.type || ''}</span><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
       }).join('');
-      if (tableUnits.length > 5) html += `<div class="more">+${tableUnits.length - 5} unit lagi</div>`;
+      if (tableUnits.length > 3) html += `<div class="more">+${tableUnits.length - 3} unit lagi</div>`;
       els.policeRows.innerHTML = html;
     } else {
       els.policeBox.style.display = 'none';
@@ -767,9 +777,13 @@ export function createHud() {
     // Weapon wheel: a radial wheel around the current weapon — 5 slots
     // at 72° intervals, mag/reserve counts, LOCKED pads with the real
     // price / REP gate. The wheel is the HUD proof the weapon rack is a
-    // real system with gated slots, not a flat list.
+    // real system with gated slots, not a flat list. R20 (criterion 1):
+    // each slot also carries a DAMAGE bar (damage / 90 max, gold fill),
+    // so the wheel reads as a loadout, not just names + ammo.
     const MAG_KEY = { shotgun: 'shellMag', smg: 'smgMag', bedil: 'bedilMag', pelontar: 'pelontarMag' };
     const HAS_KEY = { shotgun: 'hasShotgun', smg: 'hasSmg', bedil: 'hasBedil', pelontar: 'hasPelontar' };
+    const MAX_DMG = Math.max(...WEAPON_SLOTS.map((id) => WEAPONS[id].damage));
+    const dmgBar = (id) => `<span class="dmgbar"><i style="width:${Math.round((WEAPONS[id].damage / MAX_DMG) * 100)}%"></i></span>`;
     const wheelSlots = WEAPON_SLOTS.map((id, i) => {
       const w = WEAPONS[id];
       const owned = id === 'pistol' || (HAS_KEY[id] && P[HAS_KEY[id]]);
@@ -780,10 +794,10 @@ export function createHud() {
         // already passed reads as the price (Recording 13 — a "REP 3"
         // pad on a REP 3 save would read as still locked).
         const gate = (w.repNeeded && repLevel(S.rep) < w.repNeeded) ? `REP ${w.repNeeded}` : `$${w.price}`;
-        return `<span class="${cls}" style="--a:${angle}deg"><b>${i + 1}</b><i>${w.name}</i><em>🔒 ${gate}</em></span>`;
+        return `<span class="${cls}" style="--a:${angle}deg"><b>${i + 1}</b><i>${w.name}</i>${dmgBar(id)}<em>🔒 ${gate}</em></span>`;
       }
       const ammo = id === 'pistol' ? '∞' : `${P[MAG_KEY[id]] ?? 0}/${P[w.reserveField] ?? 0}`;
-      return `<span class="${cls}" style="--a:${angle}deg"><b>${i + 1}</b><i>${w.name}</i><em>${ammo}</em></span>`;
+      return `<span class="${cls}" style="--a:${angle}deg"><b>${i + 1}</b><i>${w.name}</i>${dmgBar(id)}<em>${ammo}</em></span>`;
     }).join('');
     const curW = WEAPONS[P.weapon] || WEAPONS.pistol;
     const curAmmo = P.weapon === 'pistol' ? '∞' : `${P[MAG_KEY[P.weapon]] ?? 0}/${P[curW.reserveField] ?? 0}`;
@@ -1155,6 +1169,85 @@ export function createHud() {
     els.mapScreen.classList.remove('show');
   }
 
+  // R20 (criterion 2) — MISSION BRIEFING panel: the staged story mission
+  // with a NAMED character. One panel, right side, portrait-led (game-
+  // ui-ux: one focus per frame; frontend-design: the same --panel token
+  // as every other panel, type one step up from the cover dialogue).
+  // `data` carries the graph node's line + choices (dialogue-systems:
+  // the panel IS a graph node, not a chat line) plus the briefing meta
+  // (objectives with done flags, real reward). Choices re-fill the panel
+  // through the runner's render callback in live play.
+  function showBriefing(data) {
+    if (!els.briefing) return;
+    if (els.briefPortrait) drawPortrait(els.briefPortrait, data.portraitKey || 'sari');
+    if (els.briefName) els.briefName.textContent = data.name || '';
+    if (els.briefRole) els.briefRole.textContent = data.role || '';
+    if (els.briefTitleMain) els.briefTitleMain.textContent = data.titleMain || '';
+    if (els.briefTitleSub) els.briefTitleSub.textContent = data.titleSub || '';
+    if (els.briefLine) els.briefLine.textContent = data.line || '';
+    if (els.briefObjectives) {
+      els.briefObjectives.innerHTML = (data.objectives || []).map((o) => `<div class="bobj${o.done ? ' done' : ''}"><span>${o.done ? '✓' : '○'}</span>${o.text}</div>`).join('');
+    }
+    if (els.briefReward) els.briefReward.textContent = data.reward || '';
+    if (els.briefChoices) {
+      els.briefChoices.innerHTML = '';
+      for (const c of (data.choices || [])) {
+        const b = document.createElement('button');
+        b.className = 'dchoice' + (c.selected ? ' selected' : '');
+        b.type = 'button';
+        b.textContent = c.text;
+        if (c.onPick) b.addEventListener('click', () => c.onPick());
+        els.briefChoices.appendChild(b);
+      }
+    }
+    els.briefing.style.display = 'flex';
+  }
+  function hideBriefing() {
+    if (els.briefing) els.briefing.style.display = 'none';
+  }
+
+  // R20 (criterion 1) — ARSENAL screen: the full loadout menu. The grid
+  // is the real weapon rack (WEAPON_SLOTS + live ownership/ammo from the
+  // player, prices/gates from the real shop), each row with NAME + damage
+  // bar + DMG number + ammo + owned/locked status. The footer is the
+  // counts band from R19 (same 4 real counts, same 130 px digits) — the
+  // counts survive here now that the map screen leaves the dossier.
+  function showArsenal(G) {
+    if (!els.arsenalScreen) return;
+    const P = G.player;
+    const S = G.state;
+    const MAG_KEY = { shotgun: 'shellMag', smg: 'smgMag', bedil: 'bedilMag', pelontar: 'pelontarMag' };
+    const HAS_KEY = { shotgun: 'hasShotgun', smg: 'hasSmg', bedil: 'hasBedil', pelontar: 'hasPelontar' };
+    const maxDmg = Math.max(...WEAPON_SLOTS.map((id) => WEAPONS[id].damage));
+    const rows = WEAPON_SLOTS.map((id) => {
+      const w = WEAPONS[id];
+      const owned = id === 'pistol' || (HAS_KEY[id] && P[HAS_KEY[id]]);
+      const ammo = id === 'pistol' ? '∞' : `${P[MAG_KEY[id]] ?? 0}/${P[w.reserveField] ?? 0}`;
+      const pct = Math.round((w.damage / maxDmg) * 100);
+      const status = owned
+        ? '<span class="astat-owned">DIMILIKI</span>'
+        : `<span class="astat-locked">🔒 ${((w.repNeeded && repLevel(S.rep) < w.repNeeded) ? `REP ${w.repNeeded}` : `$${w.price}`)}</span>`;
+      return `<div class="arow${P.weapon === id ? ' cur' : ''}${owned ? '' : ' locked'}"><b class="aname">${w.name.toUpperCase()}</b><span class="admg"><i style="width:${pct}%"></i></span><span class="admgnum">DMG ${w.damage}</span><span class="aammo">${ammo}</span>${status}</div>`;
+    }).join('');
+    const rp = repProgress(S.rep);
+    const day = dayLockup(S);
+    els.arsenalHead.textContent = `ARSENAL — ${WEAPON_SLOTS.length} SENJATA`;
+    els.arsenalSub.textContent = `LEVEL ${rp.level} · ${rp.title} · ${day.text}`;
+    els.arsenalGrid.innerHTML = rows;
+    const cars = G.garage ? G.garage.catalog().length + 1 : 6;
+    const counts = [
+      ['MISI', MISSIONS.length],
+      ['KENDARAAN', cars],
+      ['SENJATA', WEAPON_SLOTS.length],
+      ['DISTRIK', 3],
+    ];
+    els.arsenalCounts.innerHTML = counts.map(([label, n]) => `<div class="mcount"><b>${n}</b><span>${label}</span></div>`).join('');
+    els.arsenalScreen.classList.add('show');
+  }
+  function hideArsenal() {
+    if (els.arsenalScreen) els.arsenalScreen.classList.remove('show');
+  }
+
   // Recording 16 — the RACE RESULTS screen: shown when a real race
   // finishes (game.js onFinish, or the story shot), filled from the
   // finish payload's real standings (player + the three bot rivals,
@@ -1361,6 +1454,6 @@ export function createHud() {
     clearFeed,
     showGarage, showUsaha, showWeaponShop, closeShop, isShopOpen,
     setHudProfile, showMapScreen, hideMapScreen, showTitleCard, hideTitleCard,
-    showRaceResults, hideRaceResults,
+    showRaceResults, hideRaceResults, showBriefing, hideBriefing, showArsenal, hideArsenal,
   };
 }

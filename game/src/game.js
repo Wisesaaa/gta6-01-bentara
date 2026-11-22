@@ -979,7 +979,7 @@ export function createGame(canvas, seed = 7) {
   const game = {
     state, city, view, player, traffic, peds, police, missions, bill, props,
     collectibles, taxi, ojek, race, garage, usaha, effects, karaoke, fishing,
-    hud, audio, input: inputFacade, shotKeys, npcs, parked, rng,
+    hud, audio, input: inputFacade, shotKeys, npcs, parked, rng, weaponShop,
     step, draw, audit, addHeat, damagePlayer, applySave, missionTarget, policeUnits, timeScale,
     loadSave: loadGame,
     setMode(mode) { state.mode = mode; },

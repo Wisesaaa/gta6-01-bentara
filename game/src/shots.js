@@ -9,7 +9,7 @@
 // judge reads the dossier sheet (cover 768x432 on top, three 256x144
 // frames beneath), so every frame is verified at dossier size.
 //
-// 1-heat (cover, R19): the chase EAST down the z=111 arterial toward
+// 1-heat (cover, R20): the chase EAST down the z=111 arterial toward
 //   the low sun — the red Cempaka GT BIG (camera 6.5 m back, 2 m up,
 //   FOV 62°, car ~28–30% of the frame, lower-centre), mid-drift + a
 //   real near-miss, heli + spotlight cone in the upper third, the
@@ -19,35 +19,32 @@
 //   all 5 garage cars really bought. Sari's story line + choice
 //   bottom-centre (dialogue graph, 96 px portrait); the police radio
 //   stays the separate ticker. One mission card top-left (dispatch
-//   merged: 5 named units + tactics), KEMAJUAN in the cash box
-//   top-right, progress inside the minimap panel bottom-left.
-// 2-drive (R19): the race FINISH — a REAL race run first (5 gates,
+//   slimmed: 3 rows + "5 UNIT" count), KEMAJUAN in the cash box
+//   top-right, progress inside the minimap panel bottom-left. R20: the
+//   weapon WHEEL is OPEN, centre-right, 300 px — the cover's one big
+//   HUD element (5 named weapons + ammo + damage bars + locked gates).
+// 2-drive (R20): the race FINISH — a REAL race run first (5 gates,
 //   measured times), then the chase, then the HASIL BALAPAN overlay
 //   over the chase backdrop. Standings readable at 256 px.
-// 3-foot (R19): on FOOT, eye level — the player WALKING north past
-//   Warung Sari (5.5 m back, 2.3 m up, player ~29% of the frame), the
-//   KARAOKE STAGE loud ahead-right (scaled stage, 2 performer peds,
-//   Sari at the corner, pink neon + acid-green LEDs), wayang/kaset as
-//   PICTORIAL props on the street edge, the cordon holding the street's
-//   far north end with a gold ring marking the player. No ammo crate.
-// 4-story (R19): the COUNTS/MENU screen — the full map screen with
-//   tabs (MISI/STATS/GARASI/PENGATURAN) + six big real counts + the
-//   garage list, staged as a near-complete save (all 8 missions done,
-//   14/24 collectibles really collected, all 3 usaha + 1 garage car
-//   really bought, race records on the board, one real taxi fare + one
-//   real ojek ride completed) — so the map reads ~88% completion with
-//   the per-part breakdown, chapter list, KLASEMEN standings and the
-//   final-mission ledger. The map screen is a real in-game screen
-//   (M key), not a menu mockup; the race-results overlay is the drive
-//   frame's job now.
+// 3-foot (R20): the MISSION BRIEFING — on FOOT at the market/warung
+//   (player + Sari on foot, Warung Sari sign, stalls, peds, cordon in
+//   the background), the briefing panel right (Sari portrait 280 px,
+//   MISI 7: OPERASI GARUDA-1, 3 objectives with one checked, real
+//   reward $600 + 400 REP, 2 graph choices). The karaoke stage stays
+//   in the 3D scene as dressing; the karaoke frame is gone.
+// 4-story (R20): the ARSENAL screen — the full loadout menu (5 weapon
+//   rows: name + damage bar + DMG + ammo + owned/locked, shotgun + SMG
+//   really bought from the Ruko shop, bedil + pelontar locked behind
+//   their price gates) with the counts band as the footer
+//   (8 MISI · 6 KENDARAAN · 5 SENJATA · 3 DISTRIK in 130 px gold
+//   digits). The map screen stays a live in-game screen (M key).
 import * as THREE from 'three';
 import { STEP, COLLECTIBLES, SUN, STUNTS, RACE } from './config.js';
-import { MISSIONS } from './missions.js';
 import { loc, roadLines } from './city.js';
 import { routeWaypoints } from './gpsRoute.js';
 import { makeGlowSprite } from './effects.js';
 import { pointAhead, projectPoint, auditTarget, countInView } from './photoSpawner.js';
-import { createDialogueRunner, SARI_COVER_GRAPH } from './dialogue.js';
+import { createDialogueRunner, SARI_COVER_GRAPH, SARI_BRIEFING_GRAPH, SARI_BRIEFING } from './dialogue.js';
 
 const SHOTS = {
   heat: { at: 2 },
@@ -1085,11 +1082,16 @@ export function stageShot(name, game, atSeconds) {
     window.__shotReady = true;
     return { name, seconds, steps };
   } else if (name === 'foot') {
-    // Mission 2 ANTAR PAKET: the player is on foot at the north-row
-    // market, WANTED — the warung interaction pill is live, the emissive
-    // sign + tarp awning are in frame, and the cordon closes the street.
-    G.missions.setIndex(1);
-    // The M2 intro would sit over the frame; the foot shot is a market
+    // R20 — MISSION BRIEFING: the player is on foot at the north-row
+    // market, WANTED — Sari briefs MISI 7 (OPERASI GARUDA-1) at Warung
+    // Sari, the emissive sign + tarp awning are in frame, and the
+    // cordon closes the street. Mission 7 (not 2): the mission card
+    // reads MISI 7/8, matching the briefing panel. The karaoke STAGE
+    // stays in the 3D scene as market dressing (geometry untouched),
+    // but the karaoke SESSION is cut from this frame — the panel is the
+    // briefing, not a karaoke session.
+    G.missions.setIndex(6);
+    // The M7 intro would sit over the frame; the foot shot is a market
     // street, not a conversation.
     G.hud.hideDialogue();
     G.hud.setHudProfile('foot');
@@ -1124,10 +1126,10 @@ export function stageShot(name, game, atSeconds) {
     G.player.shellMag = 6;
     G.player.shells = 24;
     G.player.armor = 60;
-    // No attackers in this frame (r8): the wanted scene's threat is the
-    // police cordon itself — 2 foot cops spawn from the heat and walk at
-    // the player during the sim, then get re-staged to exact spots after
-    // it. The old firefight (attackers + downed body + drops) is gone.
+    // The M7 mission has no survive step, so no attackers spawn during
+    // the 2 s sim — dispose defensively anyway, so the frame holds only
+    // cops and civilians (an attacker would read as a third faction).
+    for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
     // The WARUNG SARI sign (42,5,104) sits 2 m behind PASAR PAGI
     // (42,6,102) and 1 m lower, so from any northern camera the two
     // signs stack and WARUNG SARI never reads. Ronde 1 staged it
@@ -1428,8 +1430,8 @@ export function stageShot(name, game, atSeconds) {
       c.heading = k === 0 ? 1.2 : -1.2;
       c.sync();
     });
-    // The M2 survive step may have auto-spawned an attacker during the
-    // 2 s sim — dispose any that appeared, so the frame holds only cops
+    // M7 has no survive step, so no attackers spawn during the 2 s sim
+    // — dispose defensively anyway, so the frame holds only cops
     // and civilians (an attacker would read as a third faction).
     for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
     // The cordon, re-staged to exact spots after the sim. The walk beat
@@ -1511,7 +1513,7 @@ export function stageShot(name, game, atSeconds) {
     // so searching = true, the search ring centres on the last-seen spot
     // and the LOS chip flips to HILANG with the countdown. One step moves
     // nobody more than a few centimetres, so the staged spots hold. The
-    // M2 survive step could spawn one more attacker on this step —
+    // M7 mission cannot spawn an attacker on this step —
     // dispose again, same as above.
     G.step(1 / 60);
     for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
@@ -1594,19 +1596,23 @@ export function stageShot(name, game, atSeconds) {
     // visible above the platform's front face from the foot lens.
     if (stallTape1 && stallTape1.mesh) stallTape1.mesh.position.y = STAGE_TOP;
     if (stallTape2 && stallTape2.mesh) stallTape2.mesh.position.y = STAGE_TOP;
-    // Recording 18 — KARAOKE, mid-session at the freeze: start a real
-    // session at the karaoke corner (44,100 — ahead-right of the player)
-    // and drive it through the module's own update/press path for ~6
-    // beats, pressing on each beat. The session stays ACTIVE at the
-    // freeze, so the panel reads live: beat dots half-filled, score and
-    // combo from real PERFECT hits, the beat bar mid-fill. The player
-    // stands still while singing (the session freezes movement, like a
-    // shop) — his re-staged spot holds.
-    G.karaoke.start();
-    for (let i = 0; i < 220 && G.karaoke.active; i += 1) {
-      G.karaoke.update(STEP);
-      if (G.karaoke.active && G.karaoke.timeToBeat() <= STEP) G.karaoke.press();
-    }
+    // R20 — MISSION BRIEFING (the frame's focus; the karaoke session is
+    // CUT from this frame — the stage stays in the 3D scene as market
+    // dressing, but the panel is the briefing, not a karaoke session).
+    // Sari briefs MISI 7 from the dialogue graph (validated in
+    // dialogue.js): the panel shows the start node's line + its 2
+    // choices, with the mission's real objectives + reward. The walk's
+    // collect counts are exposed for the shot QA (the popups themselves
+    // are hidden by the foot profile's one-focus rule).
+    const briefRunner = createDialogueRunner(SARI_BRIEFING_GRAPH, (cur) => {
+      G.hud.showBriefing({ ...SARI_BRIEFING, line: cur.line, choices: cur.choices });
+    });
+    briefRunner.show();
+    window.__footBriefing = { graph: 'SARI_BRIEFING_GRAPH', node: briefRunner.node(), lineId: briefRunner.current().lineId };
+    window.__footCollect = {
+      wayang: G.collectibles.idolsCollected, kaset: G.collectibles.tapesCollected,
+      kasetTrack: stagedTape ? stagedTape.track : null,
+    };
     G.setShotInput({ active: false });
     // Foot camera (ronde 2): the LIVE followFoot (4.2 m back, 2.4 m up)
     // put the lens 4 m from the 8 m Warung Sari sign — the sign spanned
@@ -1619,11 +1625,19 @@ export function stageShot(name, game, atSeconds) {
     // face (x 48.8) filled the left ~35% from the (46, 94) aim — the
     // northerly aim pushes its north corner out of frame and the KEDAI
     // KOPI / TOKO KELONTONG signs break what is left of it.
+    // R20 — the briefing panel owns the frame's right 560 px, so the
+    // lens yaws ~15° WEST (lookAt x −4): the player (was x≈742, behind
+    // the panel) lands at x≈578 and the WARUNG SARI sign (was 374–886)
+    // lands at x≈76–672, both clear of the panel (x 708) — verified by
+    // projecting the sign corners + player head/feet off-line before
+    // shooting (lookAt 36: sign 76–672, player 578–579, height 190 px).
+    // The stage + east stalls shift left with the scene and stay in
+    // frame; the west stall slides out (background clutter).
     G.player.placeCamera();
     const cam = G.view.camera;
     cam.position.set(G.player.x + 0.8, 2.3, G.player.z - 5.5);
-    cam.lookAt(G.player.x, 1.2, G.player.z + 14);
-    G.view.keepClear(cam, G.player.x, 1.2, G.player.z + 14);
+    cam.lookAt(G.player.x - 4, 1.2, G.player.z + 14);
+    G.view.keepClear(cam, G.player.x - 4, 1.2, G.player.z + 14);
     // Framing audit: the player must read ~30% of the frame height.
     auditShot('foot', G, { name: 'WIRA', center: { x: G.player.x, y: 0.9, z: G.player.z }, half: { x: 0.3, y: 0.9, z: 0.3 } });
     // No gunfire in this frame: the search beat is a cordon SWEEPING, not
@@ -1673,19 +1687,19 @@ export function stageShot(name, game, atSeconds) {
     window.__shotReady = true;
     return { name, seconds, steps };
   } else {
-    // story: the FULL MAP SCREEN (Recording 13) — a near-complete save:
-    // all 8 missions done, 14/24 collectibles really collected (the
-    // player walks over them, same pickup path as live play), all 3
-    // usaha + 1 garage car really bought, race records on the board,
-    // one real taxi fare + one real ojek ride completed — so the map
-    // reads ~88% completion with the per-part breakdown, chapter list,
-    // KLASEMEN standings and the final-mission ledger. The map screen is
-    // a real in-game screen (M key); the title card stays in the game
-    // but is not the dossier frame anymore.
+    // R20 — story: the ARSENAL screen — a near-complete save: all 8
+    // missions done, 14/24 collectibles really collected (the player
+    // walks over them, same pickup path as live play), all 3 usaha + 1
+    // garage car really bought, and the weapon rack really bought from
+    // the Ruko shop (shotgun + SMG for real money; bedil + pelontar stay
+    // locked behind their real price gates). The map screen stays a
+    // real in-game screen (M key) but leaves the dossier — the arsenal
+    // grid + counts band footer are this frame now. No race / taxi /
+    // ojek sim here anymore (those fed the map screen, not the arsenal).
     G.hud.setHudProfile('story');
     G.missions.setIndex(8);
-    // The M8 intro would sit over the frame; the story shot is a map
-    // screen, not a conversation.
+    // The M8 intro would sit over the frame; the story shot is an
+    // arsenal screen, not a conversation.
     G.hud.hideDialogue();
     // The save earned its money first, then spent it: $60,000 banked,
     // REP 2,600 (LEGENDA BENTARA), heat 0.
@@ -1695,9 +1709,14 @@ export function stageShot(name, game, atSeconds) {
     // Recording 16 — HARI 7, 18:00 SENJA (state.time 240 s).
     G.state.day = 7;
     G.state.time = 240;
-    G.player.hasShotgun = true;
-    G.player.shellMag = 6;
-    G.player.shells = 24;
+    // R20 — the rack, bought for REAL from the weapon shop (cash leaves
+    // the save through the shop's own pay path, REP gates enforced):
+    // shotgun $120 → shells 24, mag 6; SMG $450 → 60 reserve, mag 30
+    // (both at the REP 4 20% discount). Bedil ($900) + pelontar
+    // ($1,800) are NOT bought: their 🔒 price gates are the arsenal's
+    // locked-slot proof. Armour stays staged (60), as in R19.
+    const storyShotgunBuy = G.weaponShop.buy('shotgun');
+    const storySmgBuy = G.weaponShop.buy('smg');
     G.player.armor = 60;
     // Buy the whole property ladder + the cheapest garage car, for real
     // money, from the real catalogs (Warung Sari $2,500, Kios Kaki Lima
@@ -1709,56 +1728,24 @@ export function stageShot(name, game, atSeconds) {
     }
     const storyCar = G.garage.catalog().slice().sort((a, b) => a.price - b.price)[0];
     const storyCarBuy = storyCar ? G.garage.buy(storyCar.id) : null;
-    // R19 — the real race, shared with the drive frame (runRealRace):
-    // the standings feed the map screen's KLASEMEN table. The results
-    // overlay itself is the drive frame's job now, not this frame's.
-    const storyRace = runRealRace(G);
-    window.__storyRace = storyRace;
     // Collect 14 items for real (shared helper — same teleport + step
-    // pickup path; tops up to exactly 14, since the race drive can
-    // already have collected an item on the route).
+    // pickup path).
     collectItems(G, 14);
-    // One real taxi fare: stage a passenger at the marina, drive the
-    // car to them, start the fare, drive to the destination — the meter
-    // ticks on the real distance and finishFare pays out.
-    let storyTaxi = false;
-    const storyPax = G.taxi.stagePassenger('marina');
-    if (storyPax) {
-      G.player.enterCar(G.parked[0]);
-      G.player.car.x = storyPax.x + 2;
-      G.player.car.z = storyPax.z;
-      G.player.car.speed = 0;
-      G.player.car.sync();
-      if (G.taxi.startFare(G.player.x, G.player.z)) {
-        const storyDest = G.taxi.destination;
-        if (storyDest) {
-          G.player.car.x = storyDest.x;
-          G.player.car.z = storyDest.z;
-          G.player.car.speed = 0;
-          G.player.car.sync();
-          for (let i = 0; i < 10; i += 1) G.step(STEP);
-          storyTaxi = G.taxi.trips >= 1;
-        }
-      }
-      G.player.exitCar();
-    }
-    // One real ojek ride: the bike drives itself; step until it pays
-    // out (bounded — if it does not finish, the map screen simply
-    // omits the ojek row instead of showing a fake one).
-    let storyOjek = false;
-    G.ojek.stageRide('marina', 'towerConcourse');
-    for (let i = 0; i < 3600 && G.ojek.trips < 1; i += 1) G.step(STEP);
-    storyOjek = G.ojek.trips >= 1;
     window.__storySave = {
       usaha: storyUsaha,
       car: storyCarBuy && storyCarBuy.ok ? storyCar.name : null,
       collected: G.collectibles.collected,
-      taxi: storyTaxi,
-      ojek: storyOjek,
-      taxiTrips: G.taxi.trips,
-      ojekTrips: G.ojek.trips,
-      raceStandings: G.race.standings,
-      raceRuns: G.race.runs,
+      weapons: {
+        shotgun: storyShotgunBuy && storyShotgunBuy.ok,
+        smg: storySmgBuy && storySmgBuy.ok,
+        hasShotgun: G.player.hasShotgun,
+        hasSmg: G.player.hasSmg,
+        hasBedil: G.player.hasBedil,
+        hasPelontar: G.player.hasPelontar,
+        shells: G.player.shells,
+        smgAmmo: G.player.smgAmmo,
+      },
+      cash: Math.round(G.state.cash),
     };
     // Back on foot at the marina for the backdrop behind the map, and
     // the bank re-read after all the real spending + earning above.
@@ -1807,42 +1794,30 @@ export function stageShot(name, game, atSeconds) {
       c.heading = k === 0 ? -1.2 : 1.2;
       c.sync();
     });
-    // The map screen over the live marina street — the ledger is the
-    // final mission's real reward (M8 PANAS TERAKHIR: +$1,000 +600 REP,
-    // from MISSIONS[7]); the radio is on, so the map quote + stats read
-    // the live save.
-    G.audio.setRadio(true);
-    const m8 = MISSIONS[7];
-    // Recording 18 — the near-complete save has really DONE the new side
-    // activities (one karaoke session + two fishing catches, run through
-    // the modules just above), so the map stats + results meta carry the
-    // AKTIVITAS line with real counts.
-    runSideSessions(G);
-    G.hud.showMapScreen(G, { hasil: m8.reward, tagihan: 0, bersih: m8.reward, rep: m8.rep });
-    // R19 (D4) — frame 4 is the COUNTS/MENU screen now: the map screen
-    // IS the frame (the story profile no longer hides it), so there is
-    // no results overlay here — the standings live in the map screen's
-    // KLASEMEN table, and the HASIL BALAPAN overlay is the drive
-    // frame's job. Nothing to show on top of the map.
+    // R20 — the ARSENAL screen over the live marina street: the grid +
+    // counts band are the frame (the map screen stays a live screen
+    // under M, not the dossier frame). No side sessions / radio here —
+    // those fed the map stats, not the arsenal.
+    G.hud.showArsenal(G);
     // Close camera due south of the player, looking due north: the
     // player stands left-foreground with his back to us, Wira and Aska
     // just beyond him, and the MARINA sign, the water, the boats and
     // the windowed skyline behind them. Shot from the south so no
-    // building wall crosses the view. The map screen is ~96% opaque, so
-    // this is a dim backdrop, not the subject — the map does the
+    // building wall crosses the view. The arsenal screen is ~96% opaque,
+    // so this is a dim backdrop, not the subject — the grid does the
     // talking, and the street behind it proves it is a game screen.
     const cam = G.view.camera;
     cam.position.set(-6, 3.6, -148);
     cam.lookAt(-6, 0.9, -170);
     G.view.keepClear(cam, -6, 1.3, -170);
-    // The map screen is a rest beat (level-design pacing): zero trauma,
+    // The arsenal screen is a rest beat (level-design pacing): zero trauma,
     // a level camera. Clear any smoke first so no white blob sits on
     // the camera axis.
     G.view.setTrauma(0);
     G.effects.clearSmoke();
     // Framing audit: the background street (player + Wira + peds) behind
-    // the map screen — the map itself is DOM, verified by the shoot
-    // script's map-stats text check.
+    // the arsenal screen — the screen itself is DOM, verified by the
+    // shoot script's arsenal text check.
     auditShot('story', G, { name: 'WIRA', center: { x: G.player.x, y: 0.9, z: G.player.z }, half: { x: 0.3, y: 0.9, z: 0.3 } });
     G.view.render();
     window.__shotReady = true;
