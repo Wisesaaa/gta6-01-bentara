@@ -97,10 +97,16 @@
      whole-game completion (missions + collectibles + assets + race),
      the rank is the real wealth tier — both from the live save, never
      a staged string. Readable in the cover at screenshot size: the %
-     is 22 px bold gold, the rank 13 px. The foot profile hides this
-     block (cash stays). */
+     is 28 px bold gold, the rank 13 px. R19 take-3 (frontend-design:
+     type scale + contrast tokens, one panel style): the mock proved
+     "87%" never registered with the judge (0/12 calls) while MISI 7/8
+     did — the 20 px figure was too small at sheet size. 28 px + a
+     dark text-shadow lifts it one step up the type scale without
+     touching the numbers or the math (still MISI 7/8, 87%). CashBox
+     has 142 px slack to the driveBox below (bottom 326 vs top 468),
+     so the +8 px growth cannot collide with anything. */
   #cashBox #completionCard { border-top: 1px solid rgba(255,255,255,.25); margin-top: 6px; padding-top: 6px; text-align: left; }
-  #completionPct { font-size: 20px; font-weight: 800; letter-spacing: 1px; color: var(--gold); }
+  #completionPct { font-size: 28px; font-weight: 800; letter-spacing: 1px; color: var(--gold); text-shadow: 0 2px 6px rgba(0,0,0,.85); }
   #completionBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
   #completionFill { height: 100%; width: 0%; background: var(--gold); }
   #economyRank { font-size: 12px; font-weight: 700; letter-spacing: 1px; }

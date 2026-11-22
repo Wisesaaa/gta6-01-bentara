@@ -1234,13 +1234,21 @@ export function stageShot(name, game, atSeconds) {
     // 47.1, z 97.8–102.2 after the 1.25x group scale) now covers the
     // old (44–46, 100–101) spots, and the props would have been buried
     // under it. Still "beside the karaoke corner", still uncollected.
+    // R19 take-3 fix #10 — the tapes move ONTO the stage as a display:
+    // the 1.25 m platform hides the 0.7 m tapes behind its front face
+    // from the foot lens (sightline math: the ray to (48,101) crosses
+    // the platform rect below its top), so they sit on the platform's
+    // north-east corner instead — (46.5,101) + (46,102), both inside
+    // the QA stallProps probe (centre (47.75,101), r 3) with the idol.
+    // Their mesh y is raised AFTER the sim (see below), since
+    // collectibles.update overwrites it with the bob every step.
     const stallIdol = stageCollectible(G, 48, 100, 'idol');
-    const stallTape1 = stageCollectible(G, 48, 101, 'tape');
-    const stallTape2 = stageCollectible(G, 48, 102, 'tape');
+    const stallTape1 = stageCollectible(G, 46.5, 101, 'tape');
+    const stallTape2 = stageCollectible(G, 46, 102, 'tape');
     if (stallTape1 && stallTape1.mesh) stallTape1.mesh.scale.setScalar(1.5);
     if (stallTape2 && stallTape2.mesh) stallTape2.mesh.scale.setScalar(1.5);
     const stallGlow = makeGlowSprite(0xffd75e, 3.0, 0.5);
-    stallGlow.position.set(48, 0.8, 101);
+    stallGlow.position.set(46.2, 1.7, 101.5);
     G.view.scene.add(stallGlow);
     // R19 take-2 fix #10 — the market's scattered props can land ON the
     // stage footprint (the take-3 shoot had a crate at (41.8,99.8),
@@ -1321,7 +1329,14 @@ export function stageShot(name, game, atSeconds) {
     ];
     // Warung crowd: four peds standing tight under the awning at the
     // Warung Sari sign (42,3.2,96) — the market's life, not fleeing.
-    const warungCrowd = [[38, 96], [42, 96], [44, 97], [40, 97]];
+    // R19 take-3 fix #10 (in-game-photography: framing within the
+    // frame — the crowd is a FOREGROUND frame, not a block): the old
+    // spots (38–44, 96–97) stood directly on the camera→stage
+    // sightline, ~5.5 m from the lens, hiding the performers + the
+    // platform's centre. Now they FLANK the sign instead — two either
+    // side of it, two west by the stalls — so the sightline to the
+    // stage runs clear between them.
+    const warungCrowd = [[38, 96], [46, 97], [32, 99], [34, 101]];
     G.peds.peds.slice(0, footPedSpots.length).forEach((p, k) => {
       p.setPos(footPedSpots[k][0], footPedSpots[k][1]);
       p.target = { x: footPedSpots[k][0] + (k % 2 === 0 ? 10 : -10), z: footPedSpots[k][1] - 8 };
@@ -1532,11 +1547,16 @@ export function stageShot(name, game, atSeconds) {
     // pressed on each beat); the performers + Sari are staging, the
     // singing is live.
     // R19 take-2 fix #10 — the performers + Sari stand ON the stage:
-    // platform top is 0.6 m in the karaoke group, x1.25 group scale =
-    // 0.75 m world. setPos only touches x/z (Human.setPos), so the
+    // platform top is 1.0 m in the karaoke group, x1.25 group scale =
+    // 1.25 m world. setPos only touches x/z (Human.setPos), so the
     // height goes on group.position.y after. Without it they stand on
     // the street with the platform cutting them at the knees.
-    const STAGE_TOP = 0.75;
+    // R19 take-3: STAGE_TOP 0.75 -> 1.25 (platform 1.0 m). At 1.25 m
+    // the platform's front face is a tall visible band, and the
+    // performers' heads (~3.05 m) peek OVER the foreground crowd
+    // (in-game-photography: depth layers — FG crowd frames, MG
+    // performers + platform are the subject, market/sign the BG).
+    const STAGE_TOP = 1.25;
     G.view.scene.traverse((obj) => {
       if (obj.isGroup && Math.hypot(obj.position.x - 44, obj.position.z - 100) < 0.5 && obj.position.y === 0) {
         obj.scale.setScalar(1.25);
@@ -1563,6 +1583,17 @@ export function stageShot(name, game, atSeconds) {
       p.armR.rotation.x = -1.4;
       p.torso.rotation.x = 0;
     });
+    // R19 take-3 — the stall TAPES onto the platform as a display:
+    // their x/z were staged on the platform's north-east corner above,
+    // but during the sim they sat at ground level (y = bob ±0.12),
+    // buried INSIDE the 1.25 m platform box. Raise the mesh groups to
+    // the platform top NOW, after the last G.step — nothing steps
+    // collectibles again before the render (the karaoke loop below
+    // calls only karaoke.update), so the bob overwrite cannot undo it.
+    // The tape shells (1.5x, centre +1.2 m) then sit at ~2.45 m world,
+    // visible above the platform's front face from the foot lens.
+    if (stallTape1 && stallTape1.mesh) stallTape1.mesh.position.y = STAGE_TOP;
+    if (stallTape2 && stallTape2.mesh) stallTape2.mesh.position.y = STAGE_TOP;
     // Recording 18 — KARAOKE, mid-session at the freeze: start a real
     // session at the karaoke corner (44,100 — ahead-right of the player)
     // and drive it through the module's own update/press path for ~6

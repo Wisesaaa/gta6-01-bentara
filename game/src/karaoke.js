@@ -30,38 +30,53 @@ export function createKaraoke(scene, rng, hooks) {
   let lastQuality = '';
 
   // 3D props at the karaoke corner: a RAISED STAGE, not a mic on bare
-  // ground — a 5 x 3.5 m platform (top 0.6 m) with a glowing acid-green
+  // ground — a 5 x 3.5 m platform (top 1.0 m) with a glowing acid-green
   // front edge, two speaker stacks flanking the mic stand, LED strips
   // at the front corners, and the beat rings on the ground IN FRONT of
   // the stage, where the singer stands. R19 take-2 fix #10: the old
   // flat group (one mic, two small dark boxes, thin strips) never read
   // as a stage at 256 px — the platform + glowing edge + stacks are
   // what make it nameable as "a karaoke stage" from the sheet.
+  // R19 take-3 fix #10 (in-game-photography: depth layers FG/MG/BG —
+  // the platform is the midground subject, its front face a tall band
+  // the eye reads as a stage, not ground shadow): platform raised
+  // 0.6 -> 1.0 m, so its front face is a full metre tall and the
+  // performers' heads (~3 m) peek OVER the foreground crowd.
   const group = new THREE.Group();
   group.position.set(KARAOKE_SPOT.x, 0, KARAOKE_SPOT.z);
-  const STAGE_TOP = 0.6;
+  const STAGE_TOP = 1.0;
   const standMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
   // Raised platform: dark, so the glowing edge + performers on top read.
   const platform = new THREE.Mesh(
-    new THREE.BoxGeometry(5.0, 0.6, 3.5),
+    new THREE.BoxGeometry(5.0, 1.0, 3.5),
     new THREE.MeshLambertMaterial({ color: 0x232d3a }),
   );
-  platform.position.y = 0.3;
+  platform.position.y = 0.5;
   group.add(platform);
   // Mic stand ON the platform, centre-stage, slightly forward.
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.5, 8), standMat);
   pole.position.set(0, STAGE_TOP + 0.75, -0.3);
   const mic = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshLambertMaterial({ color: 0xff2e88, emissive: 0xff2e88, emissiveIntensity: 3 }));
   mic.position.set(0, STAGE_TOP + 1.55, -0.3);
-  // R19 (L2/L4): acid-green LED strips — emissive accents (intensity
-  // 4) that clear the bloom threshold and read as points of light at
-  // 256 px, in the cyan/magenta/acid-green neon palette (never
-  // orange/amber). Take-2: thicker + taller at the front corners, PLUS
-  // a full-width strip along the platform's front top edge — the
-  // glowing line that says "stage" at thumbnail size.
+  // R19 (L2/L4): acid-green LED strips — emissive accents that clear
+  // the bloom threshold and read as points of light at 256 px, in the
+  // cyan/magenta/acid-green neon palette (never orange/amber).
+  // Take-2: thicker + taller at the front corners, PLUS a full-width
+  // strip along the platform's front top edge — the glowing line that
+  // says "stage" at thumbnail size. Take-3 (threejs-postprocessing:
+  // selective bloom — threshold 0.85, only emissives clear it; and
+  // threejs-exposure-color-grading: measured, not stacked): the old
+  // 4x emissive blew past the threshold and bloomed to WHITE bars,
+  // not green stage lighting — and 2x STILL did (verified in the
+  // take-3 first shoot: the west strip rendered a fat white bar and
+  // its bloom wash veiled the speaker stack behind it). 1x sits
+  // BELOW the threshold (luminance ~0.70 < 0.85), so the strips do
+  // not bloom at all: MeshBasic renders flat acid green, and the
+  // hue — the thing that says "stage lighting" — survives. The glow
+  // is deliberately given up; colour accuracy wins at 256 px.
   const ledMat = new THREE.MeshBasicMaterial();
-  // Acid-green (0x39ff6a) at 4x — emissive intensity 4 in the L2 sense.
-  ledMat.color.setRGB(0.22 * 4, 1.0 * 4, 0.42 * 4);
+  // Acid-green (0x39ff6a) at 1x — below the bloom threshold on purpose.
+  ledMat.color.setRGB(0.22 * 1, 1.0 * 1, 0.42 * 1);
   for (const sx of [-2.4, 2.4]) {
     const led = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.8, 0.2), ledMat);
     led.position.set(sx, STAGE_TOP + 0.9, -1.6);
@@ -74,8 +89,13 @@ export function createKaraoke(scene, rng, hooks) {
   group.add(ledEdge);
   // Speaker STACKS flanking the mic: two boxes each (~1.9 m tall on
   // the platform) with a light cone circle on the front face, so they
-  // read as speakers, not dark crates.
-  const speakerMat = new THREE.MeshLambertMaterial({ color: 0x1d2a3a });
+  // read as speakers, not dark crates. Take-3: material lightened
+  // 0x1d2a3a -> 0x46586b (in-game-photography: subject/background
+  // separation — the old near-black stacks blended with the dark
+  // market boxes behind them; the first take-3 shoot proved 0x33414f
+  // still vanished, veiled by the LED bloom wash, so the lighter
+  // grey goes with the un-bloomed LEDs: no wash left to hide them).
+  const speakerMat = new THREE.MeshLambertMaterial({ color: 0x46586b });
   const coneMat = new THREE.MeshLambertMaterial({ color: 0x9aa7b5 });
   for (const sx of [-1.9, 1.9]) {
     const lower = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.1, 0.65), speakerMat);
