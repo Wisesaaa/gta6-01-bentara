@@ -28,11 +28,11 @@ export function createPopups(container, centerContainer, worldContainer, onStunt
   }
 
   function spawn(text, sub, kind = 'stunt', seconds = 2.6) {
-    // Recording 17 — cap the docked stack at 3 (advisor: a 4th popup
-    // re-imports clutter into the new top-right corner). The oldest
-    // leaves immediately when a 4th lands; its timer is left to expire
+    // R19 (H5) — cap the docked stack at 2 (was 3): popups capped at 2
+    // visible, one line each, never over dialogue. The oldest leaves
+    // immediately when a 3rd lands; its timer is left to expire
     // harmlessly (its element is already gone from the DOM).
-    if (live.length >= 3) {
+    if (live.length >= 2) {
       const old = live.shift();
       if (old && old.el) old.el.remove();
     }

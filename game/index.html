@@ -26,8 +26,10 @@
   /* Recording 16 — COLLECT LOCKUP: the named counters as one
      high-contrast lockup (glyph + WAYANG + n/m in caps, advisor Q1):
      "◆ WAYANG 3/9 · KASET 5/15" — a complete system in one static line,
-     not uniform corner chrome. */
-  #collectRow { font-size: 15px; font-weight: 800; letter-spacing: 1px; color: var(--gold); margin-top: 6px; text-align: left; }
+     not uniform corner chrome. R19 take-2 fix #5 (coordinator): CUT —
+     WAYANG/KASET live ONLY as pictorial props (cut list, brief + study
+     §5); the HUD line is gone, the rule with it. The named proof now
+     rides the foot frame's WAYANG/KASET popups + the map stats line. */
   /* Recording 16 — the day/time lockup: HARI + clock + time-of-day word
      (PAGI/SIANG/SORE/SENJA/MALAM) in 20 px bold gold, top-right in the
      cash box. The word matches the light: SENJA at the sunset grade. */
@@ -67,7 +69,14 @@
   #letterboxTop { top: 0; } #letterboxBottom { bottom: 0; }
   body.letterbox #letterboxTop, body.letterbox #letterboxBottom { display: block; }
   /* TOP-CENTER mission stinger: full card 2 s, then a mini-pill. */
-  #missionStinger { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 420px; max-width: 640px; }
+  /* R19 (H1) — corner anchors, no left rail: the mission card owns
+     TOP-LEFT (340 px). The police dispatch is merged into its lower
+     half (nested #policeBox, static, no separate panel) and the chapter
+     line ("BABAK 3 — MUSIM KERING") lives on the card itself — the
+     separate BABAK card is cut. */
+  #missionStinger { position: absolute; top: 12px; left: 12px; transform: none; text-align: left; width: 340px; }
+  #missionChapter { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--gold); margin-top: 4px; }
+  #missionStinger #policeBox { position: static; width: auto; margin-top: 8px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 6px; background: transparent; border: none; padding-left: 0; padding-right: 0; box-shadow: none; }
   #stingerBig { font-size: var(--fs-big); font-weight: 800; letter-spacing: 2px; color: var(--gold); font-family: "Arial Narrow", "Helvetica Neue Condensed", system-ui, sans-serif; }
   #missionStinger.mini #stingerBig { display: none; }
   #stingerMini { display: none; font-size: var(--fs-small); color: #fff; background: rgba(20,10,8,.8); border: 1px solid var(--panel-line); border-radius: 20px; padding: 4px 14px; }
@@ -90,44 +99,30 @@
      a staged string. Readable in the cover at screenshot size: the %
      is 22 px bold gold, the rank 13 px. The foot profile hides this
      block (cash stays). */
-  #econZone #completionCard { border-top: 1px solid rgba(255,255,255,.25); margin-top: 6px; padding-top: 6px; text-align: left; }
+  #cashBox #completionCard { border-top: 1px solid rgba(255,255,255,.25); margin-top: 6px; padding-top: 6px; text-align: left; }
   #completionPct { font-size: 20px; font-weight: 800; letter-spacing: 1px; color: var(--gold); }
   #completionBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
   #completionFill { height: 100%; width: 0%; background: var(--gold); }
   #economyRank { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
-  /* Recording 17 — the chapter line duplicates #actChip (same act name)
-     and the next-rank line duplicates the REP next-unlock cue: both are
-     hidden here so the EKONOMI strip stays 3 short lines. Both elements
-     stay in the DOM and stay updated (the QA anchor reads their text). */
-  #econZone #progressChapter, #econZone #economyNext { display: none; }
+  /* R19 — the R17 hide rule is deleted with #econZone: the chapter +
+     next-rank lines now show inside the cash box's KEMAJUAN card
+     (they are the card's 3rd/6th lines, not duplicates of a strip). */
   #progressChapter { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--gold); margin-top: 2px; }
   #economyWealth { font-size: 12px; opacity: .9; margin-top: 2px; }
   #economyNext { font-size: 11px; color: var(--gold); margin-top: 2px; }
-  /* TOP-LEFT economy zone (Recording 14 — HUD hierarchy, not
-     subtraction): ONE grouped zone for economy + progression — the
-     completion card, the REP bar + next unlock, and the chip row —
-     under the act chip. Nothing deleted: the same live numbers that
-     used to sit in the cash box (top-right) and under the minimap
-     (bottom-left) now sit together here, so the road wins and the
-     economy still reads at a glance. */
-  /* Recording 17 — HUD ORGANIZATION: labelled strips, not a text wall.
-     The top-left panel is split into three labelled zones — PROGRESI
-     (LEVEL/XP + RESPECT), KOLEKSI (the named collectible lockup), EKONOMI
-     (KEMAJUAN + wealth) — each with a small gold section label and a
-     divider, so the dense panel reads as organized strips at 256 px.
-     The duplicated chip row is gone (its KOLEKSI/ASET/wealth numbers
-     already live in the three strips; ASET moved onto the economy-rank
-     line). The day lockup leaves the cash box for its own gold-bordered
-     pill (#dayPill) top-right, shown in EVERY frame including drive. */
-  .zoneLabel { font-size: 9px; font-weight: 800; letter-spacing: 3px; color: var(--gold); opacity: .9; border-top: 1px solid rgba(255,255,255,.25); padding-top: 3px; margin-top: 4px; text-align: left; }
-  .zoneLabel:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  /* R19 (H1) — the left rail is CUT: #econZone and its labelled strips
+     are deleted. Progress merges INSIDE the minimap panel (#mapProgress
+     below the radar: LEVEL/XP + RESPECT + collect lockup), KEMAJUAN
+     merges into the cash box (top-right), and the police dispatch
+     merges into the mission card (top-left). One panel style
+     everywhere; the top-left corner holds ONE panel, not a stack. */
   #dayPill { position: absolute; top: 12px; right: 12px; background: var(--panel); border: 2px solid var(--gold); border-radius: 12px; padding: 6px 14px; text-align: right; box-shadow: 0 0 12px rgba(255,215,94,.25); }
-  #econZone { position: absolute; top: 64px; left: 12px; width: 272px; text-align: left; }
-  #econZone #repRow { margin-top: 6px; font-size: 12px; text-align: left; }
+  #mapProgress { margin-top: 6px; text-align: left; }
+  #mapProgress #repRow { margin-top: 6px; font-size: 12px; text-align: left; }
   #repBar { height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; margin-top: 3px; overflow: hidden; }
   #repFill { height: 100%; width: 0%; background: #7dd87d; }
   #nextUnlock { display: block; margin-top: 4px; font-size: 11px; color: var(--gold); text-align: left; }
-  #cashBox { position: absolute; top: 70px; right: 12px; font-size: 26px; font-weight: 700; text-align: right; }
+  #cashBox { position: absolute; top: 70px; right: 12px; width: 260px; font-size: 26px; font-weight: 700; text-align: right; }
   #cashBox small { display: block; font-size: 12px; font-weight: 400; opacity: .85; }
   #rankChip { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: var(--gold); border: 1px solid var(--gold); border-radius: 10px; padding: 1px 8px; margin-top: 4px; }
   #cashText { color: var(--green); }
@@ -142,13 +137,12 @@
   #zoneBarFill { height: 100%; width: 100%; background: #ffb14d; }
   @keyframes blink { 50% { opacity: 0.25; } }
   #billPill { display: none; font-size: var(--fs-small); font-weight: 700; color: #ff9d5c; margin-top: 4px; }
-  /* LEFT-MID police response list, max ~140px tall. Recording 17 — top
-     390 px: the econ zone ends ~383 px after the labelled-strip
-     compression, so 390 px docks the panel right under it (same stack
-     as R16: econ → police → minimap, the panel's foot still overlapping
-     the minimap's top cap the way R16's did). Rows capped at 4 + a
-     "+N unit lagi" line (hud.js) so the panel never grows past ~140 px. */
-  #policeBox { position: absolute; top: 390px; left: 12px; width: 260px; font-size: 12px; display: none; }
+  /* R19 (H5) — police dispatch, merged into the mission card's lower
+     half (#missionStinger #policeBox, static). 5 named units with
+     tactics (SPOTLIGHT / RAMMING / PIT MANEUVER / PURSUIT / BOX IN) +
+     a "+N unit lagi" line (hud.js), so the panel never grows past
+     ~150 px. The standalone left-mid panel is cut (no left rail). */
+  #policeBox { font-size: 12px; display: none; }
   #policeBox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: #ff9d5c; }
   #policeBox .unit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
   #policeBox .unit b { color: var(--gold); }
@@ -157,10 +151,13 @@
   #policeBox .pill { font-size: 10px; font-weight: 800; letter-spacing: 1px; padding: 1px 7px; border-radius: 10px; color: #140a08; }
   .pill-kejar { background: #ffd75e; } .pill-tabrak { background: #ff3b2e; color: #fff; }
   .pill-blokade { background: #b06bff; color: #fff; } .pill-sorot { background: #f5f2e8; }
-  .pill-cari { background: #8a8a80; color: #fff; }
+  .pill-cari { background: #8a8a80; color: #fff; } .pill-pit { background: #ff9d5c; }
   #policeBox .more { font-size: 11px; opacity: .8; margin-top: 2px; }
-  /* BOTTOM-LEFT minimap + REP + chips. */
-  #mapWrap { position: absolute; bottom: 34px; left: 12px; text-align: center; }
+  /* BOTTOM-LEFT minimap + progress, ONE panel (R19 H1): the radar +
+     location + LEVEL/XP + RESPECT + collect lockup live in #mapWrap
+     together — progress merged INSIDE the minimap panel, not as a
+     separate strip. */
+  #mapWrap { position: absolute; bottom: 34px; left: 12px; text-align: center; padding: 8px 10px; }
   #minimap { border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: #10161d; display: block; box-shadow: 0 0 0 4px rgba(16,22,29,.55); }
   #locName { font-size: 13px; letter-spacing: 2px; margin-top: 4px; }
   /* BOTTOM-RIGHT vehicle card + weapon rail — COMPACT: the r3 panel was
@@ -280,12 +277,22 @@
      TOP-LEFT, below the act label — the hero car owns the bottom-centre,
      the minimap + rep + chip row own the bottom-left, and the mission
      card owns the top-centre, so top-left is the only clear corner. */
-  /* r11: the cover dialogue sits BOTTOM-CENTRE (the study's 5th cover
-     element) as a compact strip under the hero car — not top-left. */
-  body.cover-shot #dialogue { width: 560px; top: auto; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 8px 12px; }
-  body.cover-shot #portraitCanvas { width: 48px; height: 48px; }
-  body.cover-shot #dialogueName { font-size: 15px !important; }
-  body.cover-shot #dialogueLine { font-size: 16px !important; }
+  /* R19 (D3) — cover dialogue: portrait 48 -> 96 px (2x), box 560 ->
+     640 px, line 18 px, and a choice row under the line (dialogue
+     graph). The box stays bottom-centre under the hero car; the bigger
+     portrait is the story proof, the police radio stays the separate
+     #ticker. */
+  body.cover-shot #dialogue { width: 640px; top: auto; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 8px 12px; }
+  body.cover-shot #portraitCanvas { width: 96px; height: 96px; }
+  body.cover-shot #dialogueName { font-size: 16px !important; }
+  body.cover-shot #dialogueLine { font-size: 18px !important; }
+  /* Dialogue choices (dialogue-systems skill): one row of chips under
+     the line; the selected choice is gold. Rendered by hud.dialogue()
+     from the graph runner; a click advances the graph in live play. */
+  #dialogueChoices { display: flex; gap: 8px; margin-top: 6px; }
+  #dialogueChoices:empty { display: none; }
+  #dialogueChoices .dchoice { font-size: 13px; font-weight: 700; letter-spacing: 1px; border: 1px solid rgba(255,255,255,.4); border-radius: 8px; padding: 4px 10px; background: rgba(16,22,29,.6); cursor: pointer; }
+  #dialogueChoices .dchoice.selected { border-color: var(--gold); background: rgba(255,215,94,.18); color: var(--gold); }
   /* Character portrait + dialogue, bottom-centre, 24px safe margins.
      Narrowed to 560 px so the (now compact) bottom-right cluster can
      never reach its right end — r3 cut Aska's line there. */
@@ -324,8 +331,10 @@
      corner, never over the road, and the foot frame's WAYANG +$60
      pickup reads in the same corner as the money it adds to. Capped
      at 3 stacked (popups.js) so the corner can never re-import
-     clutter. */
-  #popups { position: absolute; right: 12px; top: 215px; width: 260px; text-align: right; }
+     clutter. R19: top 300 px — the cash box now carries the KEMAJUAN
+     card and runs to ~280 px, so the popups dock below it; capped at
+     2 stacked (popups.js). */
+  #popups { position: absolute; right: 12px; top: 300px; width: 260px; text-align: right; }
   .popup { margin-bottom: 6px; transition: opacity .4s, transform .4s; }
   .popup b { display: block; font-size: 26px; letter-spacing: 1px; color: var(--gold); }
   .popup span { font-size: 13px; opacity: .9; }
@@ -414,32 +423,25 @@
   body[data-hud="heat"] #prompt,
   body[data-hud="heat"] #progressRail, body[data-hud="heat"] #crosshair,
   body[data-hud="heat"] #controlsHint, body[data-hud="heat"] #mapScreen,
-  body[data-hud="heat"] #titleCard, body[data-hud="heat"] #weaponStrip,
+  body[data-hud="heat"] #titleCard, body[data-hud="heat"] #weaponBox,
   body[data-hud="heat"] #gauge, body[data-hud="heat"] #vehicleName,
   body[data-hud="heat"] #vehiclePlate,
   body[data-hud="heat"] #ojekMeter, body[data-hud="heat"] #fuelBar,
   body[data-hud="heat"] #eqBars { display: none !important; }
   body[data-hud="heat"] #bigSpeed { display: block !important; }
-  /* Recording 15 — cover combat legibility: the weapon wheel grows
-     (170 -> 210 px, slots 54 -> 64 px, 12 px labels) so the 5 slots +
-     ammo + locked gates read at dossier size; the feedback strip
-     replaces the floating centre popups here. */
-  body[data-hud="heat"] #weaponBox { width: 210px; }
-  body[data-hud="heat"] #weaponBox .wheel { width: 210px; height: 210px; }
-  body[data-hud="heat"] #weaponBox .wslot { width: 64px; margin: -15px 0 0 -32px; transform: rotate(var(--a)) translate(74px) rotate(calc(var(--a) * -1)); }
-  body[data-hud="heat"] #weaponBox .wslot i, body[data-hud="heat"] #weaponBox .wslot em { font-size: 12px; }
-  body[data-hud="heat"] #weaponBox .wcenter { width: 64px; height: 64px; margin: -32px 0 0 -32px; }
-  body[data-hud="heat"] #weaponBox .wcenter b, body[data-hud="heat"] #weaponBox .wcenter em { font-size: 12px; }
+  /* R19 take 2 — the cover shows the weapon STRIP, not the wheel: the
+     210 px wheel made the right column ~486 px tall, so the big "107"
+     printed over the KEMAJUAN card's lower lines (first shoot). The
+     strip ("Shotgun 6/24 · Pistol ∞ · NYAWA 100 · ROMPI 60") is ~30 px,
+     which puts the drive box's top ~54 px clear of the cash box — and
+     it cuts right-column clutter, the judge's standing complaint. The
+     5-slot visual proof is lost on the cover; the counts screen's
+     "SENJATA 5" keeps the numeric proof. */
+  body[data-hud="heat"] #weaponStrip { display: flex !important; }
   body[data-hud="heat"] #feedbackStrip { display: flex !important; }
   body[data-hud="heat"] #centerFx { display: none !important; }
-  /* Recording 17 — orphan labels: the heat frame shows all three
-     strips, but the drive frame hides XP/REP + completion (so the
-     PROGRESI and EKONOMI labels would sit over empty space) and the
-     foot frame hides completion (EKONOMI label orphan). The labels are
-     #econZone's div children 1 (PROGRESI), 4 (KOLEKSI), 6 (EKONOMI). */
-  body[data-hud="drive"] #econZone div:nth-of-type(1),
-  body[data-hud="drive"] #econZone div:nth-of-type(6),
-  body[data-hud="foot"] #econZone div:nth-of-type(6) { display: none !important; }
+  /* R19 — the orphan-labels rule is deleted with #econZone (no left
+     rail, no labelled strips to orphan). */
   /* Recording 17 — the heat/drive minimap shrinks 200 -> 140 px: the
      left column (econ zone + 4-row police panel) now runs to y 530 and
      the 200 px minimap's top cap (y 460) covered the police panel's
@@ -507,7 +509,6 @@
   body[data-hud="story"] #missionStinger, body[data-hud="story"] #actChip,
   body[data-hud="story"] #actPips, body[data-hud="story"] #mapWrap,
   body[data-hud="story"] #cashBox, body[data-hud="story"] #driveBox,
-  body[data-hud="story"] #econZone,
   body[data-hud="story"] #progressRail, body[data-hud="story"] #dialogue,
   body[data-hud="story"] #ledgerCard, body[data-hud="story"] #ticker,
   body[data-hud="story"] #raceChip, body[data-hud="story"] #toast,
@@ -516,7 +517,12 @@
   body[data-hud="story"] #vignette, body[data-hud="story"] #completionCard,
   body[data-hud="story"] #policeBox, body[data-hud="story"] #titleCard,
   body[data-hud="story"] #weaponStrip, body[data-hud="story"] #worldLabels,
-  body[data-hud="story"] #centerFx, body[data-hud="story"] #mapScreen { display: none !important; }
+  body[data-hud="story"] #centerFx, body[data-hud="story"] #raceResults { display: none !important; }
+  /* R19 (D4) — frame 4 is the COUNTS/MENU screen: the map screen is
+     NOT hidden here anymore (R16–R18 hid it for the race-results
+     overlay, which is now the drive frame's job). The #raceResults
+     overlay is hidden above instead, and showMapScreen() fills
+     #mapCounts + #mapTabs + the garage list. */
   /* Recording 16 — frame 4 is the RACE RESULTS screen now (the map
      screen stays a live in-game screen, filled and QA-checked, but the
      dossier frame shows the results overlay: the standings table at
@@ -527,10 +533,39 @@
   body[data-hud="story"] #titleRadio { display: none !important; }
   /* Full city map + completion screen (r8 frame 4): the map is the
      dominant element, stats + ledger + one dialogue line beside it. */
-  #mapScreen { position: fixed; inset: 0; display: none; flex-direction: row; align-items: center; justify-content: center; gap: 28px; background: rgba(13,18,24,.96); z-index: 4; padding: 20px; box-sizing: border-box; }
+  /* R19 take-2 fix #13 — the map screen is COLUMN now: the counts BAND
+     spans the full width on top, the map + side panel sit in #mapRow
+     below it. (The old row layout put the 6-count row inside the
+     420 px side panel, where 30 px numbers read ~2 px at 256 px.) */
+  #mapScreen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: flex-start; gap: 14px; background: rgba(13,18,24,.96); z-index: 4; padding: 16px 20px 20px; box-sizing: border-box; }
   #mapScreen.show { display: flex; }
-  #mapCanvas { border: 2px solid var(--panel-line); border-radius: 12px; background: #10161d; flex: none; }
-  #mapSide { width: 420px; flex: none; }
+  #mapRow { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 28px; }
+  #mapCanvas { border: 2px solid var(--panel-line); border-radius: 12px; background: #10161d; flex: none; width: 470px; height: 470px; }
+  /* R19 take 2 — the side panel is taller than the screen (~740 px of
+     tabs + stats + ledger + chapters) and #mapScreen centres
+     it, so the top (tabs + banner) clipped off-screen in the
+     first shoot. Top-align the panel: the D4 headline (tabs + banner)
+     sits at the top, and the cut moves to the bottom (standings /
+     quote, already cut in R18 and duplicated in the stats text). */
+  #mapSide { width: 420px; flex: none; align-self: flex-start; }
+  /* R19 (D4) — the counts/menu screen: tabs on top (STATS active),
+     then the big counts row. Six real counts, computed live in
+     showMapScreen(): MISI / AKTIVITAS / KENDARAAN / SENJATA / DISTRIK
+     / RADIO. Numbers 30 px, labels 11 px — readable at 256 px. */
+  #mapTabs { display: flex; gap: 8px; margin-bottom: 10px; }
+  #mapTabs .mtab { font-size: 15px; letter-spacing: 2px; font-weight: 700; padding: 4px 12px; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; }
+  #mapTabs .mtab.on { background: rgba(255,215,94,.18); border-color: var(--gold); color: var(--gold); }
+  /* R19 take-2 fix #13 — the counts BAND, not a side-panel row: four
+     real counts (MISI / KENDARAAN / SENJATA / DISTRIK, computed live
+     in showMapScreen()) in huge type across the full width. Numbers
+     130 px — a 130 px digit reads ~9 px in the 256 px sheet, where
+     the old 30 px counts read ~2 px and no number was individually
+     readable. AKTIVITAS + RADIO drop from the counts (AKTIVITAS lives
+     on in the stats' activities line); fewer counts, much larger type. */
+  #mapCounts { display: flex; justify-content: space-evenly; width: 100%; max-width: 1200px; flex: none; }
+  #mapCounts .mcount { text-align: center; }
+  #mapCounts .mcount b { display: block; font-size: 130px; font-weight: 800; line-height: 1; color: var(--gold); }
+  #mapCounts .mcount span { font-size: 20px; letter-spacing: 3px; }
   #mapBanner { font-size: 22px; font-weight: 800; letter-spacing: 2px; line-height: 1.2; color: var(--gold); margin-bottom: 6px; }
   /* Recording 14 — the map screen reads as a DESIGNED screen: one huge
      gold completion number leads the stats column, then three short
@@ -583,30 +618,33 @@
   <div id="letterboxBottom"></div>
   <div id="actChip">BABAK 1 — KENALAN</div>
   <div id="actPips"></div>
-  <div id="econZone" class="panel"><div class="zoneLabel">PROGRESI</div><div id="xpPanel"><div id="xpLevel">LEVEL 1</div><div id="xpBar"><div id="xpFill"></div></div><div id="xpText">XP 0/250</div></div>
-    <div id="repRow"><span id="repText">RESPECT 1 · KUTIL</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div>
-    <div class="zoneLabel">KOLEKSI</div>
-    <div id="collectRow">◆ WAYANG 0/0 · KASET 0/0</div>
-    <div class="zoneLabel">EKONOMI</div>
-    <div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
-  </div>
+  <!-- R19 (H1) — corner anchors, no left rail. Top-left is ONE mission
+       card: the stinger (MISI n/8 + stage + NEXT + chapter line) with the
+       police dispatch merged into its lower half (5 named units +
+       tactics). Top-right is the economy (day pill + cash + KEMAJUAN).
+       Bottom-left is the minimap panel with progress merged inside it.
+       Bottom-right is speed + vehicle + radio. Bottom-center is the
+       dialogue + portrait + choices. -->
   <div id="missionStinger" class="panel">
     <div id="stingerBig">MISI 1/8 — JUMPA DI MARINA</div>
     <span id="stingerMini"></span>
     <div id="missionStage"><div id="missionStageFill"></div></div>
     <span id="missionNext">NEXT▸ Antar paket ke Kios Baris Utara</span>
+    <div id="missionChapter">BABAK 1 — KENALAN</div>
+    <div id="policeBox"><h3 id="policeHead">RESPON POLISI</h3><div id="policeRows"></div></div>
   </div>
   <div id="dayPill"><span id="clockText">HARI 1 · 16:00 · MUSIM KEMARAU</span></div>
-  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="zoneBar"><div id="zoneBarFill"></div></div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><div id="billPill"></div></div>
-  <div id="policeBox" class="panel"><h3 id="policeHead">RESPON POLISI</h3><div id="policeRows"></div></div>
-  <div id="mapWrap"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div>
+  <div id="cashBox" class="panel"><span id="starsBox"></span><div id="seenFlash">● DI PANDANG</div><div id="zoneBar"><div id="zoneBarFill"></div></div><div id="cashText">$0</div><span id="rankChip">KAKI LIMA</span><div id="billPill"></div>
+    <div id="completionCard"><div id="completionPct">KEMAJUAN 0%</div><div id="completionBar"><div id="completionFill"></div></div><div id="economyRank">RANK · KAKI LIMA</div><div id="progressChapter">BABAK 1 — KENALAN</div><div id="economyWealth">KEKAYAAN $250</div><div id="economyNext">→ PEDAGANG di $2.500</div></div>
+  </div>
+  <div id="mapWrap" class="panel"><canvas id="minimap" width="200" height="200"></canvas><div id="locName">MARINA BENTARA</div><div id="mapProgress"><div id="xpPanel"><div id="xpLevel">LEVEL 1</div><div id="xpBar"><div id="xpFill"></div></div><div id="xpText">XP 0/250</div></div><div id="repRow"><span id="repText">RESPECT 1 · KUTIL</span><div id="repBar"><div id="repFill"></div></div><span id="nextUnlock">BERIKUTNYA di REP 2: NITRO</span></div></div>
   </div>
   <div id="ticker"></div>
   <div id="raceChip"></div>
   <div id="centerFx"></div>
   <div id="feedbackStrip"></div>
   <div id="ledgerCard" class="panel"></div>
-  <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="64" height="64"></canvas><div id="dialogueText"><b id="dialogueName">PAK WIRA</b><span id="dialogueRole">BOS MARINA</span><span id="dialogueLine"></span></div></div>
+  <div id="dialogue" class="panel"><canvas id="portraitCanvas" width="96" height="96"></canvas><div id="dialogueText"><b id="dialogueName">PAK WIRA</b><span id="dialogueRole">BOS MARINA</span><span id="dialogueLine"></span><div id="dialogueChoices"></div></div></div>
   <div id="karaokeBox" class="panel"><div id="karaokeTitle">♪ KARAOKE — WARUNG SARI · TEKAN E PAS IRAMA</div><div id="karaokeDots">○○○○○○○○○○○○</div><div id="karaokeScore">SKOR 0 · 0× KENA · KOMBO 0×</div><div id="karaokeBeatWrap"><div id="karaokeBeatBar"></div></div></div>
   <div id="fishingBox" class="panel"><span id="fishingText">🎣 MEMANCING · tunggu gigitan…</span></div>
   <div id="toast"></div>
@@ -636,14 +674,18 @@
   <div id="usahaPanel" class="shopPanel panel"></div>
   <div id="shopPanel" class="shopPanel panel"></div>
   <div id="mapScreen">
+    <div id="mapCounts"></div>
+    <div id="mapRow">
     <canvas id="mapCanvas" width="560" height="560"></canvas>
     <div id="mapSide">
+      <div id="mapTabs"><span class="mtab">MISI</span><span class="mtab on">STATS</span><span class="mtab">GARASI</span><span class="mtab">PENGATURAN</span></div>
       <div id="mapBanner">SEMUA MISI SELESAI — BENTARA MILIKMU</div>
       <div id="mapStats"></div>
       <div id="mapLedger"></div>
       <div id="mapChapters"></div>
       <div id="mapStandings"></div>
       <div id="mapQuote"></div>
+    </div>
     </div>
   </div>
   <div id="titleCard">

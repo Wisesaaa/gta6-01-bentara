@@ -29,33 +29,79 @@ export function createKaraoke(scene, rng, hooks) {
   let totalScore = 0;
   let lastQuality = '';
 
-  // 3D props at the karaoke corner: mic stand, two speakers, a gold
-  // target ring on the ground and a shrinking white hit ring.
+  // 3D props at the karaoke corner: a RAISED STAGE, not a mic on bare
+  // ground — a 5 x 3.5 m platform (top 0.6 m) with a glowing acid-green
+  // front edge, two speaker stacks flanking the mic stand, LED strips
+  // at the front corners, and the beat rings on the ground IN FRONT of
+  // the stage, where the singer stands. R19 take-2 fix #10: the old
+  // flat group (one mic, two small dark boxes, thin strips) never read
+  // as a stage at 256 px — the platform + glowing edge + stacks are
+  // what make it nameable as "a karaoke stage" from the sheet.
   const group = new THREE.Group();
   group.position.set(KARAOKE_SPOT.x, 0, KARAOKE_SPOT.z);
+  const STAGE_TOP = 0.6;
   const standMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+  // Raised platform: dark, so the glowing edge + performers on top read.
+  const platform = new THREE.Mesh(
+    new THREE.BoxGeometry(5.0, 0.6, 3.5),
+    new THREE.MeshLambertMaterial({ color: 0x232d3a }),
+  );
+  platform.position.y = 0.3;
+  group.add(platform);
+  // Mic stand ON the platform, centre-stage, slightly forward.
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.5, 8), standMat);
-  pole.position.y = 0.75;
-  const mic = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshLambertMaterial({ color: 0xff2e88, emissive: 0x661233 }));
-  mic.position.y = 1.55;
+  pole.position.set(0, STAGE_TOP + 0.75, -0.3);
+  const mic = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshLambertMaterial({ color: 0xff2e88, emissive: 0xff2e88, emissiveIntensity: 3 }));
+  mic.position.set(0, STAGE_TOP + 1.55, -0.3);
+  // R19 (L2/L4): acid-green LED strips — emissive accents (intensity
+  // 4) that clear the bloom threshold and read as points of light at
+  // 256 px, in the cyan/magenta/acid-green neon palette (never
+  // orange/amber). Take-2: thicker + taller at the front corners, PLUS
+  // a full-width strip along the platform's front top edge — the
+  // glowing line that says "stage" at thumbnail size.
+  const ledMat = new THREE.MeshBasicMaterial();
+  // Acid-green (0x39ff6a) at 4x — emissive intensity 4 in the L2 sense.
+  ledMat.color.setRGB(0.22 * 4, 1.0 * 4, 0.42 * 4);
+  for (const sx of [-2.4, 2.4]) {
+    const led = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.8, 0.2), ledMat);
+    led.position.set(sx, STAGE_TOP + 0.9, -1.6);
+    led.userData.isNeon = true;
+    group.add(led);
+  }
+  const ledEdge = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.14, 0.14), ledMat);
+  ledEdge.position.set(0, STAGE_TOP + 0.02, -1.78);
+  ledEdge.userData.isNeon = true;
+  group.add(ledEdge);
+  // Speaker STACKS flanking the mic: two boxes each (~1.9 m tall on
+  // the platform) with a light cone circle on the front face, so they
+  // read as speakers, not dark crates.
   const speakerMat = new THREE.MeshLambertMaterial({ color: 0x1d2a3a });
-  const spkL = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.5), speakerMat);
-  spkL.position.set(-1.1, 0.55, -0.4);
-  const spkR = spkL.clone();
-  spkR.position.x = 1.1;
+  const coneMat = new THREE.MeshLambertMaterial({ color: 0x9aa7b5 });
+  for (const sx of [-1.9, 1.9]) {
+    const lower = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.1, 0.65), speakerMat);
+    lower.position.set(sx, STAGE_TOP + 0.55, -0.9);
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.9, 0.65), speakerMat);
+    upper.position.set(sx, STAGE_TOP + 1.55, -0.9);
+    const cone = new THREE.Mesh(new THREE.CircleGeometry(0.28, 20), coneMat);
+    cone.position.set(sx, STAGE_TOP + 0.55, -1.24);
+    cone.rotation.y = Math.PI;
+    group.add(lower, upper, cone);
+  }
+  // Beat rings on the ground IN FRONT of the stage (south side, where
+  // the singer stands) — not under the platform.
   const targetRing = new THREE.Mesh(
     new THREE.RingGeometry(0.9, 1.1, 32),
     new THREE.MeshBasicMaterial({ color: 0xffd75e, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
   );
   targetRing.rotation.x = -Math.PI / 2;
-  targetRing.position.y = 0.07;
+  targetRing.position.set(0, 0.07, -2.6);
   const hitRing = new THREE.Mesh(
     new THREE.RingGeometry(0.12, 0.2, 32),
     new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
   );
   hitRing.rotation.x = -Math.PI / 2;
-  hitRing.position.y = 0.08;
-  group.add(pole, mic, spkL, spkR, targetRing, hitRing);
+  hitRing.position.set(0, 0.08, -2.6);
+  group.add(pole, mic, targetRing, hitRing);
   group.visible = true;
   scene.add(group);
 

@@ -52,12 +52,12 @@ export function createSkyAndSun(scene, opts = {}) {
       uSunDirection: { value: sunDir },
       uTime: { value: 0 },
       uHaze: { value: opts.haze !== undefined ? opts.haze : 0.38 },
-      // Defaults match the Act 1 grade (lighting.js PRESETS[1]) so the
-      // first frame already carries the warm sunset grade.
-      uTopColor: { value: new THREE.Color(0x2f6f80) },
-      uMidColor: { value: new THREE.Color(0xff9a4d) },
-      uBottomColor: { value: new THREE.Color(0xff8a3d) },
-      uSunColor: { value: new THREE.Color(0xff9040) },
+      // R19 defaults match the Act 1 neon-dusk grade (lighting.js
+      // PRESETS[1]): deep teal-blue top, violet-blue mid, dusty horizon.
+      uTopColor: { value: new THREE.Color(0x1c2b3d) },
+      uMidColor: { value: new THREE.Color(0x4a5a7a) },
+      uBottomColor: { value: new THREE.Color(0xc98a6a) },
+      uSunColor: { value: new THREE.Color(0xffe0b8) },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,

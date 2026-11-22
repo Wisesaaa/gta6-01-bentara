@@ -412,6 +412,20 @@ export const POST_BRIGHT_FRAG = `
     gl_FragColor = vec4(c * k, 1.0);
   }`;
 
+// Luminance meter (threejs-exposure-color-grading): downsamples the HDR
+// scene to 64x36 and encodes unbounded luminance per pixel,
+// enc = L / (L + 1), so a byte readback keeps HDR range. The CPU side
+// decodes, takes the weighted log-average and adapts the exposure.
+export const POST_METER_FRAG = `
+  uniform sampler2D tDiffuse;
+  varying vec2 vUv;
+  void main() {
+    vec3 c = texture2D(tDiffuse, vUv).rgb;
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    float enc = l / (l + 1.0);
+    gl_FragColor = vec4(enc, enc, enc, 1.0);
+  }`;
+
 // Separable 9-tap Gaussian (multipass-buffer weights, sigma ~2.0).
 // One axis per pass: 121 samples become 2x9.
 export const POST_BLUR_FRAG = `
@@ -434,17 +448,27 @@ export const POST_BLUR_FRAG = `
   }`;
 
 // Composite: bloom add (HDR space, before tonemapping — the order is not
-// reversible), chromatic aberration, bleached grade, ACES, S-curve,
+// reversible), chromatic aberration, ACES (the only tone map), gamma,
+// ONE authored 32-cube LUT (dry-dusk recipe, sampled post-tonemap),
 // vignette, grain + Bayer dither against banding. Math per
 // shader-programming (mix/step/smoothstep, no reversed smoothstep edges)
 // and post-processing (ACES m1/m2 rational polynomial).
+//
+// R19 — the R11/R14 stacked grade is DELETED (saturation +25%, S-curve
+// 0.54, split tone as three separate post-tonemap ops): stacked
+// compensating ops proved to move nothing and double-grade the image.
+// The grade now lives in exactly one place — the LUT below, authored
+// once from the measured pipeline (HDR -> meter -> adapted exposure ->
+// ACES -> LUT -> output).
 export const POST_COMPOSITE_FRAG = `
   uniform sampler2D tScene;
   uniform sampler2D tBloom;
+  uniform sampler2D tLut;
   uniform float uBloomStrength;
   uniform float uLensStrength;
   uniform float uExposure;
   uniform float uCaStrength;
+  uniform float uLutIntensity;
   uniform float uTime;
   uniform vec2 uResolution;
   varying vec2 vUv;
@@ -466,6 +490,23 @@ export const POST_COMPOSITE_FRAG = `
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
+  }
+
+  // 32-cube LUT stored as a 2D atlas: 8x4 tiles of 32x32 (256x128).
+  // Slice = blue channel; trilinear in blue by lerping two slices.
+  vec3 applyLut(vec3 c) {
+    c = clamp(c, 0.0, 1.0);
+    float b = c.b * 31.0;
+    float b0 = floor(b);
+    float b1 = min(b0 + 1.0, 31.0);
+    float f = fract(b);
+    vec2 tile0 = vec2(mod(b0, 8.0), floor(b0 / 8.0));
+    vec2 tile1 = vec2(mod(b1, 8.0), floor(b1 / 8.0));
+    vec2 uv0 = (tile0 * 32.0 + c.rg * 31.0 + 0.5) / vec2(256.0, 128.0);
+    vec2 uv1 = (tile1 * 32.0 + c.rg * 31.0 + 0.5) / vec2(256.0, 128.0);
+    vec3 g0 = texture2D(tLut, uv0).rgb;
+    vec3 g1 = texture2D(tLut, uv1).rgb;
+    return mix(g0, g1, f);
   }
 
   void main() {
@@ -512,22 +553,11 @@ export const POST_COMPOSITE_FRAG = `
     // tone map + sRGB conversion in the chain).
     col = acesTonemap(col * uExposure);
     col = pow(col, vec3(1.0 / 2.2));
-    // Saturation +25% and a stronger S-curve for contrast (r11 grade
-    // targets: sat 1.25, S-curve 0.54 — up from r10's 1.12 / 0.45): the
-    // shadow side of a facade must fall to a real dark, not a pale wash.
-    // Blacks deepen, colours punch — the grade reads as golden hour,
-    // not haze. Then the split tone: teal shadows, amber highlights.
-    float l2 = dot(col, vec3(0.299, 0.587, 0.114));
-    col = mix(vec3(l2), col, 1.25);
-    col = clamp(col, 0.0, 1.0);
-    col = mix(col, col * col * (3.0 - 2.0 * col), 0.54);
-    // Split tone (r11): shadows toward teal, highlights toward amber —
-    // the dry-season grade reads warm in the light and cool in the
-    // shade, so the frame never washes to a single pale tone.
-    float lum = dot(col, vec3(0.299, 0.587, 0.114));
-    vec3 shadowTint = vec3(0.90, 1.02, 1.08);
-    vec3 highTint = vec3(1.07, 1.00, 0.86);
-    col *= mix(shadowTint, highTint, smoothstep(0.12, 0.85, lum));
+    // R19 measured grade: ONE authored 32-cube LUT, sampled post-tonemap
+    // (the LUT is authored for the bounded display domain — never move
+    // it before tone mapping). The old stacked sat/S-curve/split-tone
+    // block is deleted, not moved here.
+    col = mix(col, applyLut(col), uLutIntensity);
     // Vignette (post-processing option A) — light, so frame edges keep
     // their HUD and buildings readable.
     vec2 q = uv;

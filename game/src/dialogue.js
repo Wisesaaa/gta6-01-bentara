@@ -138,3 +138,147 @@ export function randomDjLine(rng) {
 export function missionIntro(index) {
   return MISSION_INTROS[Math.min(index, MISSION_INTROS.length - 1)];
 }
+
+// ---------------------------------------------------------------------------
+// Dialogue graph (R19 D3 — dialogue-systems skill).
+// The cover frame's Sari line is a STORY line with a choice, not a radio
+// call: the police radio stays the separate #ticker, and Sari speaks
+// from the bottom-centre dialogue card with a 96 px portrait. The graph
+// contract: every node has a stable lineId (so a verdict can cite the
+// line), choices live on transitions (not on nodes), effects write into
+// a var store, and the graph validates before it runs.
+//
+// Cover node (DLG_SARI_001): "Bang Ijal sudah di Kios Baris — ambil
+// kasetnya atau kejar Garuda-1?" — a real fork in the mission (the
+// kaset is mission 7's objective; Garuda-1 is the heli above the car).
+// The two branches are one line each, both in Sari's voice, both true
+// to the mission state.
+export const SARI_COVER_GRAPH = {
+  start: 'sari_cover',
+  vars: { kaset: false, kejar: false },
+  nodes: {
+    sari_cover: {
+      speaker: 'sari',
+      lineId: 'DLG_SARI_001',
+      line: 'Bang Ijal sudah di Kios Baris — ambil kasetnya atau kejar Garuda-1?',
+      choices: [
+        { label: 'Ambil kasetnya', to: 'sari_kaset', set: { kaset: true } },
+        { label: 'Kejar Garuda-1', to: 'sari_kejar', set: { kejar: true } },
+      ],
+    },
+    sari_kaset: {
+      speaker: 'sari',
+      lineId: 'DLG_SARI_002',
+      line: 'Kasetnya di kios nomor tiga. Jangan sampai polisi ikut.',
+      next: 'end',
+    },
+    sari_kejar: {
+      speaker: 'sari',
+      lineId: 'DLG_SARI_003',
+      line: 'Hati-hati — Garuda-1 sudah di atasmu. Belok tajam, jangan berhenti.',
+      next: 'end',
+    },
+    end: { end: true },
+  },
+};
+
+// Validate a graph before it runs: every referenced node exists, every
+// choice target exists, every set() key is declared in vars, the start
+// node exists, and every node is reachable from the start. Returns the
+// list of problems (empty = valid).
+export function validateDialogueGraph(graph) {
+  const problems = [];
+  if (!graph || !graph.nodes) return ['graph has no nodes'];
+  if (!graph.nodes[graph.start]) problems.push(`start node "${graph.start}" does not exist`);
+  const seen = new Set();
+  const queue = graph.start && graph.nodes[graph.start] ? [graph.start] : [];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = graph.nodes[id];
+    if (!node) { problems.push(`node "${id}" does not exist`); continue; }
+    if (node.end) continue;
+    if (!node.line) problems.push(`node "${id}" has no line`);
+    if (node.choices) {
+      for (const c of node.choices) {
+        if (!graph.nodes[c.to]) problems.push(`node "${id}" choice "${c.label}" points at missing node "${c.to}"`);
+        else queue.push(c.to);
+        if (c.set) {
+          for (const k of Object.keys(c.set)) {
+            if (!graph.vars || !(k in graph.vars)) problems.push(`node "${id}" choice "${c.label}" sets undeclared var "${k}"`);
+          }
+        }
+      }
+    } else if (node.next) {
+      if (!graph.nodes[node.next]) problems.push(`node "${id}" next points at missing node "${node.next}"`);
+      else queue.push(node.next);
+    } else {
+      problems.push(`node "${id}" has neither choices nor next nor end`);
+    }
+  }
+  for (const id of Object.keys(graph.nodes)) {
+    if (!seen.has(id)) problems.push(`node "${id}" is unreachable from start`);
+  }
+  return problems;
+}
+
+// Walk a graph along a list of choice indexes (0-based per node).
+// Returns the visited lineIds + the final vars, for QA.
+export function walkDialogueGraph(graph, picks = []) {
+  const vars = { ...(graph.vars || {}) };
+  const lines = [];
+  let id = graph.start;
+  let pick = 0;
+  while (id && graph.nodes[id] && !graph.nodes[id].end) {
+    const node = graph.nodes[id];
+    if (node.lineId) lines.push(node.lineId);
+    if (node.choices && node.choices.length > 0) {
+      const choice = node.choices[picks[pick] || 0] || node.choices[0];
+      pick += 1;
+      if (choice.set) Object.assign(vars, choice.set);
+      id = choice.to;
+    } else {
+      id = node.next;
+    }
+  }
+  return { lines, vars, ended: !!(id && graph.nodes[id] && graph.nodes[id].end) };
+}
+
+// Runner: holds the current node + vars, renders through hud.dialogue().
+// choose(i) applies the choice's set() and moves to its target node.
+// current() returns { speaker, lineId, line, choices } for the node.
+export function createDialogueRunner(graph, render) {
+  const problems = validateDialogueGraph(graph);
+  if (problems.length > 0) throw new Error(`dialogue graph invalid: ${problems.join('; ')}`);
+  const vars = { ...(graph.vars || {}) };
+  let id = graph.start;
+  function current() {
+    const node = graph.nodes[id];
+    if (!node || node.end) return null;
+    return {
+      speaker: node.speaker,
+      lineId: node.lineId,
+      line: node.line,
+      choices: (node.choices || []).map((c, i) => ({
+        text: c.label,
+        selected: i === 0,
+        onPick: () => choose(i),
+      })),
+    };
+  }
+  function show() {
+    const cur = current();
+    if (cur && render) render(cur);
+    return cur;
+  }
+  function choose(i) {
+    const node = graph.nodes[id];
+    if (!node || !node.choices || !node.choices[i]) return null;
+    const choice = node.choices[i];
+    if (choice.set) Object.assign(vars, choice.set);
+    id = choice.to;
+    return show();
+  }
+  return { current, show, choose, vars: () => ({ ...vars }), node: () => id };
+}

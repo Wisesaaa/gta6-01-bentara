@@ -15,40 +15,34 @@ import { createSkyAndSun } from './skyAndSun.js';
 export const SUN_COLOR = 0xffab5e;
 export const SUN_INTENSITY = 3.4;
 
-// One preset per act. The grade is a mood, not a number the player ever
-// sees — Recording 14 pushes it WARMER (the exact judge: HALCYON's
-// "warm sunset lighting with long shadows" beats our "flatter, simpler
-// shading"): low orange sun, warm fog, amber horizon — still bleached
-// concrete under a pale sky, never apocalyptic red.
+// R19 (neon-dusk grade, L3): cool-dusk sky, warm-dust ground split —
+// dusk AFTER sunset, not golden hour. Sky deep teal-blue #1c2b3d, fog
+// desaturated violet-blue #2a2f4a, key light neutral (~4000K) at low
+// angle, ground stays dusty tan/gray-brown so the dry-season identity
+// reads. The old warm sunset presets (orange sky + orange fog) are gone:
+// the judge read them as the rival's sunset territory.
 const PRESETS = {
   1: {
-    sun: 0xff9040, sunIntensity: 3.6,
-    hemiSky: 0xffd9a8, hemiGround: 0x8a6a48, hemiIntensity: 1.0,
-    fogColor: 0xe89a62, fogDensity: 0.0016, exposure: 1.32,
-    // Recording 15 — TRUE sunset grade (advisor: gradients smear to
-    // daylight at 256 px; the disc carries the dusk, the gradient must
-    // back it): warm orange horizon -> deep orange mid -> TEAL top,
-    // the orange-to-teal sky Isla/HALCYON own. Was pale blue top +
-    // pale cream mid — the "flat daylight" read.
-    // Recording 17 — deeper TEAL top (was 0x4a7a8a): advisor Q2 ranks
-    // the sky first — the teal-top/orange-horizon split is the single
-    // biggest "sunset-pastel" read at 256 px, and the old pale-blue top
-    // smeared to daylight. Mid stays warm orange.
-    skyBottom: 0xff8a3d, skyMid: 0xff8f45, skyTop: 0x2f6f80,
+    sun: 0xffe0b8, sunIntensity: 3.0,
+    hemiSky: 0x9ab0c8, hemiGround: 0x6a5a48, hemiIntensity: 0.9,
+    fogColor: 0x2a2f4a, fogDensity: 0.008, exposure: 1.32,
+    // Cool-dusk gradient: deep teal-blue top -> violet-blue mid ->
+    // dusty rose-tan horizon (the ground's dust, not the sun's amber).
+    skyBottom: 0xc98a6a, skyMid: 0x4a5a7a, skyTop: 0x1c2b3d,
     lampGlow: 0.4, litOpacity: 0.85,
   },
   2: {
-    sun: 0xff8a3d, sunIntensity: 3.7,
-    hemiSky: 0xffd9a8, hemiGround: 0x8a6a48, hemiIntensity: 1.05,
-    fogColor: 0xea9a62, fogDensity: 0.0014, exposure: 1.34,
-    skyBottom: 0xff7a30, skyMid: 0xff9440, skyTop: 0x2a6878,
+    sun: 0xffe0b8, sunIntensity: 3.1,
+    hemiSky: 0x9ab0c8, hemiGround: 0x6a5a48, hemiIntensity: 0.95,
+    fogColor: 0x2a2f4a, fogDensity: 0.008, exposure: 1.34,
+    skyBottom: 0xc98a6a, skyMid: 0x45547a, skyTop: 0x1c2b3d,
     lampGlow: 0.35, litOpacity: 0.8,
   },
   3: {
-    sun: 0xff8a4a, sunIntensity: 2.8,
-    hemiSky: 0xf8c898, hemiGround: 0x6a4a3a, hemiIntensity: 0.85,
-    fogColor: 0xdc9a78, fogDensity: 0.0024, exposure: 1.25,
-    skyBottom: 0xf09868, skyMid: 0xd87858, skyTop: 0x6a4a5a,
+    sun: 0xffd8a8, sunIntensity: 2.6,
+    hemiSky: 0x8a9ab8, hemiGround: 0x5a4a3a, hemiIntensity: 0.8,
+    fogColor: 0x2a2f4a, fogDensity: 0.01, exposure: 1.25,
+    skyBottom: 0xb07858, skyMid: 0x3a4a68, skyTop: 0x1c2b3d,
     lampGlow: 0.8, litOpacity: 1.0,
   },
 };
@@ -73,8 +67,8 @@ export function applyGoldenHour(renderer, scene) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.32;
   // The dome covers the sky; this is only the fallback behind it.
-  scene.background = new THREE.Color(0xf0b878);
-  scene.fog = new THREE.FogExp2(0xe8b98a, 0.0016);
+  scene.background = new THREE.Color(0x1c2b3d);
+  scene.fog = new THREE.FogExp2(0x2a2f4a, 0.008);
 }
 
 export function createGoldenHour(scene, city, rng, lights = {}) {

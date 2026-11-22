@@ -823,6 +823,10 @@ function buildSigns(scene) {
   signKaraoke.position.set(100, 9, 104);
   signKaraoke.rotation.y = -Math.PI / 2;
   signKaraoke.userData.isNeon = true;
+  // R19 selective bloom (L2): the sign's material color multiplies the
+  // canvas texture, so 2.5x puts the pink face + white letters above
+  // the 0.85 bright-pass threshold — the sign GLOWS, nothing else does.
+  signKaraoke.material.color.setRGB(2.5, 2.5, 2.5);
   scene.add(signKaraoke);
   const glowK = makeGlowSprite(0xff2e88, 16, 0.4);
   glowK.position.set(99.6, 9, 104);
@@ -831,6 +835,7 @@ function buildSigns(scene) {
   signNeon.position.set(24, 9, 125);
   signNeon.rotation.y = Math.PI;
   signNeon.userData.isNeon = true;
+  signNeon.material.color.setRGB(2.5, 2.5, 2.5);
   scene.add(signNeon);
   const glowN = makeGlowSprite(0x00c8d8, 16, 0.4);
   glowN.position.set(24, 9, 124.5);
@@ -969,11 +974,25 @@ function buildPalms(scene) {
     palmSpots.push({ x, z: 99.5 });
     palmSpots.push({ x: x + 8, z: 122.5 });
   }
+  // R19 take-2 fix #4 (coordinator) — only ~2 palm silhouettes per
+  // side read at 256 px: the 8 m palms' crowns sit mid-frame against
+  // dark buildings, not the sky. Two more per side fill the 95–135 m
+  // band the cover camera actually sees, and every cover-arterial
+  // palm at x >= 70 stands 1.9x tall (15 m) so its crown clears the
+  // rooflines and silhouettes against the dusk sky. The near palms
+  // (x 20–65) stay 1.35x — at 1.9x their crowns would cut off the top
+  // of the frame. (The near south palm at (65,122.5) already reads;
+  // the near north ones sit behind the lens.)
+  for (const [x, z] of [[95, 99.5], [125, 99.5], [103, 122.5], [133, 122.5]]) palmSpots.push({ x, z });
   for (const z of [20, 55, 90, 130]) palmSpots.push({ x: 122.5, z });
   for (const z of [60, 100, 140]) palmSpots.push({ x: 51.5, z });
   palmSpots.push({ x: 28.5, z: 120 });
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6a4a30 });
-  const frondMat = new THREE.MeshLambertMaterial({ color: 0x1f3a24 });
+  // R19 take-2 fix #4 — fronds a lit mid-green (was near-black 0x1f3a24):
+  // the camera-facing sides sit in dusk shadow, so near-black fronds
+  // vanished against the dark buildings; mid-green reads as a palm
+  // against buildings AND still silhouettes against the bright sky.
+  const frondMat = new THREE.MeshLambertMaterial({ color: 0x2f5a38 });
   const trunkGeo = new THREE.CylinderGeometry(0.14, 0.22, 8, 6);
   const frondGeo = new THREE.ConeGeometry(0.55, 3.6, 4);
   for (const [i, s] of palmSpots.entries()) {
@@ -994,6 +1013,19 @@ function buildPalms(scene) {
       g.add(frond);
     }
     g.position.set(s.x, 0, s.z);
+    // R19 (L1): the four NEAR palms on the cover arterial (x 20-65)
+    // stand 1.35x tall — palms must read BIG on both sides of the
+    // boulevard, not as distant silhouettes.
+    // R19 take-2 fix #4: mid/far cover-arterial palms (x >= 70) stand
+    // 1.9x tall (15 m) — crowns above the rooflines, against the sky.
+    // The MID band (x 95–135, the three palms per side the cover
+    // camera sees against the sky gap) stands 2.3x (18 m): at 1.9x
+    // their crowns sat at y 224–283, on the sky/building boundary
+    // where they vanished; 2.3x lifts them ~40 px into clear sky, so
+    // 3+ crowns per side read as silhouettes. The far palms stay 1.9x.
+    if (s.x >= 95 && s.x <= 135 && (s.z === 99.5 || s.z === 122.5)) g.scale.setScalar(2.3);
+    else if (s.x >= 70 && (s.z === 99.5 || s.z === 122.5)) g.scale.setScalar(1.9);
+    else if (s.x >= 20 && s.x <= 65 && (s.z === 99.5 || s.z === 122.5)) g.scale.setScalar(1.35);
     g.userData.isPalm = true;
     scene.add(g);
   }

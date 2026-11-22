@@ -180,11 +180,28 @@ export function createPolice(scene, city, rng) {
     // that was wide at the heli and narrowed to a point underground, which
     // is why the r3 beam read as a faint wisp. Height 22 matches the live
     // hover altitude, so the base lands exactly on the road.
+    // R19 take-2 fix #1 — the cone still did not read at 256 px: the
+    // staged heli hovers at 9 m, not 22 m, so the 22 m cone's base sat
+    // 21.8 m underground and only a 0.7 m-radius wisp showed at the
+    // road. The heat shot re-fits this cone to the staged altitude
+    // (tilted beam, apex at the belly, base on the pool); here the cone
+    // itself gets a wider halo cone around it (1.7x radius, 0.08) so
+    // the beam reads as a volumetric wedge, and the ground pool gets
+    // bigger + brighter (radius 8, 0.4) so the lit ellipse reads on
+    // the road around the car. Kept TRANSLUCENT on purpose (0.30):
+    // the first take-2 shoot at 0.55 read as a solid pale tent that
+    // hid the city, the KARAOKE sign and the heli itself.
     const spot = new THREE.Mesh(
       new THREE.ConeGeometry(2.4, 22, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
     );
     spot.position.set(0, -11, 1.6);
+    const halo = new THREE.Mesh(
+      new THREE.ConeGeometry(2.4, 22, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    halo.scale.set(1.5, 1, 1.5);
+    spot.add(halo);
     // A real light source inside the cone so the player and the road under
     // the beam actually brighten.
     const spotLight = new THREE.SpotLight(0xffe9a8, 60, 60, 0.16, 0.45, 1.2);
@@ -197,9 +214,12 @@ export function createPolice(scene, city, rng) {
     group.position.set(0, 34, 0);
     scene.add(group);
     // The ground pool: a bright disc that follows the player under the beam.
+    // R19 take-2 fix #1 — radius 8 (was 5.5), opacity 0.4 (was 0.32):
+    // the pool must read as a lit ellipse on the road AROUND the hero
+    // car, not hide under it.
     const pool = new THREE.Mesh(
-      new THREE.CircleGeometry(5.5, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.32, depthWrite: false }),
+      new THREE.CircleGeometry(8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.4, depthWrite: false }),
     );
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.08;

@@ -9,34 +9,37 @@
 // judge reads the dossier sheet (cover 768x432 on top, three 256x144
 // frames beneath), so every frame is verified at dossier size.
 //
-// 1-heat (cover): the chase EAST down the z=111 arterial toward the low
-//   sun — the red Cempaka GT BIG (camera 6.5 m back, 2 m up, FOV 62°,
-//   car ~28–33% of the frame, lower-centre), mid-drift + a real near-miss
-//   (world labels show the real drift + near-miss payouts at their 3D
-//   anchors), heli + spotlight cone in the upper third, the BENTARA
-//   mural readable on the right, 6+ traffic + 10+ peds in the near
-//   corridor, Sari's imperative order bottom-centre, one chase panel
-//   (callsign | type | distance | VERB), money + stars + rank chip.
-// 2-drive: the chase camera (live followCar, 5 m back, 1.9 m up) mid-
-//   CORNER at the garage street — the player turns east at the Bengkel
-//   Roda Jaya bay, 2 strobing cruisers + 3 civilian cars in the turn,
-//   peds on the sidewalks, the BENGKEL LAS neon sign in frame, minimap
-//   with the respect ring + one chase panel + the big speed number.
-// 3-foot: on FOOT, eye level — the player WALKING north past Warung
-//   Sari (ronde-2 lens: 5.5 m back, 2.3 m up, player ~29% of the frame;
-//   the sign strung high across the street at (42,4.2,100) so it reads
-//   whole with sky above it and the cordon below it), 4 peds in the
-//   street + a warung crowd under the awning, 1 parked ojek + 2 parked
-//   cars, the cordon holding the street's far north end (cops 44 m+,
-//   cruisers 56 m+, searching = true) with a gold ring marking the
-//   player. Mission banner + weapon strip + money only.
-// 4-story: the FULL MAP SCREEN (Recording 13), staged as a near-
-//   complete save — all 8 missions done, 14/24 collectibles really
-//   collected, all 3 usaha + 1 garage car really bought, race records
-//   on the board, one real taxi fare + one real ojek ride completed —
-//   so the map reads ~88% completion with the per-part breakdown,
-//   chapter list, KLASEMEN standings and the final-mission ledger.
-//   The map screen is a real in-game screen (M key), not a menu mockup.
+// 1-heat (cover, R19): the chase EAST down the z=111 arterial toward
+//   the low sun — the red Cempaka GT BIG (camera 6.5 m back, 2 m up,
+//   FOV 62°, car ~28–30% of the frame, lower-centre), mid-drift + a
+//   real near-miss, heli + spotlight cone in the upper third, the
+//   BENTARA mural readable on the right, 6+ traffic + 10+ peds in the
+//   near corridor. LATE-GAME save: MISI 7/8, KEMAJUAN 87%, LEVEL 4
+//   LEGENDA BENTARA, 23/24 collectibles really collected, all usaha +
+//   all 5 garage cars really bought. Sari's story line + choice
+//   bottom-centre (dialogue graph, 96 px portrait); the police radio
+//   stays the separate ticker. One mission card top-left (dispatch
+//   merged: 5 named units + tactics), KEMAJUAN in the cash box
+//   top-right, progress inside the minimap panel bottom-left.
+// 2-drive (R19): the race FINISH — a REAL race run first (5 gates,
+//   measured times), then the chase, then the HASIL BALAPAN overlay
+//   over the chase backdrop. Standings readable at 256 px.
+// 3-foot (R19): on FOOT, eye level — the player WALKING north past
+//   Warung Sari (5.5 m back, 2.3 m up, player ~29% of the frame), the
+//   KARAOKE STAGE loud ahead-right (scaled stage, 2 performer peds,
+//   Sari at the corner, pink neon + acid-green LEDs), wayang/kaset as
+//   PICTORIAL props on the street edge, the cordon holding the street's
+//   far north end with a gold ring marking the player. No ammo crate.
+// 4-story (R19): the COUNTS/MENU screen — the full map screen with
+//   tabs (MISI/STATS/GARASI/PENGATURAN) + six big real counts + the
+//   garage list, staged as a near-complete save (all 8 missions done,
+//   14/24 collectibles really collected, all 3 usaha + 1 garage car
+//   really bought, race records on the board, one real taxi fare + one
+//   real ojek ride completed) — so the map reads ~88% completion with
+//   the per-part breakdown, chapter list, KLASEMEN standings and the
+//   final-mission ledger. The map screen is a real in-game screen
+//   (M key), not a menu mockup; the race-results overlay is the drive
+//   frame's job now.
 import * as THREE from 'three';
 import { STEP, COLLECTIBLES, SUN, STUNTS, RACE } from './config.js';
 import { MISSIONS } from './missions.js';
@@ -44,6 +47,7 @@ import { loc, roadLines } from './city.js';
 import { routeWaypoints } from './gpsRoute.js';
 import { makeGlowSprite } from './effects.js';
 import { pointAhead, projectPoint, auditTarget, countInView } from './photoSpawner.js';
+import { createDialogueRunner, SARI_COVER_GRAPH } from './dialogue.js';
 
 const SHOTS = {
   heat: { at: 2 },
@@ -157,10 +161,22 @@ function auditShot(name, G, hero) {
 // The item stays live: drive over it and it really collects. `kind`
 // picks the first remaining item of that kind — a tape, so its popup
 // names the real track it carries.
+// R19 take 2 — staged-item set: stageCollectible used to pick the FIRST
+// remaining item of a kind every time, so five calls for idols/tapes
+// kept moving the SAME two items (first shoot: the stall stole the
+// walk-line items and the walk collected 0; take 2: the walk-line calls
+// stole the stall items back and stallProps read 0). Each staged item
+// is now tracked and skipped by later calls, so every staged item is
+// distinct. The set is module level, but each ?shot= page is a fresh
+// JS context, so it starts empty per shot.
+const stagedCollectibles = new Set();
 function stageCollectible(game, x, z, kind) {
   const remaining = game.collectibles.remaining();
-  const item = (kind ? remaining.find((i) => i.kind === kind) : null) || remaining[0];
+  const item = (kind ? remaining.find((i) => i.kind === kind && !stagedCollectibles.has(i)) : null)
+    || remaining.find((i) => !stagedCollectibles.has(i))
+    || remaining[0];
   if (!item) return null;
+  stagedCollectibles.add(item);
   item.x = x;
   item.z = z;
   item.mesh.position.x = x;
@@ -182,6 +198,111 @@ function stageTaxi(game, standKey, x, z) {
 // each beat) and two fishing catches (bite forced by the QA/shot hook,
 // pressed inside the strike window). The save's stats then carry the
 // activities line the story frame's results meta shows.
+// R19 — run a REAL race for the results screen, shared by the drive
+// frame (race finish) and the story frame (KLASEMEN standings): the
+// player drives the 5 gates at a steady cruise (~11 m/s, a mid-pack
+// pace, so the measured time lands near par instead of a teleport's
+// absurd 2 s), steering at each live gate; the three bot rivals drive
+// the same route at their own pace. The race only ends when the last
+// rival crosses, so the HASIL BALAPAN table ranks four real measured
+// times. Steering follows the game's own road GPS (routeWaypoints) —
+// a straight line to the gate cuts through building blocks and wrecks
+// the car against a wall (gate 2: the block at (74,148)). A stuck car
+// (no gate for 10 s) gets one nudge back onto the gate's road + a
+// repair — the recovery the live game never needs because a human
+// steers around the block. Returns { steps, standings, records, runs }.
+function runRealRace(G) {
+  let raceSteps = 0;
+  let raceStuck = 0;
+  let lastGate = 0;
+  let raceWps = [];
+  let raceWpIdx = 0;
+  G.player.enterCar(G.parked[0]);
+  G.player.car.x = G.race.start.x;
+  G.player.car.z = G.race.start.z;
+  G.player.car.heading = 0;
+  G.player.car.speed = 0;
+  G.player.car.health = 100;
+  G.player.car.sync();
+  G.race.startRace();
+  while (G.race.active && raceSteps < 9000) {
+    const gate = G.race.nextGate;
+    if (gate) {
+      if (G.race.gateIndex !== lastGate || raceWps.length === 0) {
+        lastGate = G.race.gateIndex;
+        raceStuck = 0;
+        raceWps = routeWaypoints(
+          { x: G.player.car.x, z: G.player.car.z },
+          { x: gate.x, z: gate.z },
+        );
+        raceWpIdx = 0;
+      }
+      while (raceWpIdx < raceWps.length - 1
+        && Math.hypot(raceWps[raceWpIdx].x - G.player.car.x, raceWps[raceWpIdx].z - G.player.car.z) < 6) {
+        raceWpIdx += 1;
+      }
+      const tgt = raceWps[Math.min(raceWpIdx, raceWps.length - 1)];
+      const dx = tgt.x - G.player.car.x;
+      const dz = tgt.z - G.player.car.z;
+      const want = Math.atan2(dx, dz);
+      let diff = want - G.player.car.heading;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      G.setShotInput({
+        active: true, up: G.player.car.speed < 11, down: G.player.car.speed > 12,
+        left: diff > 0.08, right: diff < -0.08, brake: false, run: false, mouse: false,
+      });
+      raceStuck += 1;
+      if (raceStuck > 600) {
+        const lines = roadLines();
+        const nearLine = (v) => lines.reduce((best, l) => (Math.abs(l - v) < Math.abs(best - v) ? l : best), lines[0]);
+        const lx = nearLine(gate.x);
+        const lz = nearLine(gate.z);
+        if (Math.abs(gate.z - lz) <= Math.abs(gate.x - lx)) {
+          const dir = (G.player.car.x - gate.x) >= 0 ? 1 : -1;
+          G.player.car.x = gate.x + dir * 10;
+          G.player.car.z = lz;
+          G.player.car.heading = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+        } else {
+          const dir = (G.player.car.z - gate.z) >= 0 ? 1 : -1;
+          G.player.car.x = lx;
+          G.player.car.z = gate.z + dir * 10;
+          G.player.car.heading = dir > 0 ? Math.PI : 0;
+        }
+        G.player.car.speed = 0;
+        G.player.car.health = 100;
+        G.player.car.sync();
+        raceWps = [];
+        raceStuck = 0;
+      }
+    } else {
+      G.setShotInput({ active: false });
+    }
+    G.step(STEP);
+    raceSteps += 1;
+  }
+  G.setShotInput({ active: false });
+  G.player.exitCar();
+  return {
+    steps: raceSteps, active: G.race.active,
+    standings: G.race.standings, records: G.race.records, runs: G.race.runs,
+  };
+}
+
+// R19 — collect n items for real: teleport onto each one and step once —
+// the same pickup radius + hooks as live play (cash + REP + toast).
+// The snapshot is taken before the loop: remaining() shrinks as items
+// are taken, so slice(0, n) up front is the n to collect. The player
+// must be ON FOOT (call before enterCar).
+function collectItems(G, n) {
+  const items = G.collectibles.remaining().slice(0, Math.max(0, n - G.collectibles.collected));
+  for (const item of items) {
+    G.player.setPos(item.x, item.z, 0);
+    G.step(STEP);
+  }
+  return G.collectibles.collected;
+}
+
 function runSideSessions(G) {
   G.karaoke.start();
   for (let i = 0; i < 800 && G.karaoke.active; i += 1) {
@@ -208,6 +329,18 @@ export function stageShot(name, game, atSeconds) {
 
   if (name === 'drive') {
     G.hud.setHudProfile('drive');
+    // R19 (D2) — the race FINISH: run a REAL race FIRST (5 gates,
+    // measured times), before any chase staging — the race drive moves
+    // traffic and the player, so the chase spots are staged after it.
+    // It runs on the default mission (index 0), so the M2 survive step
+    // cannot spawn attackers into the race; the profile sets M2 below.
+    // The standings are the real measured table the HASIL BALAPAN
+    // overlay shows at the freeze.
+    const driveRace = runRealRace(G);
+    window.__driveRace = driveRace;
+    // Defensive: dispose any attacker the race sim may have spawned, so
+    // the frame holds only the chase (same pattern as the foot profile).
+    for (const a of [...G.missions.attackers]) a.dispose(G.view.scene);
     // Radio on: the drive frame's radio widget shows the synth's real
     // now-playing + the equalizer, driven by the track's pattern.
     G.audio.setRadio(true);
@@ -306,21 +439,11 @@ export function stageShot(name, game, atSeconds) {
     stageTaxi(G, 'industrialYard', 124, 98);
     stageCollectible(G, 120, 108);
     G.ojek.stageRide('industrialYard', 'towerConcourse');
-    // The race is really running for this shot: start it before the sim
-    // so the timer accrues and the HUD race chip shows, and the first
-    // gold gate is moved onto the player's lane ahead (same honest
-    // staging as the collectible — a real gate, really active, just
-    // placed where the camera can see it). The gate sits at +32 m, past
-    // the roadblock at +46 m, so the frame proves the race system: gold
-    // ring in the world, gold circle on the minimap, timer chip on top.
-    // The standings board needs real records to show: the player's
-    // top-3 from earlier sessions, restored through the same
-    // setRecords() the save loader uses — the HUD reads live state,
-    // never a staged string. (Same honesty as the staged cash/rep: the
-    // shot is a mid-game save, and these are that save's race history —
-    // 68.4 dtk beats the 75 dtk par, 82.1 and 95.6 do not.)
-    G.race.setRecords([68.4, 82.1, 95.6]);
-    G.race.startRace();
+    // R19 (D2) — the race already ran for real (runRealRace at the top
+    // of this profile): the records + standings are that run's measured
+    // times, not restored history. No live race runs during the chase —
+    // the frame's proof is the HASIL BALAPAN overlay at the freeze,
+    // over the chase backdrop.
     G.hud.toast('', 0.01);
     // Recording 14 — record the real near-miss payout (same wrapper
     // pattern as the cover's drift): the re-shown popup below carries
@@ -502,6 +625,22 @@ export function stageShot(name, game, atSeconds) {
       driveGate.post.visible = false;
       driveGate.post2.visible = false;
     }
+    // R19 (D2) — HASIL BALAPAN: the real race's measured standings,
+    // shown with a 600 s lifetime for the slow capture. The overlay
+    // (82% opaque) sits over the chase backdrop — the frame is the race
+    // finish, not a menu mockup. The standings table at 34 px is the
+    // frame's readable proof.
+    if (driveRace.standings) {
+      const drivePlayer = driveRace.standings.find((r) => r.player);
+      const driveBeatPar = drivePlayer.time <= RACE.parSeconds;
+      G.hud.showRaceResults({
+        time: drivePlayer.time,
+        paid: driveBeatPar ? RACE.reward * 2 : RACE.reward,
+        beatPar: driveBeatPar,
+        standings: driveRace.standings,
+        playerPos: drivePlayer.pos,
+      }, G, 600);
+    }
     // Frozen impact trauma (game-feel): a cruiser is in RAMMING range, so
     // the frame carries a slight Dutch angle — the chase reads as a hit,
     // not a parked pose.
@@ -514,20 +653,42 @@ export function stageShot(name, game, atSeconds) {
     // Radio on: the cover's radio widget shows the synth's real
     // now-playing + the equalizer, driven by the track's pattern.
     G.audio.setRadio(true);
-    // Mission 3 RAMPOKAN KECIL: its objective is "Pergi ke Kawasan
-    // Industri", so the mission panel matches the district in frame, and a
-    // robbery at 4.2 stars is the chase the cover is supposed to show.
-    // The chase runs EAST down the z=111 arterial, straight at the low
-    // sun (azimuth ~22° north of east) and the BENTARA mural on the right.
-    // It starts at x=0 and ends near x=60, so the mural building (x
-    // 100–140) sits 40–80 m ahead — readable, not a wall filling the
-    // right half of the frame.
-    G.missions.setIndex(2);
-    G.state.cash = 18250;
-    G.state.rep = 1250;
-    // Recording 16 — HARI 3, 18:00 SENJA: the day lockup reads the
-    // sunset light (state.time 240 s -> 16:00 + 120 min = 18:00).
-    G.state.day = 3;
+    // R19 (D1/D6) — LATE-GAME save: MISI 7/8 — CURI MOBIL (its
+    // objective is "Bawa CEMPAKA GT curian ke Marina", so the mission
+    // panel matches the stolen-car chase in frame). The chase runs EAST
+    // down the z=111 arterial, straight at the low sun (azimuth ~22°
+    // north of east) and the BENTARA mural on the right. It starts at
+    // x=0 and ends near x=60, so the mural building (x 100–140) sits
+    // 40–80 m ahead — readable, not a wall filling the right half of
+    // the frame.
+    G.missions.setIndex(6);
+    // The save earned its money first, then spent it for real: $150,000
+    // banked, all 3 usaha ($34,000) + all 5 garage cars ($87,700)
+    // bought from the real catalogs, so the KEMAJUAN card reads the
+    // real wealth. REP 2400 + 115 from the 23 collectibles below =
+    // 2515 -> LEVEL 4 LEGENDA BENTARA. Race records are the save's real
+    // history (68.4 dtk beats the 75 dtk par). Completion math
+    // (progress.js): missions 6/8 = 37.5 + collectibles 23/24 = 19.2 +
+    // assets 20 + race 10 = 86.7 -> 87%.
+    G.state.cash = 150000;
+    G.state.rep = 2400;
+    for (const c of G.usaha.catalog()) G.usaha.buy(c.id);
+    for (const c of G.garage.catalog()) G.garage.buy(c.id);
+    G.race.setRecords([68.4, 82.1, 95.6]);
+    // Collect 22 of 24 items for real (teleport + step, the live pickup
+    // path) — the 23rd is the idol on the chase line below, collected
+    // mid-chase. The player is on foot here (enterCar comes after).
+    collectItems(G, 22);
+    // R19 take 2 — clear the feedback strip after the teleport loop:
+    // a world ammo crate on the loop's path fired a real AMUNISI feed
+    // item, but shells are staged back to 24 below, so the chip would
+    // advertise +12 the player never kept (and push the real NEAR MISS
+    // chip out of the 2-chip cap). The chase's drift/near-miss feed the
+    // strip fresh after this.
+    G.hud.clearFeed();
+    // Recording 16 — HARI 7, 18:00 SENJA (state.time 240 s): a
+    // late-game day for a late-game save.
+    G.state.day = 7;
     G.state.time = 240;
     G.player.enterCar(G.parked[0]);
     // Recording 13 — the save OWNS the shotgun (bought at the Ruko for
@@ -672,8 +833,9 @@ export function stageShot(name, game, atSeconds) {
       [120, 99.5], [135, 122.5], [110, 122.5], [125, 99.5], [140, 122.5],
       [100, 99.5], [130, 99.5], [115, 122.5], [145, 122.5], [150, 99.5],
       [155, 122.5],
-      // Near-field wave, x 64–78: the camera is 5.5 m behind the player
-      // now (x ≈ 54.5), so these six stand 10–24 m ahead of the lens, on
+      // Near-field wave, x 64–78: the camera is 6.5 m behind the player
+      // now (take 2 reverted from 5.5 m — the trial cut the car's bottom),
+      // so these six stand 10–24 m ahead of the lens, on
       // both sidewalks, and the living street reads at thumbnail size.
       [64, 99.5], [68, 122.5], [66, 122.5], [72, 99.5], [76, 99.5], [78, 122.5],
       // Warung crowd: four peds tight together on the south sidewalk at
@@ -773,30 +935,47 @@ export function stageShot(name, game, atSeconds) {
     // put it inside the north slab.) From the hero camera it sits ~9°
     // right of the view axis, ~24° up; the sun disc sits ~16° right of
     // the axis, ~11° up — separated, both in the upper third.
-    // Recording 15 — CLOSER and LOWER (+18/+13/+10, ~30° up from the
-    // lens): the R14 heli read small at dossier size, and the bigger
-    // sun disc (16° across now) needs the heli clearly separated from
-    // it — and IN THE SKY GAP (a touch further south, +10, so the dark
-    // body sits against bright orange sky, not the dark tower). 40%
-    // bigger for the frame (same staging class as the foot cops'
-    // 1.4x) so the body + rotor read as a helicopter at 256 px.
+    // R19 take 2 — heli moved TOWARD THE SUN (+22/+9/+4): the first
+    // shoot put the +18/+13/+10 heli against the dark tower top-right
+    // (a black blob, no readable body, no visible cone) — the R19
+    // teal-dusk sky killed the R15 "bright orange sky gap" the old
+    // spot relied on. The sun disc sits upper-centre (~0.57, 0.28 on
+    // screen); moving the heli left (toward the axis, +10 -> +4) and
+    // down (13 -> 9 m up, 18 -> 22 m ahead) puts its silhouette
+    // against the sun's halo, and the cone becomes a diagonal beam
+    // from upper-centre to the hero car instead of a stub behind the
+    // body. Scale stays 1.4x; the dispatch distance stays ~22 m.
     const heli = G.police.heli;
     if (heli) {
-      heli.group.position.set(G.player.x + 18, 13, G.player.z + 10);
+      heli.group.position.set(G.player.x + 22, 9, G.player.z + 4);
       heli.group.scale.setScalar(1.4);
       heli.group.lookAt(G.player.x, 0, G.player.z);
       heli.spotX = G.player.x;
       heli.spotZ = G.player.z;
       heli.pool.position.set(G.player.x, 0.08, G.player.z);
-      // Re-aim the cone for the STAGED heli position, same formula the
-      // live update uses: the last sim step aimed it from the pre-staging
-      // hover spot 20 m ahead, so without this the beam points ~7 m off
-      // the heli and the pool. (r3 left the stale aim in place.)
-      heli.spot.position.set(
-        (heli.spotX - heli.group.position.x) * 0.35,
-        -11,
-        (heli.spotZ - heli.group.position.z) * 0.35 + 1.6,
-      );
+      // R19 take-2 fix #1 — FIT THE CONE to the staged heli (the old
+      // re-aim below only shifted a vertical 22 m cone: at the staged
+      // 9 m hover its base sat 21.8 m underground, so the road saw a
+      // 0.7 m-radius wisp and the beam never read). The beam is now a
+      // real searchlight: apex at the heli's belly, base (radius 1.6 m)
+      // on the pool at the player's feet, tilted along the belly→pool
+      // axis. The cone geometry is 22 long / 2.4 radius, apex +Y; the
+      // group scale is 1.4, so world length = 22 * scaleY * 1.4 and
+      // world base radius = 2.4 * scaleXZ * 1.4. The halo cone is a
+      // child of the spot, so it inherits the fit. The SpotLight's
+      // target is re-aimed at the same ground point, so the road under
+      // the beam really brightens.
+      G.view.scene.updateMatrixWorld(true);
+      const apexW = new THREE.Vector3(heli.group.position.x, heli.group.position.y - 1, heli.group.position.z);
+      const baseW = new THREE.Vector3(G.player.x, 0, G.player.z);
+      const beamLen = apexW.distanceTo(baseW);
+      const midL = heli.group.worldToLocal(apexW.clone().add(baseW).multiplyScalar(0.5));
+      const axisL = heli.group.worldToLocal(baseW.clone()).sub(heli.group.worldToLocal(apexW.clone())).normalize();
+      // Cone +Y points apex-ward: rotate it onto the base→apex axis.
+      heli.spot.position.copy(midL);
+      heli.spot.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axisL.negate());
+      heli.spot.scale.set(1.6 / (2.4 * 1.4), beamLen / (22 * 1.4), 1.6 / (2.4 * 1.4));
+      heli.spotLight.target.position.copy(heli.group.worldToLocal(new THREE.Vector3(G.player.x, 0, G.player.z)));
     }
     // Ronde 2 (cover): hide the kerb tree at (48.5, 108.2) — measured
     // (raycast + instance scan): its trunk stands 5 m from the lens,
@@ -806,17 +985,16 @@ export function stageShot(name, game, atSeconds) {
     // building (60,88) stays on the left third, where it reads as city.
     // The count (trunk + crown = 2) is exposed for the QA gate.
     window.__heatTreeHidden = hideTreeAt(G, 48.5, 108.2);
-    // Hero camera (Recording 11 — FRAMES FIRST): 6.5 m back, 2.0 m up —
-    // the car is the hero now, BIG lower-centre at ~28–33% of the frame
-    // width, a real sports car (spoiler, light bar, rims) instead of a
-    // small red box. (5.5 m put the angled car at 42% width and cut its
-    // front off the left edge.) The look target is at road level (y 2.5)
-    // and only slightly north (+6 z): the sun disc enters the upper third
-    // clear of the HUD, and the mural stays on the right at a readable
-    // distance. The portrait card is BACK for the cover — Sari's
-    // imperative order, compact strip docked bottom-centre (the CSS keeps
-    // it off the hero car), 600 s so the slow capture keeps it. Render
-    // directly: G.draw() would reset the camera to the chase cam.
+    // R19 take 2 — the 5.5 m TRIAL FAILED: first shoot's audit has the
+    // car inFrame false with its projected bottom at 1.069 (cut off at
+    // the frame's bottom edge) — the R11 warning reproduced exactly.
+    // Reverted to 6.5 m back, 2.0 m up, FOV 62°. The brief's 5.5 m
+    // does not survive contact with the angled car; 6.5 m is the
+    // measured distance that keeps the whole car in frame.
+    // The portrait card is BACK for the cover — Sari's story line +
+    // choice, bottom-centre (the CSS keeps it off the hero car),
+    // 600 s so the slow capture keeps it. Render directly: G.draw()
+    // would reset the camera to the chase cam.
     G.setShotInput({ active: false });
     G.hud.setCaptureMode('coverportrait');
     const cam = G.view.camera;
@@ -833,7 +1011,16 @@ export function stageShot(name, game, atSeconds) {
     // disc only slides to ~x772, still in clear sky.
     cam.lookAt(G.player.x + 40, 2.5, G.player.z + 6);
     G.view.keepClear(cam, G.player.x + 40, 2.5, G.player.z + 6);
-    G.hud.dialogue('SARI · WARUNG SARI', 'Lepas GARUDA-1 — belok tajam, jangan berhenti!', 'sari', 600);
+    // R19 (D3) — Sari's line is a STORY line with a choice, from the
+    // dialogue graph (validated in dialogue.js): the police radio stays
+    // the separate #ticker below. The runner renders through
+    // hud.dialogue() with the 96 px portrait + choice chips; a click
+    // advances the graph in live play.
+    const sariRunner = createDialogueRunner(SARI_COVER_GRAPH, (cur) => {
+      G.hud.dialogue('SARI · WARUNG SARI', cur.line, 'sari', 600, cur.choices);
+    });
+    sariRunner.show();
+    window.__heatDialogue = { graph: 'SARI_COVER_GRAPH', node: sariRunner.node(), lineId: sariRunner.current().lineId };
     // Recording 14 — the drift popup SHOWS in the cover now (the r8
     // "hide it, this is the busiest frame" call is reversed: the exact
     // judge's Isla verdict says the scoring layer is exactly what the
@@ -854,12 +1041,13 @@ export function stageShot(name, game, atSeconds) {
     // popup's sub-line lands under the big speed readout (the 107 covers
     // "Wayang emas Bentara") — overlap clutter in the busiest frame, the
     // exact criterion-3 failure. The cover's WAYANG proof is the KOLEKSI
-    // lockup now reading 1/6 (the idol was really collected mid-chase);
-    // the foot frame shows the WAYANG popup cleanly.
+    // lockup now reading 23/24 (22 collected before the chase + the
+    // idol really collected mid-chase); the foot frame shows the WAYANG
+    // popup cleanly.
     // The mission stinger, held for the capture too. The second line is
-    // the NEXT mission (the study's cover banner: "MISI 3/8 — RAMPOKAN
-    // KECIL · NEXT: Paket Ruko — temui Sari"), not the district.
-    G.hud.stinger('MISI 3/8 — RAMPOKAN KECIL', 'NEXT: Paket Ruko — temui Sari', 60);
+    // the NEXT mission objective (the study's cover banner: "MISI 7/8 —
+    // CURI MOBIL · NEXT: Bawa CEMPAKA GT ke Marina"), not the district.
+    G.hud.stinger('MISI 7/8 — CURI MOBIL', 'NEXT: Bawa CEMPAKA GT ke Marina — mulus', 60);
     // Dispatch ticker, not the radio track: the drive-box radio widget
     // already shows the now-playing song, so putting the same sentence
     // in the centre ticker duplicated it in the cover frame (the
@@ -1030,6 +1218,48 @@ export function stageShot(name, game, atSeconds) {
       p.target = { x: pedSpots[k][0] + 8, z: pedSpots[k][1] - 12 };
       p.fleeTimer = 0;
     });
+    // R19 (D2) — WAYANG/KASET as PICTORIAL props, not HUD text: one
+    // idol + two tapes staged on the street's EAST edge — beside the
+    // karaoke corner, off the walking line (x=40), so they stay
+    // uncollected and visible, with a gold glow marking the little
+    // display. They are LIVE items (real collectibles, real track
+    // names), not meshes. The tapes are scaled 1.5x so the cassette
+    // shells read at 256 px; the idol is already ~2 m tall. STAGED
+    // FIRST: stageCollectible takes the first remaining item of a kind,
+    // so staging these after the walk-line items STOLE them (first
+    // shoot: the walk collected 0 and the WAYANG popup was a ghost).
+    // Stall first, walk second.
+    // R19 take-2 fix #10 — the display moved EAST to x=48, against the
+    // tower wall: the karaoke stage's raised platform (world x 40.9–
+    // 47.1, z 97.8–102.2 after the 1.25x group scale) now covers the
+    // old (44–46, 100–101) spots, and the props would have been buried
+    // under it. Still "beside the karaoke corner", still uncollected.
+    const stallIdol = stageCollectible(G, 48, 100, 'idol');
+    const stallTape1 = stageCollectible(G, 48, 101, 'tape');
+    const stallTape2 = stageCollectible(G, 48, 102, 'tape');
+    if (stallTape1 && stallTape1.mesh) stallTape1.mesh.scale.setScalar(1.5);
+    if (stallTape2 && stallTape2.mesh) stallTape2.mesh.scale.setScalar(1.5);
+    const stallGlow = makeGlowSprite(0xffd75e, 3.0, 0.5);
+    stallGlow.position.set(48, 0.8, 101);
+    G.view.scene.add(stallGlow);
+    // R19 take-2 fix #10 — the market's scattered props can land ON the
+    // stage footprint (the take-3 shoot had a crate at (41.8,99.8),
+    // sitting on the platform's west edge and hiding the LED strip).
+    // Any unbroken prop inside the platform rect is pulled out to the
+    // open street north-west of the stage, clear of the walking line.
+    {
+      let cleared = 0;
+      for (const prop of G.props.props) {
+        if (prop.broken) continue;
+        if (prop.x > 40.5 && prop.x < 47.5 && prop.z > 97.5 && prop.z < 102.5) {
+          prop.x = 38 + cleared * 1.5;
+          prop.z = 104 + (cleared % 2);
+          prop.mesh.position.x = prop.x;
+          prop.mesh.position.z = prop.z;
+          cleared += 1;
+        }
+      }
+    }
     // A gold WAYANG idol staged on the player's walking line — at
     // (40,90), 2 m into the walk, so he collects it EARLY (t ≈ 0.3 s):
     // the collect is real — popup, cash, and the counter — and its
@@ -1046,24 +1276,9 @@ export function stageShot(name, game, atSeconds) {
     // Senja"), so KASET finally has its own moment instead of living
     // only inside the lockup line. Both pickups are real.
     const stagedTape = stageCollectible(G, 40, 93, 'tape');
-    // Recording 15 — an AMMO CRATE on the player's walking line at
-    // (40,99): he walks over it ~1.7 s into the sim, so the pickup is
-    // real — +12 shells into the live reserve, the foot strip's
-    // SHOTGUN count rises 6/24 -> 6/36, and the crate vanishes. The
-    // crate itself (olive box, gold stripe, gold ring) sits in frame
-    // ahead of him until he reaches it.
-    const stagedCrate = G.collectibles.stageAmmoCrate(40, 99);
-    // Record the real ammo payout, same wrapper pattern as the tape:
-    // the live popup's 2.6 s lifetime expires during the sim, so the
-    // re-show below carries the REAL recorded amount with a 60 s
-    // lifetime for the slow capture. If the sim pays nothing, nothing
-    // is re-shown.
-    const ammoPayouts = [];
-    const origAmmo = G.hud.popups.ammo.bind(G.hud.popups);
-    G.hud.popups.ammo = (shells, seconds) => {
-      ammoPayouts.push({ shells });
-      return origAmmo(shells, seconds);
-    };
+    // R19 (CUT) — the ammo crate is CUT: no crate on the walking line,
+    // no ammo receipt. The foot frame's two popups are WAYANG + KASET
+    // (cap 2), each naming its own thing.
     // No shots during the sim: the player's sim fire hit a parked car in
     // the first take (an SMG drop + a collect popup the frame never meant
     // to show). The firefight is staged after the sim — frozen tracers,
@@ -1083,7 +1298,16 @@ export function stageShot(name, game, atSeconds) {
     // and the cordon distances below (cops 44 m+, cruisers 56 m+)
     // read from (40,96) as staged. The camera + searching step below
     // run from this spot.
-    G.player.setPos(40, 96, 0);
+    // R19 take 2 — face the karaoke corner (heading PI/4 = NE): the
+    // player ends the walk facing north (heading 0), which puts the
+    // stage at (44,100) on the frame's right edge, half-hidden behind
+    // the stalls (first shoot: the mic + LED strips barely read). NE
+    // centres the stage, Sari, and the performers; the PASAR PAGI sign
+    // is huge enough to stay partly visible at the left edge. The
+    // heading goes through setPos (it sets heading + camHeading +
+    // body facing) — G.player.heading is a getter-only facade, so a
+    // direct assignment throws.
+    G.player.setPos(40, 96, Math.PI / 4);
     // Re-stage the pedestrians AFTER the sim, frozen mid-stride across
     // the visible street band AHEAD of the player (he ends at (40,96),
     // walking north): twelve peds walking the street z 98–116, four more
@@ -1295,17 +1519,50 @@ export function stageShot(name, game, atSeconds) {
     G.hud.popups.collect(itemValue, stagedItem ? stagedItem.kind : 'tape', 60, stagedItem ? stagedItem.track : null);
     // Recording 18 — re-show the KASET tape the walk really earned too
     // (same real track name, 60 s lifetime): two docked popups, WAYANG
-    // + KASET, each naming its own thing. Cap is 3, so the ammo receipt
-    // below still fits.
+    // + KASET, each naming its own thing. Cap is 2 — that is the whole
+    // stack now (the ammo receipt is cut with the crate).
     if (stagedTape && stagedTape.taken) {
       G.hud.popups.collect(COLLECTIBLES.tapeValue, 'tape', 60, stagedTape.track);
     }
-    // Recording 15 — re-show the ammo-crate pickup the walk really
-    // earned (same real amount, 60 s lifetime). The crate is already
-    // taken, so this is the receipt, not a second payout.
-    for (const a of ammoPayouts) {
-      origAmmo(a.shells, 60);
+    // R19 (D2) — the KARAOKE STAGE, loud: the corner group (mic,
+    // speakers, rings) scales 1.25x in place, two performer peds stand
+    // at the mic with a raised arm, and Sari herself stands at the
+    // corner (46,99) facing the player — the frame's venue is a
+    // performance, not a panel. The session below is real (6 beats,
+    // pressed on each beat); the performers + Sari are staging, the
+    // singing is live.
+    // R19 take-2 fix #10 — the performers + Sari stand ON the stage:
+    // platform top is 0.6 m in the karaoke group, x1.25 group scale =
+    // 0.75 m world. setPos only touches x/z (Human.setPos), so the
+    // height goes on group.position.y after. Without it they stand on
+    // the street with the platform cutting them at the knees.
+    const STAGE_TOP = 0.75;
+    G.view.scene.traverse((obj) => {
+      if (obj.isGroup && Math.hypot(obj.position.x - 44, obj.position.z - 100) < 0.5 && obj.position.y === 0) {
+        obj.scale.setScalar(1.25);
+      }
+    });
+    const sariNpc = G.npcs.find((n) => n.name === 'SARI');
+    if (sariNpc && sariNpc.human) {
+      sariNpc.human.setPos(46, 99);
+      sariNpc.human.group.position.y = STAGE_TOP;
+      sariNpc.human.face(Math.atan2(40 - 46, 96 - 99));
     }
+    const performerSpots = [[43, 99], [45, 101]];
+    G.peds.peds.slice(18, 20).forEach((p, k) => {
+      const s = performerSpots[k % performerSpots.length];
+      p.setPos(s[0], s[1]);
+      p.group.position.y = STAGE_TOP;
+      p.target = { x: s[0], z: s[1] };
+      p.fleeTimer = 0;
+      p.fleeFrom = { x: G.player.x, z: G.player.z };
+      p.face(Math.atan2(40 - s[0], 96 - s[1]));
+      p.legL.rotation.x = 0;
+      p.legR.rotation.x = 0;
+      p.armL.rotation.x = 0;
+      p.armR.rotation.x = -1.4;
+      p.torso.rotation.x = 0;
+    });
     // Recording 18 — KARAOKE, mid-session at the freeze: start a real
     // session at the karaoke corner (44,100 — ahead-right of the player)
     // and drive it through the module's own update/press path for ~6
@@ -1421,109 +1678,15 @@ export function stageShot(name, game, atSeconds) {
     }
     const storyCar = G.garage.catalog().slice().sort((a, b) => a.price - b.price)[0];
     const storyCarBuy = storyCar ? G.garage.buy(storyCar.id) : null;
-    // Recording 16 — run a REAL race for the results screen: the player
-    // drives the 5 gates at a steady cruise (~11 m/s, a mid-pack pace,
-    // so the measured time lands near par instead of a teleport's
-    // absurd 2 s), steering at each live gate; the three bot rivals
-    // drive the same route at their own pace. The race only ends when
-    // the last rival crosses, so the HASIL BALAPAN table ranks four
-    // real measured times. Steering follows the game's own road GPS
-    // (routeWaypoints) — a straight line to the gate cuts through
-    // building blocks and wrecks the car against a wall (gate 2: the
-    // block at (74,148)). A stuck car (no gate for 10 s) gets one
-    // nudge back onto the gate's road + a repair — the recovery the
-    // live game never needs because a human steers around the block.
-    let storyRaceSteps = 0;
-    let storyRaceStuck = 0;
-    let storyLastGate = 0;
-    let raceWps = [];
-    let raceWpIdx = 0;
-    G.player.enterCar(G.parked[0]);
-    G.player.car.x = G.race.start.x;
-    G.player.car.z = G.race.start.z;
-    G.player.car.heading = 0;
-    G.player.car.speed = 0;
-    G.player.car.health = 100;
-    G.player.car.sync();
-    G.race.startRace();
-    while (G.race.active && storyRaceSteps < 9000) {
-      const gate = G.race.nextGate;
-      if (gate) {
-        if (G.race.gateIndex !== storyLastGate || raceWps.length === 0) {
-          storyLastGate = G.race.gateIndex;
-          storyRaceStuck = 0;
-          raceWps = routeWaypoints(
-            { x: G.player.car.x, z: G.player.car.z },
-            { x: gate.x, z: gate.z },
-          );
-          raceWpIdx = 0;
-        }
-        while (raceWpIdx < raceWps.length - 1
-          && Math.hypot(raceWps[raceWpIdx].x - G.player.car.x, raceWps[raceWpIdx].z - G.player.car.z) < 6) {
-          raceWpIdx += 1;
-        }
-        const tgt = raceWps[Math.min(raceWpIdx, raceWps.length - 1)];
-        const dx = tgt.x - G.player.car.x;
-        const dz = tgt.z - G.player.car.z;
-        const want = Math.atan2(dx, dz);
-        let diff = want - G.player.car.heading;
-        while (diff > Math.PI) diff -= 2 * Math.PI;
-        while (diff < -Math.PI) diff += 2 * Math.PI;
-        G.setShotInput({
-          active: true, up: G.player.car.speed < 11, down: G.player.car.speed > 12,
-          left: diff > 0.08, right: diff < -0.08, brake: false, run: false, mouse: false,
-        });
-        storyRaceStuck += 1;
-        if (storyRaceStuck > 600) {
-          // Recovery: the direct line to the gate can run through a
-          // building (gate 3 sits on the z=185 road behind a block).
-          // Put the car back ON the gate's road, 10 m before the gate
-          // along it, facing the gate — the final approach is then a
-          // straight on-road drive, and the timer keeps running.
-          const lines = roadLines();
-          const nearLine = (v) => lines.reduce((best, l) => (Math.abs(l - v) < Math.abs(best - v) ? l : best), lines[0]);
-          const lx = nearLine(gate.x);
-          const lz = nearLine(gate.z);
-          if (Math.abs(gate.z - lz) <= Math.abs(gate.x - lx)) {
-            const dir = (G.player.car.x - gate.x) >= 0 ? 1 : -1;
-            G.player.car.x = gate.x + dir * 10;
-            G.player.car.z = lz;
-            G.player.car.heading = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
-          } else {
-            const dir = (G.player.car.z - gate.z) >= 0 ? 1 : -1;
-            G.player.car.x = lx;
-            G.player.car.z = gate.z + dir * 10;
-            G.player.car.heading = dir > 0 ? Math.PI : 0;
-          }
-          G.player.car.speed = 0;
-          G.player.car.health = 100;
-          G.player.car.sync();
-          raceWps = [];
-          storyRaceStuck = 0;
-        }
-      } else {
-        G.setShotInput({ active: false });
-      }
-      G.step(STEP);
-      storyRaceSteps += 1;
-    }
-    G.setShotInput({ active: false });
-    G.player.exitCar();
-    window.__storyRace = {
-      steps: storyRaceSteps, active: G.race.active,
-      standings: G.race.standings, records: G.race.records, runs: G.race.runs,
-    };
-    // Collect 14 items for real: teleport onto each one and step once —
-    // the same pickup radius + hooks as live play (cash + REP + toast).
-    // The snapshot is taken before the loop: remaining() shrinks as
-    // items are taken, so slice(0, 14) up front is the 14 to collect.
-    // Recording 16 — top up to exactly 14: the race drive can already
-    // have collected an item on the route, so take only what is missing.
-    const storyItems = G.collectibles.remaining().slice(0, Math.max(0, 14 - G.collectibles.collected));
-    for (const item of storyItems) {
-      G.player.setPos(item.x, item.z, 0);
-      G.step(STEP);
-    }
+    // R19 — the real race, shared with the drive frame (runRealRace):
+    // the standings feed the map screen's KLASEMEN table. The results
+    // overlay itself is the drive frame's job now, not this frame's.
+    const storyRace = runRealRace(G);
+    window.__storyRace = storyRace;
+    // Collect 14 items for real (shared helper — same teleport + step
+    // pickup path; tops up to exactly 14, since the race drive can
+    // already have collected an item on the route).
+    collectItems(G, 14);
     // One real taxi fare: stage a passenger at the marina, drive the
     // car to them, start the fare, drive to the destination — the meter
     // ticks on the real distance and finishFare pays out.
@@ -1625,25 +1788,11 @@ export function stageShot(name, game, atSeconds) {
     // AKTIVITAS line with real counts.
     runSideSessions(G);
     G.hud.showMapScreen(G, { hasil: m8.reward, tagihan: 0, bersih: m8.reward, rep: m8.rep });
-    // Recording 16 — frame 4 is the RACE RESULTS screen: the standings
-    // from the real race just run (WIRA + BAYU/RANI/JOKO, measured
-    // times), shown with a 600 s lifetime for the slow capture. The map
-    // screen stays filled behind it (a live in-game screen, QA-checked)
-    // but the story profile hides it — the results table at 34 px is
-    // the frame's readable proof, and its footer carries the completion
-    // %, LEVEL, chapter and day the map column used to carry at 17 px.
-    const storyStandings = G.race.standings;
-    if (storyStandings) {
-      const storyPlayer = storyStandings.find((r) => r.player);
-      const storyBeatPar = storyPlayer.time <= RACE.parSeconds;
-      G.hud.showRaceResults({
-        time: storyPlayer.time,
-        paid: storyBeatPar ? RACE.reward * 2 : RACE.reward,
-        beatPar: storyBeatPar,
-        standings: storyStandings,
-        playerPos: storyPlayer.pos,
-      }, G, 600);
-    }
+    // R19 (D4) — frame 4 is the COUNTS/MENU screen now: the map screen
+    // IS the frame (the story profile no longer hides it), so there is
+    // no results overlay here — the standings live in the map screen's
+    // KLASEMEN table, and the HASIL BALAPAN overlay is the drive
+    // frame's job. Nothing to show on top of the map.
     // Close camera due south of the player, looking due north: the
     // player stands left-foreground with his back to us, Wira and Aska
     // just beyond him, and the MARINA sign, the water, the boats and

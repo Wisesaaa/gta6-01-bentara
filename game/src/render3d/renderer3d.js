@@ -46,11 +46,13 @@ function createRoadWater(scene) {
       uSunDir: { value: sunDir },
       uSky: { value: new THREE.Color(0xf4dcb2) },
       uSunColor: { value: new THREE.Color(0xffc890) },
-      uFogColor: { value: new THREE.Color(0xe0c8a8) },
-      uFogDensity: { value: 0.0016 },
-      // Recording 17 — strength 1.0 (was 0.9): the sheen is the wet
-      // road, and at dossier size the mirror has to bite.
-      uStrength: { value: 1.0 },
+      uFogColor: { value: new THREE.Color(0x2a2f4a) },
+      uFogDensity: { value: 0.008 },
+      // R19 (L4) — strength 0.35 (was 1.0): a specular SHEEN, not a wet
+      // road. The mirror-wet look is the rival's aesthetic; the dry
+      // season keeps dusty asphalt with a low sun glint. The fog color
+      // + density follow the neon-dusk grade (lighting.js PRESETS).
+      uStrength: { value: 0.35 },
     },
     vertexShader: ROAD_WATER_VERT,
     fragmentShader: ROAD_WATER_FRAG,

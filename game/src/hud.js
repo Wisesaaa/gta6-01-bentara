@@ -1,23 +1,19 @@
-// HUD: four corner clusters + a centre band, no text walls.
-// TOP-CENTER: mission stinger (2 s full, then a mini-pill with the
-// objective + distance), segmented stage bar, NEXT chip, act pips.
-// LEFT-MID: police response list, max 5 rows + "+N unit lagi", status
-// pills (KEJAR / MENABRAK / IKAT JALAN / SOROT / MENCARI).
-// TOP-RIGHT: green cash, stars, day/time, one-line bill pill.
-// BOTTOM-LEFT: circular radar minimap + GPS route + region plate + RESPECT
-// bar + chip row (KOLEKSI / ASET / KEMAJUAN %).
-// BOTTOM-RIGHT: vehicle card (gauge, fuel, nitro, armor) + radial weapon
-// wheel (5 slots, mag/reserve, LOCKED pads with the real price / REP
-// gate) + live radio widget (now-playing + equalizer from the synth).
-// CENTRE: tiered feedback + dispatch ticker. The search-zone timer lives
-// in the LOS chip while the police sweep the last-seen zone.
-// RIGHT EDGE: progress rail (owned cars). The bill list collapses to one
-// pill and only expands on the pause screen. Everything reads from the
-// real game state — never a string set by a shot script.
+// HUD: four corner clusters + a centre band, no text walls. R19 (H1):
+// corner anchors, NO left rail — top-left is ONE mission card (stinger
+// + stage + NEXT + chapter line, police dispatch merged into its lower
+// half, 5 named units + tactics); top-right is the day pill + cash box
+// with the KEMAJUAN card inside it; bottom-left is the minimap panel
+// with progress merged inside (LEVEL/XP + RESPECT + collect lockup);
+// bottom-right is the vehicle card (big speed, gauge, fuel/nitro/armor)
+// + radial weapon wheel (5 slots) + live radio widget; bottom-centre
+// is the dialogue card (portrait + line + choice row). One panel style
+// everywhere, sentence-case labels. Everything reads from the real
+// game state — never a string set by a shot script.
 import { LOCATIONS, roadLines } from './city.js';
 import { routeWaypoints } from './gpsRoute.js';
 import { drawMap } from './mapScreen.js';
 import { WEAPONS, WEAPON_SLOTS, DJ_LINES, CHARACTERS, RACE } from './config.js';
+import { STATIONS } from './radioStations.js';
 import { MISSIONS } from './missions.js';
 import { drawPortrait, missionIntro } from './dialogue.js';
 import { createPopups } from './popups.js';
@@ -26,21 +22,28 @@ import { economySnapshot, completionSnapshot } from './economy.js';
 
 export { repLevel, repTitle };
 
-// Status -> [pill text, css class]. The verb vocabulary is the study's
-// (r11): MENGEJAR kuning, TEMBAK merah, PATROLI abu, SOROT putih.
-// Mapping from the police system's real statuses: PURSUIT -> MENGEJAR
-// (closing in); RAMMING -> TEMBAK (the red attack verb — the cruiser is
-// attacking at close range); ROADBLOCK / SEARCHING -> PATROLI (the grey
-// neutral verb — holding a position / sweeping the last-seen zone);
-// SPOTLIGHT -> SOROT (the heli's beam). The underlying status is never
-// renamed — only the table's verb word follows the study's set.
+// Status -> [tactic word, css class]. R19 (D5): the dispatch table
+// speaks in TACTICS (Salt & Chrome pattern), not Indonesian verbs:
+// PURSUIT -> PURSUIT; RAMMING -> RAMMING; ROADBLOCK -> BOX IN (the
+// barricade boxes the player in); SPOTLIGHT -> SPOTLIGHT (the heli's
+// beam); SEARCHING -> PIT MANEUVER (documented stretch: a searching
+// cruiser sweeps to pit the car once found). The underlying status is
+// never renamed — only the table's tactic word follows the study's set.
 const STATUS_PILL = {
-  PURSUIT: ['MENGEJAR', 'pill-kejar'],
-  RAMMING: ['TEMBAK', 'pill-tabrak'],
-  ROADBLOCK: ['PATROLI', 'pill-cari'],
-  SPOTLIGHT: ['SOROT', 'pill-sorot'],
-  SEARCHING: ['PATROLI', 'pill-cari'],
+  PURSUIT: ['PURSUIT', 'pill-kejar'],
+  RAMMING: ['RAMMING', 'pill-tabrak'],
+  ROADBLOCK: ['BOX IN', 'pill-blokade'],
+  SPOTLIGHT: ['SPOTLIGHT', 'pill-sorot'],
+  SEARCHING: ['PIT MANEUVER', 'pill-pit'],
 };
+
+// R19 (D4) — the 10 named activity systems that exist as real, tracked
+// modules in the game (each with its own state + UI): karaoke, fishing,
+// taxi, ojek, checkpoint race, garage, usaha (properties), collectibles
+// (wayang/kaset hunt), radio (3 stations), stunts (drift/near-miss
+// payouts). The counts screen reports this list's length, never a
+// staged number.
+const ACTIVITY_SYSTEMS = ['karaoke', 'fishing', 'taxi', 'ojek', 'race', 'garage', 'usaha', 'collectibles', 'radio', 'stunts'];
 
 // Where the three buyable properties stand, for the gold $ blips on the
 // minimap (only the owned ones show).
@@ -74,6 +77,7 @@ export function createHud() {
     missionStinger: $('missionStinger'), stingerBig: $('stingerBig'), stingerMini: $('stingerMini'),
     actChip: $('actChip'), actPips: $('actPips'),
     missionStageFill: $('missionStageFill'), missionNext: $('missionNext'),
+    missionChapter: $('missionChapter'),
     repText: $('repText'), repFill: $('repFill'), nextUnlock: $('nextUnlock'),
     cashText: $('cashText'), clockText: $('clockText'), starsBox: $('starsBox'),
     completionCard: $('completionCard'), completionPct: $('completionPct'),
@@ -85,6 +89,7 @@ export function createHud() {
     minimap: $('minimap'), locName: $('locName'),
     dialogue: $('dialogue'), dialogueLine: $('dialogueLine'), portraitCanvas: $('portraitCanvas'),
     dialogueName: $('dialogueName'), dialogueRole: $('dialogueRole'),
+    dialogueChoices: $('dialogueChoices'),
     toast: $('toast'), prompt: $('prompt'), popups: $('popups'), centerFx: $('centerFx'),
     feedbackStrip: $('feedbackStrip'),
     ticker: $('ticker'), raceChip: $('raceChip'),
@@ -101,10 +106,11 @@ export function createHud() {
     pauseStats: $('pauseStats'),
     mapScreen: $('mapScreen'), mapCanvas: $('mapCanvas'), mapBanner: $('mapBanner'),
     mapStats: $('mapStats'), mapLedger: $('mapLedger'), mapQuote: $('mapQuote'), mapChapters: $('mapChapters'),
-    mapStandings: $('mapStandings'),
+    mapStandings: $('mapStandings'), mapCounts: $('mapCounts'), mapTabs: $('mapTabs'),
     rankChip: $('rankChip'), progressChapter: $('progressChapter'),
     xpLevel: $('xpLevel'), xpFill: $('xpFill'), xpText: $('xpText'),
-    collectRow: $('collectRow'),
+    // R19 take-2 fix #5: collectRow is CUT (see index.html) — the
+    // WAYANG/KASET HUD line is gone; no element, no update.
     raceResults: $('raceResults'), resultsRows: $('resultsRows'), resultsFoot: $('resultsFoot'), resultsMeta: $('resultsMeta'),
     bigSpeedNum: $('bigSpeedNum'), bigSpeedCar: $('bigSpeedCar'), bigSpeedCondFill: $('bigSpeedCondFill'),
     bigSpeedGear: $('bigSpeedGear'),
@@ -139,14 +145,28 @@ export function createHud() {
       if (now - feedItems[i].at >= 10000) feedItems.splice(i, 1);
     }
     const live = feedItems.filter((f) => now - f.at < 10000);
-    // The nitro chip is live state, rendered by update() every frame —
-    // it is not an event, so it never lives in feedItems.
-    const chips = live.map((f) => {
+    // R19 (H5) — popups capped at 2 visible, one line each: at most 2
+    // event chips, and the live nitro chip only when a slot is free
+    // (2 event chips already live => nitro waits).
+    const shown = live.slice(0, 2);
+    const chips = shown.map((f) => {
       const fresh = now - f.pulse < 900 ? ' fresh' : '';
       return `<span class="fchip fchip-${f.kind}${fresh}"><b>${f.main}</b>${f.sub ? `<em>${f.sub}</em>` : ''}</span>`;
     }).join('');
-    const nitro = els.feedbackStrip.dataset.nitro || '';
+    const nitro = shown.length < 2 ? (els.feedbackStrip.dataset.nitro || '') : '';
     els.feedbackStrip.innerHTML = chips + nitro;
+  }
+  // R19 take 2 — clearFeed: wipe the strip. The heat profile's collect
+  // loop teleports the player across the map, and a world ammo crate on
+  // that path fires a real AMUNISI feed item — but the profile then
+  // stages shells back to 24, so the chip advertises +12 the player
+  // never kept (first shoot: ghost chip, and it pushed the real
+  // NEAR MISS chip out of the 2-chip cap). The crate pickup is a
+  // staging artifact, not gameplay, so the strip is cleared after the
+  // loop and the chase's real drift/near-miss feed the strip fresh.
+  function clearFeed() {
+    feedItems.length = 0;
+    renderFeedStrip();
   }
   const popups = createPopups(els.popups, els.centerFx, els.worldLabels, stuntFeed);
   let billTimer = 0;
@@ -518,9 +538,10 @@ export function createHud() {
         ? `XP ${Math.round(S.rep)}/${REP_STEPS[rp.level]}`
         : `XP ${Math.round(S.rep)} · LEVEL MAKSIMAL`;
     }
-    if (els.collectRow && G.collectibles) {
-      els.collectRow.textContent = `◆ WAYANG ${G.collectibles.idolsCollected}/${G.collectibles.idolsTotal} · KASET ${G.collectibles.tapesCollected}/${G.collectibles.tapesTotal}`;
-    }
+    // R19 take-2 fix #5: the WAYANG/KASET HUD lockup line is CUT
+    // (coordinator) — WAYANG/KASET live only as pictorial props; the
+    // named proof rides the foot frame's collect popups + the map
+    // stats line. No collectRow element, no update here.
     // RESPECT bar + next unlock: the labeled rank ladder (KUTIL -> BOS
     // KECIL -> RAJA JALANAN -> LEGENDA BENTARA), progress to the next
     // rank, and the unlock that rank opens.
@@ -555,6 +576,9 @@ export function createHud() {
     // the chapter is the act of the current mission, the rank chip is the
     // same economySnapshot the card reads — one source for both.
     if (els.progressChapter) els.progressChapter.textContent = actNameForMission(G.missions.done ? 7 : G.missions.index);
+    // R19 (H1) — the chapter line lives on the mission card itself
+    // (the separate BABAK card is cut): "BABAK 3 — MUSIM KERING".
+    if (els.missionChapter) els.missionChapter.textContent = actNameForMission(G.missions.done ? 7 : G.missions.index);
     if (els.rankChip) els.rankChip.textContent = econ.rank.title;
     // Cash, stars, clock, "DI PANDANG", bill pill.
     els.cashText.textContent = `$${Math.round(S.cash).toLocaleString('en-US')}`;
@@ -599,26 +623,27 @@ export function createHud() {
       els.billPill.style.display = total > 0 ? 'block' : 'none';
       if (total > 0) els.billPill.textContent = `TAGIHAN −$${total}`;
     }
-    // Police response list: header + max 4 rows + "+N unit lagi". The
-    // table's columns are callsign | type | distance | VERB (the study's
-    // format). Recording 17 — capped at 4 (was 5): the 5th row pushed
-    // the panel past ~160 px and into the minimap; 4 rows + the "+N"
-    // line still proves the response chain, and the header keeps the
-    // true unit count. The roadblock (BLOKADE) is a static barricade, not a
-    // responding unit — it stays in the world and on the minimap, but
-    // the table counts the responders only (3 cruisers + heli = 4 UNIT
-    // at heat 4), so the header reads the study's "RESPON POLISI — 4 UNIT".
+    // Police response list (R19 H5/D5): header + max 5 rows + "+N unit
+    // lagi", merged into the mission card's lower half. Columns:
+    // callsign | type | distance | TACTIC. The roadblock (BLOKADE)
+    // counts as a unit now (BOX IN) — 3 cruisers + heli + blokade =
+    // 5 UNIT at heat 4. Rows are ordered heli first, then cruisers,
+    // then the roadblock, then foot cops, so the 5 shown are always
+    // GARUDA-1 + the 3 cruisers + BLOKADE.
     const units = G.policeUnits();
-    const tableUnits = units.filter((u) => u.status !== 'ROADBLOCK');
+    const tableUnits = units.slice().sort((a, b) => {
+      const rank = (u) => (u.status === 'SPOTLIGHT' ? 0 : u.type === 'CRUISER' ? 1 : u.type === 'BLOKADE' ? 2 : 3);
+      return rank(a) - rank(b);
+    });
     if (S.heat >= 1 && tableUnits.length > 0) {
       els.policeBox.style.display = 'block';
       els.policeHead.textContent = `RESPON POLISI — ${tableUnits.length} UNIT · KODE ${Math.floor(S.heat)}`;
-      const shown = tableUnits.slice(0, 4);
+      const shown = tableUnits.slice(0, 5);
       let html = shown.map((u) => {
         const pill = STATUS_PILL[u.status] || [u.status, 'pill-cari'];
         return `<div class="unit"><b>${u.name}</b><span class="type">${u.type || ''}</span><span>${u.dist} m</span><span class="pill ${pill[1]}">${pill[0]}</span></div>`;
       }).join('');
-      if (tableUnits.length > 4) html += `<div class="more">+${tableUnits.length - 4} unit lagi</div>`;
+      if (tableUnits.length > 5) html += `<div class="more">+${tableUnits.length - 5} unit lagi</div>`;
       els.policeRows.innerHTML = html;
     } else {
       els.policeBox.style.display = 'none';
@@ -860,19 +885,24 @@ export function createHud() {
   // who: "PAK ASKA · PENERIMA MARINA" — the name goes bold, the role
   // becomes a teal chip, the line clamps to 2 lines and shrinks to fit
   // inside the 24 px safe margins. No cut text, ever.
-  function dialogue(who, line, portraitKey = 'wira', seconds = 6) {
+  // R19 (D3) — choices: an optional array of { text, selected, onPick }
+  // from the dialogue graph runner, rendered as chips under the line.
+  // The first choice is preselected visually; a click calls onPick and
+  // advances the graph (live play). The police radio stays the
+  // separate #ticker — never the dialogue box.
+  function dialogue(who, line, portraitKey = 'wira', seconds = 6, choices = null) {
     if (els.portraitCanvas && CHARACTERS[portraitKey]) {
       drawPortrait(els.portraitCanvas, portraitKey);
     } else if (els.portraitCanvas) {
       const g = els.portraitCanvas.getContext('2d');
-      g.clearRect(0, 0, 64, 64);
+      g.clearRect(0, 0, 96, 96);
       g.fillStyle = '#7a5c2e';
-      g.beginPath(); g.arc(32, 32, 32, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(48, 48, 48, 0, Math.PI * 2); g.fill();
       g.fillStyle = '#fff';
-      g.font = 'bold 20px system-ui, sans-serif';
+      g.font = 'bold 30px system-ui, sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      g.fillText(String(portraitKey).slice(0, 2), 32, 34);
+      g.fillText(String(portraitKey).slice(0, 2), 48, 51);
     }
     const parts = String(who).split('·');
     els.dialogueName.textContent = (parts[0] || who).trim();
@@ -881,6 +911,19 @@ export function createHud() {
     els.dialogueLine.textContent = line;
     // Auto-fit: a long line shrinks instead of overflowing the panel.
     els.dialogueLine.style.fontSize = line.length > 110 ? '12px' : line.length > 80 ? '13px' : '14px';
+    if (els.dialogueChoices) {
+      els.dialogueChoices.innerHTML = '';
+      if (choices && choices.length > 0) {
+        for (const c of choices) {
+          const b = document.createElement('button');
+          b.className = 'dchoice' + (c.selected ? ' selected' : '');
+          b.type = 'button';
+          b.textContent = c.text;
+          if (c.onPick) b.addEventListener('click', () => c.onPick());
+          els.dialogueChoices.appendChild(b);
+        }
+      }
+    }
     els.dialogue.style.display = 'flex';
     dialogueTimer = seconds;
   }
@@ -1021,11 +1064,32 @@ export function createHud() {
     const raceLine = G.race
       ? `<br>BALAPAN <b>${G.race.runs} kali</b> · TERBAIK <b>${G.race.best !== null ? `${G.race.best.toFixed(1)} dtk` : '—'}</b> · ${day16.text}`
       : '';
+    // R19 take-2 fix #13 (coordinator) — the counts BAND: FOUR real
+    // numbers in huge type (130 px, full-width band in index.html),
+    // not six small ones in the side panel. MISI = 8 missions;
+    // KENDARAAN = garage catalog (5) + starter CEMPAKA GT; SENJATA = 5
+    // weapon slots; DISTRIK = 3 acts. AKTIVITAS + RADIO drop from the
+    // counts (AKTIVITAS lives on in the stats' activities line) —
+    // fewer counts, much larger type, so at least 3 numbers read
+    // individually at 256 px sheet scale.
+    if (els.mapCounts) {
+      const cars = G.garage ? G.garage.catalog().length + 1 : 6;
+      const counts = [
+        ['MISI', MISSIONS.length],
+        ['KENDARAAN', cars],
+        ['SENJATA', WEAPON_SLOTS.length],
+        ['DISTRIK', 3],
+      ];
+      els.mapCounts.innerHTML = counts.map(([label, n]) => `<div class="mcount"><b>${n}</b><span>${label}</span></div>`).join('');
+    }
+    const garageLine = G.garage
+      ? `<br>GARASI <b>${['CEMPAKA GT', ...G.garage.ownedList().map((c) => c.name)].join(' · ')}</b>`
+      : '';
     els.mapStats.innerHTML = `<div class="mapBigPct">KEMAJUAN ${comp.pct}%</div>`
       + `LEVEL <b>${rp16.level} · ${rp16.title}</b> · XP <b>${Math.round(G.state.rep)}${rp16.need ? `/${REP_STEPS[rp16.level]}` : ' MAKS'}</b><br>`
-      + `MISI <b>8/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
+      + `MISI <b>${G.missions.done ? 8 : G.missions.index}/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
       + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${coll} · ${assets}<br>`
-      + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>${faresLine}${raceLine}`
+      + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>${faresLine}${raceLine}${garageLine}`
       + `<br>${missionChainHtml(G)}`
       + (activitiesHtml(G) ? `<br>${activitiesHtml(G)}` : '');
     if (els.mapStandings) {
@@ -1294,6 +1358,7 @@ export function createHud() {
   return {
     update, toast, xpTick, dialogue, prompt, announce, showScreen, hideScreen,
     popups, els, stinger, ticker, ledger, setCaptureMode, hideDialogue,
+    clearFeed,
     showGarage, showUsaha, showWeaponShop, closeShop, isShopOpen,
     setHudProfile, showMapScreen, hideMapScreen, showTitleCard, hideTitleCard,
     showRaceResults, hideRaceResults,
