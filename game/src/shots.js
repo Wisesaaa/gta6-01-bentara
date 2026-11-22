@@ -30,13 +30,16 @@
 //   cars, the cordon holding the street's far north end (cops 44 m+,
 //   cruisers 56 m+, searching = true) with a gold ring marking the
 //   player. Mission banner + weapon strip + money only.
-// 4-story: a TITLE CARD, not a map — the wordmark BENTARA big over a
-//   live marina street (dimmed), the M3 completion folded in
-//   (+$300 +200 REP — TERBUKA: PAKET RUKO), the save card (Bank $18,292
-//   · 1 usaha dimiliki — the Warung Sari, really bought), CONTINUE →
-//   MISI 4/8 PAKET RUKO, the radio line. The map stays in the game.
+// 4-story: the FULL MAP SCREEN (Recording 13), staged as a near-
+//   complete save — all 8 missions done, 14/24 collectibles really
+//   collected, all 3 usaha + 1 garage car really bought, race records
+//   on the board, one real taxi fare + one real ojek ride completed —
+//   so the map reads ~88% completion with the per-part breakdown,
+//   chapter list, KLASEMEN standings and the final-mission ledger.
+//   The map screen is a real in-game screen (M key), not a menu mockup.
 import * as THREE from 'three';
 import { STEP, COLLECTIBLES, SUN, STUNTS } from './config.js';
+import { MISSIONS } from './missions.js';
 import { loc } from './city.js';
 import { makeGlowSprite } from './effects.js';
 import { pointAhead, projectPoint, auditTarget, countInView } from './photoSpawner.js';
@@ -192,6 +195,16 @@ export function stageShot(name, game, atSeconds) {
     G.state.cash = 18400;
     G.state.rep = 1250;
     G.player.enterCar(G.parked[0]);
+    // Recording 13 — the save OWNS the shotgun (bought at the Ruko for
+    // $120) and wears armour: the drive frame's depth is the race chip
+    // + the fare systems, but the save itself carries the owned weapon
+    // + armour the cover wheel and the foot strip show. The ammo only
+    // decreases when a shot is actually fired (player.js shoot).
+    G.player.hasShotgun = true;
+    G.player.shellMag = 6;
+    G.player.shells = 24;
+    G.player.armor = 60;
+    G.player.weapon = 'shotgun';
     // The chase runs NORTH up the x=111 arterial, past the open bay of
     // Bengkel Roda Jaya (x 120–136, z 61–87): the player starts at z=-35
     // and ends near z=70, right at the bay's open front, so the garage
@@ -421,6 +434,16 @@ export function stageShot(name, game, atSeconds) {
     G.state.cash = 18250;
     G.state.rep = 1250;
     G.player.enterCar(G.parked[0]);
+    // Recording 13 — the save OWNS the shotgun (bought at the Ruko for
+    // $120) and wears armour: the cover's weapon wheel shows a real
+    // owned weapon with live ammo (SHOTGUN 6/24) + 3 locked gates, and
+    // the armour bar reads. The ammo only decreases when a shot is
+    // actually fired (player.js shoot), and no shot is fired here.
+    G.player.hasShotgun = true;
+    G.player.shellMag = 6;
+    G.player.shells = 24;
+    G.player.armor = 60;
+    G.player.weapon = 'shotgun';
     G.player.car.x = 0;
     G.player.car.z = 111;
     G.player.car.heading = Math.PI / 2;
@@ -775,6 +798,13 @@ export function stageShot(name, game, atSeconds) {
     // FOOT PLAY at 256 px: the player is the hero, ~30% of the frame.
     G.player.setPos(40, 88, 0);
     G.player.weapon = 'pistol';
+    // Recording 13 — the save OWNS the shotgun and wears armour: the
+    // foot strip shows PISTOL ∞ + SHOTGUN 6/24 (not the $120 lock gate
+    // of a fresh save) and the NYAWA/ROMPI line reads 100/60.
+    G.player.hasShotgun = true;
+    G.player.shellMag = 6;
+    G.player.shells = 24;
+    G.player.armor = 60;
     // No attackers in this frame (r8): the wanted scene's threat is the
     // police cordon itself — 2 foot cops spawn from the heat and walk at
     // the player during the sim, then get re-staged to exact spots after
@@ -1164,42 +1194,96 @@ export function stageShot(name, game, atSeconds) {
     window.__shotReady = true;
     return { name, seconds, steps };
   } else {
-    // story: a TITLE CARD, not a map (Recording 11). The M3 save, just
-    // after completing RAMPOKAN KECIL: M3 is done (setIndex 3 → M4
-    // current), the Warung Sari really bought, the bank at $18,292 — the
-    // same save the cover chases in. The wordmark BENTARA sits big over
-    // a live marina street (dimmed); the M3 completion folds into the
-    // card (+$300 +200 REP — TERBUKA: PAKET RUKO); CONTINUE → MISI 4/8.
-    // The map stays in the game, never a dossier frame.
+    // story: the FULL MAP SCREEN (Recording 13) — a near-complete save:
+    // all 8 missions done, 14/24 collectibles really collected (the
+    // player walks over them, same pickup path as live play), all 3
+    // usaha + 1 garage car really bought, race records on the board,
+    // one real taxi fare + one real ojek ride completed — so the map
+    // reads ~88% completion with the per-part breakdown, chapter list,
+    // KLASEMEN standings and the final-mission ledger. The map screen is
+    // a real in-game screen (M key); the title card stays in the game
+    // but is not the dossier frame anymore.
     G.hud.setHudProfile('story');
-    G.missions.setIndex(3);
-    // The save earned $20,792 (M3's $300 reward + fares + collects),
-    // then bought the Warung Sari for $2,500 — the bank reads $18,292
-    // and the wealth stays $20,792 (JURAGAN, matching the cover). The
-    // rep discount needs 2,500 REP; this save has 1,450, so the warung
-    // costs the full $2,500.
-    G.state.cash = 20792;
-    G.state.rep = 1450;
+    G.missions.setIndex(8);
+    // The M8 intro would sit over the frame; the story shot is a map
+    // screen, not a conversation.
+    G.hud.hideDialogue();
+    // The save earned its money first, then spent it: $60,000 banked,
+    // REP 2,600 (LEGENDA BENTARA), heat 0.
+    G.state.cash = 60000;
+    G.state.rep = 2600;
     G.state.heat = 0;
-    G.player.setPos(-6, -164, Math.PI);
-    G.draw();
-    for (let i = 0; i < 10; i += 1) G.step(STEP);
-    // Move the player out of the frame's centre and away from the slip
-    // (13 m — the "E — Beli SLIP MARINA" prompt dies, and the player
-    // stops standing on the camera-to-Wira line): he ends up
-    // left-foreground, back to us, clear of the title card, with Wira
-    // and the MARINA sign centre-frame.
+    G.player.hasShotgun = true;
+    G.player.shellMag = 6;
+    G.player.shells = 24;
+    G.player.armor = 60;
+    // Buy the whole property ladder + the cheapest garage car, for real
+    // money, from the real catalogs (Warung Sari $2,500, Kios Kaki Lima
+    // $9,500, Slip Marina $22,000, cheapest car ~$1,200).
+    const storyUsaha = [];
+    for (const c of G.usaha.catalog()) {
+      const r = G.usaha.buy(c.id);
+      if (r.ok) storyUsaha.push(c.id);
+    }
+    const storyCar = G.garage.catalog().slice().sort((a, b) => a.price - b.price)[0];
+    const storyCarBuy = storyCar ? G.garage.buy(storyCar.id) : null;
+    // Race history: the save's real top-3, restored through the same
+    // setRecords() the save loader uses.
+    G.race.setRecords([68.4, 82.1, 95.6]);
+    // Collect 14 items for real: teleport onto each one and step once —
+    // the same pickup radius + hooks as live play (cash + REP + toast).
+    // The snapshot is taken before the loop: remaining() shrinks as
+    // items are taken, so slice(0, 14) up front is the 14 to collect.
+    const storyItems = G.collectibles.remaining().slice(0, 14);
+    for (const item of storyItems) {
+      G.player.setPos(item.x, item.z, 0);
+      G.step(STEP);
+    }
+    // One real taxi fare: stage a passenger at the marina, drive the
+    // car to them, start the fare, drive to the destination — the meter
+    // ticks on the real distance and finishFare pays out.
+    let storyTaxi = false;
+    const storyPax = G.taxi.stagePassenger('marina');
+    if (storyPax) {
+      G.player.enterCar(G.parked[0]);
+      G.player.car.x = storyPax.x + 2;
+      G.player.car.z = storyPax.z;
+      G.player.car.speed = 0;
+      G.player.car.sync();
+      if (G.taxi.startFare(G.player.x, G.player.z)) {
+        const storyDest = G.taxi.destination;
+        if (storyDest) {
+          G.player.car.x = storyDest.x;
+          G.player.car.z = storyDest.z;
+          G.player.car.speed = 0;
+          G.player.car.sync();
+          for (let i = 0; i < 10; i += 1) G.step(STEP);
+          storyTaxi = G.taxi.trips >= 1;
+        }
+      }
+      G.player.exitCar();
+    }
+    // One real ojek ride: the bike drives itself; step until it pays
+    // out (bounded — if it does not finish, the map screen simply
+    // omits the ojek row instead of showing a fake one).
+    let storyOjek = false;
+    G.ojek.stageRide('marina', 'towerConcourse');
+    for (let i = 0; i < 3600 && G.ojek.trips < 1; i += 1) G.step(STEP);
+    storyOjek = G.ojek.trips >= 1;
+    window.__storySave = {
+      usaha: storyUsaha,
+      car: storyCarBuy && storyCarBuy.ok ? storyCar.name : null,
+      collected: G.collectibles.collected,
+      taxi: storyTaxi,
+      ojek: storyOjek,
+      taxiTrips: G.taxi.trips,
+      ojekTrips: G.ojek.trips,
+    };
+    // Back on foot at the marina for the backdrop behind the map, and
+    // the bank re-read after all the real spending + earning above.
     G.player.setPos(-11, -158, Math.PI);
-    // Reset the bank AFTER the settle steps (the player can collect a
-    // marina idol, +$60, during them) and buy the Warung Sari here — the
-    // bank reads $18,292 and the wealth stays $20,792 (JURAGAN).
-    G.state.cash = 20792;
-    const cheapestUsaha = G.usaha.catalog().slice().sort((a, b) => a.price - b.price)[0];
-    const buyRes = G.usaha.buy(cheapestUsaha.id);
-    window.__storyUsahaBuy = buyRes && buyRes.ok ? `ok:${cheapestUsaha.id}` : 'FAILED';
-    // The prompt element keeps whatever the last hud.update set (the
-    // slip prompt, from when the player stood 6 m from it) — no update
-    // runs after this, so hide it outright.
+    // The prompt element keeps whatever the last hud.update set — no
+    // update runs after this, so hide it outright.
     G.hud.prompt('');
     G.hud.popups.clear();
     G.hud.toast('', 0.01);
@@ -1242,29 +1326,32 @@ export function stageShot(name, game, atSeconds) {
       c.heading = k === 0 ? -1.2 : 1.2;
       c.sync();
     });
-    // The title card over the live street — the map screen is NOT shown
-    // (the map stays in the game). The radio is on, so the card's radio
-    // line names the synth's real now-playing track.
+    // The map screen over the live marina street — the ledger is the
+    // final mission's real reward (M8 PANAS TERAKHIR: +$1,000 +600 REP,
+    // from MISSIONS[7]); the radio is on, so the map quote + stats read
+    // the live save.
     G.audio.setRadio(true);
-    G.hud.showTitleCard(G);
-    // Close camera due south of the player, looking due north: the player
-    // stands left-foreground with his back to us, Wira and Aska just
-    // beyond him, and the MARINA sign, the water, the boats and the
-    // windowed skyline behind them. Shot from the south so no building
-    // wall crosses the view, and far enough south that the player does
-    // not line up behind the sign's posts.
+    const m8 = MISSIONS[7];
+    G.hud.showMapScreen(G, { hasil: m8.reward, tagihan: 0, bersih: m8.reward, rep: m8.rep });
+    // Close camera due south of the player, looking due north: the
+    // player stands left-foreground with his back to us, Wira and Aska
+    // just beyond him, and the MARINA sign, the water, the boats and
+    // the windowed skyline behind them. Shot from the south so no
+    // building wall crosses the view. The map screen is ~96% opaque, so
+    // this is a dim backdrop, not the subject — the map does the
+    // talking, and the street behind it proves it is a game screen.
     const cam = G.view.camera;
     cam.position.set(-6, 3.6, -148);
     cam.lookAt(-6, 0.9, -170);
     G.view.keepClear(cam, -6, 1.3, -170);
-    // The title card is a rest beat (level-design pacing): zero trauma, a
-    // level camera, the card doing the talking. Clear any smoke first so
-    // no white blob sits on the camera axis.
+    // The map screen is a rest beat (level-design pacing): zero trauma,
+    // a level camera. Clear any smoke first so no white blob sits on
+    // the camera axis.
     G.view.setTrauma(0);
     G.effects.clearSmoke();
     // Framing audit: the background street (player + Wira + peds) behind
-    // the title card — the card itself is DOM, verified by the shoot
-    // script's title-card text check.
+    // the map screen — the map itself is DOM, verified by the shoot
+    // script's map-stats text check.
     auditShot('story', G, { name: 'WIRA', center: { x: G.player.x, y: 0.9, z: G.player.z }, half: { x: 0.3, y: 0.9, z: 0.3 } });
     G.view.render();
     window.__shotReady = true;

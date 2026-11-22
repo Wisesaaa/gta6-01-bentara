@@ -395,16 +395,18 @@ export function createHud() {
       ? 'BENTARA MILIKMU'
       : `${G.missions.objectiveText()} · ${missionDistance(G)} m`;
     // Race chip: only while a checkpoint race is running — gate count +
-    // live timer + par on line one, and the KLASEMEN standings board on
-    // line two (top-3 lap times, best first, from the real records) —
-    // the standings read DURING the race, not only in pause.
+    // live timer + par + the payout on line one, and the KLASEMEN
+    // standings board on line two (top-3 lap times, best first, from
+    // the real records) — the standings read DURING the race, not only
+    // in pause. The payout is the real one: $500, doubled to $1,000
+    // when the par is beaten (race.js finishRace).
     if (G.race && G.race.active && G.race.nextGate) {
       els.raceChip.style.display = 'block';
       const records = G.race.records || [];
       const standings = records.length
         ? `<b>KLASEMEN:</b> ${records.map((t, i) => `${i + 1}. ${t.toFixed(1)}`).join(' · ')} dtk`
         : `<b>KLASEMEN:</b> belum ada catatan — kalahkan PAR ${RACE.parSeconds} dtk`;
-      els.raceChip.innerHTML = `BALAPAN · GATE ${G.race.gateIndex + 1}/${G.race.gateCount} · ${G.race.timer.toFixed(1)} dtk · PAR ${RACE.parSeconds} dtk<br><span class="standings">${standings}</span>`;
+      els.raceChip.innerHTML = `BALAPAN · GATE ${G.race.gateIndex + 1}/${G.race.gateCount} · ${G.race.timer.toFixed(1)} dtk · PAR ${RACE.parSeconds} dtk · HADIAH $${(RACE.reward * 2).toLocaleString('en-US')}<br><span class="standings">${standings}</span>`;
     } else {
       els.raceChip.style.display = 'none';
     }
@@ -591,7 +593,10 @@ export function createHud() {
       const angle = -90 + i * 72;
       const cls = `wslot${P.weapon === id ? ' active' : ''}${owned ? '' : ' locked'}`;
       if (!owned) {
-        const gate = w.repNeeded ? `REP ${w.repNeeded}` : `$${w.price}`;
+        // The gate is what is STILL missing: a REP gate the player has
+        // already passed reads as the price (Recording 13 — a "REP 3"
+        // pad on a REP 3 save would read as still locked).
+        const gate = (w.repNeeded && repLevel(S.rep) < w.repNeeded) ? `REP ${w.repNeeded}` : `$${w.price}`;
         return `<span class="${cls}" style="--a:${angle}deg"><b>${i + 1}</b><i>${w.name}</i><em>🔒 ${gate}</em></span>`;
       }
       const ammo = id === 'pistol' ? '∞' : `${P[MAG_KEY[id]] ?? 0}/${P[w.reserveField] ?? 0}`;
@@ -605,18 +610,22 @@ export function createHud() {
     // if the next slot is not owned yet. The foot frame's 2-weapon read,
     // not the full radial wheel (the wheel stays in live play). With only
     // the pistol owned, the second icon is the shotgun's 🔒 $120 gate —
-    // the rack's real state, not a duplicated pistol.
+    // the rack's real state, not a duplicated pistol. Recording 13: a
+    // third chip carries the live health + armour (NYAWA / ROMPI) — the
+    // foot frame's combat proof, from the same live state as the gauge.
     if (els.weaponStrip) {
       const curIdx = Math.max(0, WEAPON_SLOTS.indexOf(P.weapon));
       const nextId = WEAPON_SLOTS[(curIdx + 1) % WEAPON_SLOTS.length];
       const nextW = WEAPONS[nextId];
       const nextOwned = nextId === 'pistol' || (HAS_KEY[nextId] && P[HAS_KEY[nextId]]);
       const ammoFor = (id) => (id === 'pistol' ? '∞' : `${P[MAG_KEY[id]] ?? 0}/${P[WEAPONS[id].reserveField] ?? 0}`);
+      const nextGate = (nextW.repNeeded && repLevel(S.rep) < nextW.repNeeded) ? `REP ${nextW.repNeeded}` : `$${nextW.price}`;
       const nextHtml = nextOwned
         ? `<span class="wstrip-next"><b>${nextW.name}</b><em>${ammoFor(nextId)}</em></span>`
-        : `<span class="wstrip-next locked"><b>${nextW.name}</b><em>🔒 ${nextW.repNeeded ? `REP ${nextW.repNeeded}` : `$${nextW.price}`}</em></span>`;
+        : `<span class="wstrip-next locked"><b>${nextW.name}</b><em>🔒 ${nextGate}</em></span>`;
       els.weaponStrip.innerHTML = `<span class="wstrip-cur"><b>${(WEAPONS[P.weapon] || WEAPONS.pistol).name}</b><em>${ammoFor(P.weapon)}</em></span>`
-        + nextHtml;
+        + nextHtml
+        + `<span class="wstrip-vital"><b>NYAWA ${Math.round(P.health)}</b><em>ROMPI ${Math.round(P.armor)}</em></span>`;
     }
     // Progress rail (right edge): owned cars, current one highlighted.
     if (G.garage) {
@@ -774,9 +783,21 @@ export function createHud() {
     const comp = completionPercent(completionSnapshot(G));
     const econ = economySnapshot(G);
     const assets = G.usaha ? G.usaha.assetChip() : 'ASET 0/3';
+    // Fares row (Recording 13, advisor): the taxi + ojek trips the save
+    // really ran, with what they paid — the side-work evidence on the
+    // map screen, so the drive frame does not need two live meters at
+    // once. Shown only when at least one fare exists; a fresh save
+    // shows no row rather than a "0 trip" line.
+    const taxiTrips = G.taxi ? G.taxi.trips : 0;
+    const taxiEarned = G.taxi ? Math.round(G.taxi.earned || 0) : 0;
+    const ojekTrips = G.ojek ? G.ojek.trips : 0;
+    const ojekEarned = G.ojek ? Math.round(G.ojek.earned || 0) : 0;
+    const faresLine = (taxiTrips > 0 || ojekTrips > 0)
+      ? `<br>TAKSI <b>${taxiTrips} trip · $${taxiEarned.toLocaleString('en-US')}</b> · OJEK <b>${ojekTrips} trip · Rp ${ojekEarned.toLocaleString('id-ID')}</b>`
+      : '';
     els.mapStats.innerHTML = `MISI <b>8/8</b> · REP <b>${Math.round(G.state.rep).toLocaleString('en-US')}</b> · KAS <b>$${Math.round(G.state.cash).toLocaleString('en-US')}</b><br>`
       + `KOLEKSI <b>${G.collectibles ? G.collectibles.collected : 0}/${G.collectibles ? G.collectibles.total : 24}</b> · ${assets} · KEMAJUAN <b>${comp.pct}%</b><br>`
-      + `<span style="font-size:13px;opacity:.85">Misi ${comp.parts.missions}% · Koleksi ${comp.parts.collectibles}% · Aset ${comp.parts.assets}% · Balapan ${comp.parts.race}%</span><br>`
+      + `<span style="font-size:13px;opacity:.85">Misi ${comp.parts.missions}% · Koleksi ${comp.parts.collectibles}% · Aset ${comp.parts.assets}% · Balapan ${comp.parts.race}%</span>${faresLine}<br>`
       + `RANK EKONOMI <b>${econ.rank.title}</b> · KEKAYAAN <b>$${econ.wealth.toLocaleString('en-US')}</b>`;
     if (els.mapStandings) {
       const records = G.race && G.race.records ? G.race.records : [];
